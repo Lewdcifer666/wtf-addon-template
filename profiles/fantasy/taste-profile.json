@@ -781,7 +781,7 @@
   },
   "baseline_evidence": {
     "schema_version": 1,
-    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring, with no bonus for appearing here.",
+    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring, with no bonus for appearing here. WATCHED STATUS IS NEVER INFERRED: it requires explicit user confirmation that the title was actually watched, recorded in watched_confirmation. Trailers, clips, snippets, partial exposure, franchise familiarity and use as a structural taste anchor are NOT watching, and uncertainty resolves to unwatched.",
     "evidence_weights": {
       "watched_favorite": {
         "direction": "positive",
@@ -832,7 +832,8 @@
           "large cast, serious tone",
           "visually impressive",
           "violence and consequence"
-        ]
+        ],
+        "watched_confirmation": "The source baseline lists Game of Thrones under 'Strong watched anchors' and describes it as an all-time favorite. Watched status is stated directly about this single title, not inferred from a franchise or from its use as a taste anchor."
       },
       {
         "title": "The Witcher",
@@ -853,7 +854,8 @@
           "action",
           "visually rich world",
           "supernatural mysteries"
-        ]
+        ],
+        "watched_confirmation": "The source baseline lists The Witcher under 'Strong watched anchors' and describes it as another all-time favorite. Watched status is stated directly about this single title."
       },
       {
         "title": "The Lord of the Rings trilogy",
@@ -888,63 +890,26 @@
           "large-scale conflict",
           "visually impressive environments",
           "adventure and action"
-        ]
+        ],
+        "watched_confirmation": "The source baseline lists 'The Lord of the Rings trilogy' under 'Strong watched anchors'. The word TRILOGY is the user's own enumeration and bounds the claim to exactly the three theatrical films listed here - no Hobbit film, extended-universe entry or later series is covered by it."
       },
       {
         "title": "Harry Potter",
         "type": "movie",
-        "scope": "franchise",
-        "evidence_type": "watched",
-        "evidence_class": "watched_mixed",
-        "reaction": "mixed",
-        "recommendable": false,
-        "franchise_members": [
-          {
-            "title": "Harry Potter and the Sorcerer's Stone",
-            "year": 2001,
-            "imdb_id": "tt0241527"
-          },
-          {
-            "title": "Harry Potter and the Chamber of Secrets",
-            "year": 2002,
-            "imdb_id": "tt0295297"
-          },
-          {
-            "title": "Harry Potter and the Prisoner of Azkaban",
-            "year": 2004,
-            "imdb_id": "tt0304141"
-          },
-          {
-            "title": "Harry Potter and the Goblet of Fire",
-            "year": 2005,
-            "imdb_id": "tt0330373"
-          },
-          {
-            "title": "Harry Potter and the Order of the Phoenix",
-            "year": 2007,
-            "imdb_id": "tt0373889"
-          },
-          {
-            "title": "Harry Potter and the Half-Blood Prince",
-            "year": 2009,
-            "imdb_id": "tt0417741"
-          },
-          {
-            "title": "Harry Potter and the Deathly Hallows: Part 1",
-            "year": 2010,
-            "imdb_id": "tt0926084"
-          },
-          {
-            "title": "Harry Potter and the Deathly Hallows: Part 2",
-            "year": 2011,
-            "imdb_id": "tt1201607"
-          }
-        ],
+        "year": 2001,
+        "imdb_id": "tt0241527",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
         "notes": [
-          "meh - watched but not a positive anchor",
-          "magic school material is NOT blacklisted; this is a weak signal, not an anti-magic rule",
-          "franchise-level impression: the baseline gave no per-film detail, so all eight main-series films are enumerated as watched",
-          "the mixed class contributes zero direction on its own"
+          "the source baseline described the franchise as 'meh' - a weak, non-directional signal",
+          "magic-school material is explicitly NOT blacklisted; this was never an anti-magic rule",
+          "NO INDIVIDUAL FILM WAS EVER CONFIRMED AS WATCHED - the previous entry enumerated all eight main-series films, and that member list was an inference rather than something the user stated",
+          "under the MG-4.1 explicit-watch rule the inference is withdrawn, so all eight films stay discoverable and will be judged on their own DNA like any other candidate",
+          "this entry is anchored to the first film only so it has a computable identity; it excludes nothing",
+          "the 'meh' reaction is already encoded in the authored weights and guardrails, so withdrawing the exclusion loses no design signal"
         ]
       },
       {

@@ -795,7 +795,7 @@
   },
   "baseline_evidence": {
     "schema_version": 1,
-    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring, with no bonus for appearing here.",
+    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring, with no bonus for appearing here. WATCHED STATUS IS NEVER INFERRED: it requires explicit user confirmation that the title was actually watched, recorded in watched_confirmation. Trailers, clips, snippets, partial exposure, franchise familiarity and use as a structural taste anchor are NOT watching, and uncertainty resolves to unwatched.",
     "evidence_weights": {
       "watched_favorite": {
         "direction": "positive",
@@ -896,45 +896,25 @@
           "action-compatible humour",
           "the actor affinity is drawn from this saga and is metadata, never DNA",
           "franchise-level impression: the ten main saga entries are enumerated as watched"
-        ]
+        ],
+        "watched_confirmation": "Explicitly confirmed by the user in the MG-4.1 review, which named Fast & Furious as a franchise the user described as an all-time favorite and an actual watched experience, and directed that it remain watched. The enumerated members are the ten main saga entries."
       },
       {
         "title": "John Wick",
         "type": "movie",
-        "scope": "franchise",
-        "evidence_type": "watched",
-        "evidence_class": "watched_love",
-        "reaction": "love",
-        "recommendable": false,
-        "franchise_members": [
-          {
-            "title": "John Wick",
-            "year": 2014,
-            "imdb_id": "tt2911666"
-          },
-          {
-            "title": "John Wick: Chapter 2",
-            "year": 2017,
-            "imdb_id": "tt4425200"
-          },
-          {
-            "title": "John Wick: Chapter 3 - Parabellum",
-            "year": 2019,
-            "imdb_id": "tt6146586"
-          },
-          {
-            "title": "John Wick: Chapter 4",
-            "year": 2023,
-            "imdb_id": "tt10366206"
-          }
-        ],
+        "year": 2014,
+        "imdb_id": "tt2911666",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
         "notes": [
-          "high action density",
-          "gunplay and close-quarters combat",
-          "stylish, legible action presentation",
-          "iconically competent protagonist",
-          "sustained momentum",
-          "franchise-level impression: the four main chapters are enumerated as watched"
+          "the combat and gunplay style is strongly appealing",
+          "the iconically competent protagonist is strongly appealing",
+          "ONLY SNIPPETS AND CLIPS HAVE BEEN SEEN - this is not a watched rating",
+          "the user stated in the MG-4.1 review that they have probably not watched any John Wick film in full",
+          "Chapters 2, 3 and 4 carry no evidence entry at all and are ordinary discoverable titles"
         ]
       },
       {
@@ -953,7 +933,8 @@
           "working out the rules is a real mechanic",
           "suspense and survival stakes",
           "strong high-concept hook"
-        ]
+        ],
+        "watched_confirmation": "Explicitly confirmed by the user in the MG-4.1 review as watched and loved."
       },
       {
         "title": "The Matrix",
@@ -961,14 +942,14 @@
         "year": 1999,
         "imdb_id": "tt0133093",
         "scope": "title",
-        "evidence_type": "watched",
-        "evidence_class": "watched_like",
-        "reaction": "like",
-        "recommendable": false,
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
         "notes": [
-          "action plus science fiction",
-          "reality mystery and a genuine high concept",
-          "unusual premise"
+          "action plus science fiction, with a reality mystery and a genuine high concept",
+          "the original baseline said 'liked based on past memory' - recollection, not confirmation",
+          "downgraded from watched under the MG-4.1 explicit-watch rule so it stays available to watch and rate"
         ]
       },
       {
@@ -977,15 +958,16 @@
         "year": 2019,
         "imdb_id": "tt1190634",
         "scope": "title",
-        "evidence_type": "watched",
-        "evidence_class": "watched_like",
-        "reaction": "like",
-        "recommendable": false,
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
         "notes": [
           "liked DESPITE the general dislike of superhero framing",
           "the exception rests on WTF comedy, brutality and unusual execution",
-          "this is an exception, NOT evidence that superhero content is wanted generally",
-          "seasons 1-2 approximately; later seasons are not claimed as watched, but a series carries one public identity so the whole series is excluded"
+          "this remains an exception, NOT evidence that superhero content is wanted generally",
+          "the original baseline said 'seasons 1-2 approximately' - partial exposure, not a watched series",
+          "downgraded from watched under the MG-4.1 explicit-watch rule: a series carries ONE public identity, so marking it watched would have banned the whole show from ever being recommended"
         ]
       },
       {
