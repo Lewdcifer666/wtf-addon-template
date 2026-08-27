@@ -1,0 +1,1239 @@
+{
+  "schema_version": 3,
+  "profile_name": "WTF Action / Sustained High-Density Action",
+  "mission": "Find action movies and series that actually contain action across their runtime. A title with three enormous sequences separated by ninety minutes of inactivity is not an Action recommendation however good its premise, its craft or its cast. Density comes first; the hooks - high concept, mystery, conspiracy, sci-fi and fantasy, deadly games - decide which kind of action it is.",
+  "automation_rules": {
+    "daily_movie_max": 5,
+    "daily_series_max": 3,
+    "minimum_match_score": 60,
+    "best_match_score": 70,
+    "zero_findings_is_valid": true,
+    "never_silently_delete_existing_watchlist_items": true,
+    "dedupe_primary_key": "imdb_id",
+    "dedupe_fallback": "normalized title + year + type",
+    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours. Bootstrap items carry added_by=bootstrap and therefore never appear in this row.",
+    "match_score_definition": "match_score IS the deterministic baseline DNA score for this title: the dna-match row score, post-archetype-bonus, post-guardrail, clamped 0..100. It is COMPUTED, never an invented holistic judgement, so any accepted title can be re-derived from its DNA vector and this profile alone. The thresholds below are expressed on that same 0..100 scale and were calibrated against THIS profile's own observed score distribution. They are NOT comparable to the Fantasy or Sci-Fi numbers: a shared 0..100 range does not make a number equally selective under different weights, archetypes and guardrails.",
+    "calibration_note": "CALIBRATED against this profile's own deterministic score distribution over a 55-title pool deliberately spanning strong fits, medium fits, action-branded low-density titles, repetitive action, military, superhero, high-concept, mystery/conspiracy and sports-fight material. 9 were hard-excluded on action_density<=3 and 10 fell below the DNA row floor on guardrails, leaving 36 scored: min 52, Q1 60, median 64, Q3 67, max 81. The distribution has a genuine structural break - a sparse tail at 52,53,54,54,57,59 and then a dense continuous band from 60 upward - so minimum_match_score sits at 60, exactly on that boundary, rather than on a round number. best_match_score sits at 70, where the upper tail visibly thins, isolating roughly the top fifth. THESE NUMBERS ARE ACTION-SPECIFIC. They are not comparable to Fantasy 65/80 or Sci-Fi 82/90: a shared 0..100 range does not make a number equally selective under different weights, archetypes and guardrails."
+  },
+  "controlled_tags": [
+    "best",
+    "favorite"
+  ],
+  "dna_dimensions": {
+    "registry_version": 1,
+    "count": 33,
+    "scale": {
+      "min": 0,
+      "max": 10,
+      "integer": true,
+      "unknown": null
+    },
+    "principles": {
+      "descriptive_only": "A DNA value describes how strongly a property exists in a TITLE. It never states whether that property is desirable. Desirability lives only in dna_baseline and dna_guardrails.",
+      "unknown_is_not_zero": "Missing or null means UNKNOWN, never 'definitely absent'. Never substitute 0.",
+      "unknown_never_satisfies": "A threshold comparison against an unknown value is false in both directions. Unknown can never satisfy a positive or a negative test.",
+      "unknown_is_not_safe": "Unknown must not be read as 'passes the guardrail'. An item is not DNA-score-eligible unless every dimension referenced ANYWHERE in dna_guardrails is known - hard_exclusion and combination alike. This matters most for action_density, which carries a hard exclusion: an unmeasured density must never slip through as acceptable.",
+      "independent_dimensions": "action_density and action_intensity are THE separation this profile exists to enforce and must never be combined, averaged or derived from one another. DENSITY is how much of the runtime is action. INTENSITY is how hard the action hits when it occurs. A title at density 3 / intensity 9 - three enormous sequences in an otherwise inactive runtime - is precisely the failure case this addon rejects, while density 9 / intensity 6 - constant smaller fights and chases - is exactly what it wants. Density is also NOT pace_speed (a talky film can be fast), NOT marketing genre, and NOT what a trailer implies: trailers are cut from the action that exists, so they show density that may not. Likewise visual_quality (craft), visual_spectacle (scale) and retro_visual_style (era aesthetic) are three independent axes, and RELEASE YEAR IS NEVER AN INPUT to any of them."
+    },
+    "tag_registry": [
+      "heist",
+      "car_chase",
+      "gun_fu",
+      "martial_arts",
+      "assassin",
+      "revenge",
+      "siege",
+      "survival_run",
+      "prison",
+      "cartel",
+      "espionage",
+      "hacker",
+      "street_race",
+      "arena",
+      "post_apocalyptic",
+      "cyberpunk",
+      "urban_night",
+      "desert",
+      "jungle",
+      "one_location"
+    ],
+    "tag_registry_note": "Controlled descriptive DNA tags. This vocabulary is CLOSED: item.dna_tags may contain only values from this array. It is deliberately separate from the top-level controlled_tags array, which is the public catalog tag vocabulary and has different semantics.",
+    "dimensions": [
+      {
+        "id": "action_density",
+        "label": "Action Density",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "essentially no action across the runtime",
+          "3": "a few isolated action scenes in an otherwise low-action runtime",
+          "5": "action recurs regularly, roughly a third of the runtime",
+          "8": "action occupies most of the runtime",
+          "10": "near-continuous action"
+        }
+      },
+      {
+        "id": "action_intensity",
+        "label": "Action Intensity",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "minor scuffles",
+          "5": "ordinary force and stakes when action occurs",
+          "8": "large, punishing set pieces",
+          "10": "peak sequences are extreme in force, scale and stakes"
+        }
+      },
+      {
+        "id": "action_variety",
+        "label": "Action Variety",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "one repeated action mode",
+          "5": "a few distinct modes",
+          "10": "many distinct, well-differentiated modes"
+        }
+      },
+      {
+        "id": "gunplay",
+        "label": "Gunplay",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no firearms action",
+          "5": "shootouts are a real recurring mode",
+          "10": "gunfighting is the dominant action mode"
+        }
+      },
+      {
+        "id": "vehicle_action",
+        "label": "Vehicle Action",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no vehicular action",
+          "5": "vehicles carry real set pieces",
+          "10": "vehicular action is the signature mode"
+        }
+      },
+      {
+        "id": "stunt_work",
+        "label": "Stunt Work",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no notable stunt work",
+          "5": "real practical stunt sequences",
+          "10": "large-scale practical stunt work is a defining attraction"
+        }
+      },
+      {
+        "id": "chase_pursuit",
+        "label": "Chase / Pursuit",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no pursuit structure",
+          "5": "pursuit drives real sequences",
+          "10": "the story is built around being hunted or hunting"
+        }
+      },
+      {
+        "id": "melee_combat",
+        "label": "Melee Combat",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no hand-to-hand or melee fighting",
+          "5": "melee fighting is a real recurring mode",
+          "10": "close-quarters fighting is the dominant action mode"
+        }
+      },
+      {
+        "id": "destruction_spectacle",
+        "label": "Destruction Spectacle",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing is destroyed at scale",
+          "5": "real large-scale destruction occurs",
+          "10": "escalating destruction is a defining attraction"
+        }
+      },
+      {
+        "id": "mystery",
+        "label": "Mystery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing withheld",
+          "5": "substantial mystery thread",
+          "10": "the whole structure is a mystery"
+        }
+      },
+      {
+        "id": "investigation",
+        "label": "Investigation",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "evidence-gathering is a real thread",
+          "10": "determining what happened IS the story"
+        }
+      },
+      {
+        "id": "conspiracy",
+        "label": "Conspiracy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real hidden agenda",
+          "10": "the conspiracy is the plot"
+        }
+      },
+      {
+        "id": "undercover_mole",
+        "label": "Undercover / Mole",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no infiltration or hidden allegiance",
+          "5": "an infiltrator or mole genuinely matters",
+          "10": "hidden allegiance is the central mechanic"
+        }
+      },
+      {
+        "id": "high_concept",
+        "label": "High Concept",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no organising premise",
+          "5": "a striking premise shapes the story",
+          "10": "a single premise organises everything"
+        }
+      },
+      {
+        "id": "sci_fi_elements",
+        "label": "Sci-Fi Elements",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real science-fiction component",
+          "10": "a science-fiction premise organises the story"
+        }
+      },
+      {
+        "id": "fantasy_elements",
+        "label": "Fantasy Elements",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real fantasy or supernatural component",
+          "10": "a fantasy premise organises the story"
+        }
+      },
+      {
+        "id": "deadly_game",
+        "label": "Deadly Game",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "an organised lethal game or trial matters",
+          "10": "surviving a rule-bound lethal system is the premise"
+        }
+      },
+      {
+        "id": "rule_discovery",
+        "label": "Rule Discovery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no hidden mechanics",
+          "5": "some rules are learned",
+          "10": "discovering the system's rules is central"
+        }
+      },
+      {
+        "id": "visual_quality",
+        "label": "Visual Quality",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "crude or careless craft",
+          "3": "visibly cheap or inconsistent",
+          "5": "competent, unremarkable craft",
+          "8": "polished and confident",
+          "10": "exceptional craft - judged on its own presentation, never on release year"
+        }
+      },
+      {
+        "id": "retro_visual_style",
+        "label": "Retro Visual Style",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "strongly contemporary visual language",
+          "3": "modern with occasional classical flourishes",
+          "5": "mixed or classic presentation",
+          "8": "clearly of an earlier visual era",
+          "10": "strongly retro, legacy or old-school aesthetic - judged from colour grading, lensing, editing rhythm, effects technique and design language, NEVER from the release date"
+        }
+      },
+      {
+        "id": "visual_spectacle",
+        "label": "Visual Spectacle",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing shown at scale",
+          "5": "real set pieces or vistas",
+          "10": "sustained large-scale visual ambition"
+        }
+      },
+      {
+        "id": "pace_speed",
+        "label": "Pace (speed)",
+        "direction": "slow_to_fast",
+        "rubric": {
+          "0": "very slow / contemplative",
+          "3": "deliberate",
+          "5": "moderate / steady",
+          "8": "brisk",
+          "10": "relentless / extremely fast"
+        }
+      },
+      {
+        "id": "wtf_comedy",
+        "label": "WTF Comedy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "real absurd or transgressive humour",
+          "10": "absurd, transgressive humour is the operating mode"
+        }
+      },
+      {
+        "id": "badass_protagonist",
+        "label": "Badass Protagonist",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "the lead is not physically capable",
+          "5": "the lead is competent and holds their own",
+          "10": "the lead is overwhelmingly, iconically capable"
+        }
+      },
+      {
+        "id": "ensemble_charisma",
+        "label": "Ensemble Charisma",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "a solo lead, or a flat supporting cast",
+          "5": "a real group with distinct personalities",
+          "10": "the group's chemistry is a primary attraction"
+        }
+      },
+      {
+        "id": "setting_variety",
+        "label": "Setting Variety",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "one environment throughout",
+          "5": "several distinct environments",
+          "10": "continuously varied environments"
+        }
+      },
+      {
+        "id": "suspense",
+        "label": "Suspense",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "occasional tension",
+          "5": "recurring tension",
+          "8": "sustained tension",
+          "10": "sustained throughout"
+        }
+      },
+      {
+        "id": "action_repetition",
+        "label": "Action Repetition",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "every sequence feels distinct",
+          "5": "noticeable recurrence of the same beat",
+          "10": "the same action beat for most of the runtime"
+        }
+      },
+      {
+        "id": "military_focus",
+        "label": "Military Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "major military component",
+          "10": "military institutions, operations, command or combat framing dominates"
+        }
+      },
+      {
+        "id": "superhero",
+        "label": "Superhero",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "a powered individual with no hero framing",
+          "5": "costumed or superpowered hero structure present",
+          "8": "central hero-versus-villain framing",
+          "10": "superhero structure is central"
+        }
+      },
+      {
+        "id": "sports_fighting",
+        "label": "Sports Fighting",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no sanctioned or sporting combat",
+          "5": "sanctioned fighting (boxing, MMA, wrestling) is a real element",
+          "10": "the sporting-fight career IS the story"
+        }
+      },
+      {
+        "id": "romance_focus",
+        "label": "Romance Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real romance thread",
+          "10": "romance is the primary structural driver"
+        }
+      },
+      {
+        "id": "drama_focus",
+        "label": "Drama Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "real interpersonal drama",
+          "10": "interpersonal drama is the primary mode"
+        }
+      }
+    ]
+  },
+  "dna_baseline": {
+    "description": "The desired CONTENT universe expressed on the DNA scale. Stable baseline. Accumulated user feedback is NEVER merged into this section.",
+    "scale_note": "Weights are in the range -40..40 and are commensurate only within this profile. action_density at 30 is deliberately the dominant weight and is nearly twice action_intensity at 18: this profile exists because the two are routinely conflated, and the arithmetic has to state which one it is buying. Do not reduce it because another dimension correlates with it.",
+    "weights": {
+      "action_density": 30,
+      "action_intensity": 18,
+      "action_variety": 16,
+      "high_concept": 14,
+      "badass_protagonist": 12,
+      "stunt_work": 12,
+      "mystery": 11,
+      "vehicle_action": 10,
+      "chase_pursuit": 10,
+      "conspiracy": 10,
+      "sci_fi_elements": 10,
+      "deadly_game": 10,
+      "visual_spectacle": 10,
+      "visual_quality": 10,
+      "melee_combat": 9,
+      "gunplay": 9,
+      "destruction_spectacle": 9,
+      "undercover_mole": 9,
+      "investigation": 8,
+      "fantasy_elements": 8,
+      "rule_discovery": 8,
+      "ensemble_charisma": 8,
+      "suspense": 8,
+      "wtf_comedy": 6,
+      "setting_variety": 6,
+      "drama_focus": -8,
+      "romance_focus": -10,
+      "action_repetition": -12,
+      "sports_fighting": -12,
+      "retro_visual_style": -12,
+      "military_focus": -14
+    },
+    "unweighted": [
+      "pace_speed",
+      "superhero"
+    ],
+    "unweighted_note": "pace_speed measures tempo, not action, and a talky film can be fast - it is used only as a row gate for relentless-momentum. superhero is HARD-EXCLUDED at no point but IS handled entirely by a combination guardrail, and is left unweighted so that a descriptive measurement is never confused with a policy decision. weights and unweighted are disjoint and their union is exactly the 33 registry ids.",
+    "completeness_defaults": {
+      "min_known_dimensions": 22,
+      "min_confidence": 0.6,
+      "required_known_dimensions": [
+        "superhero",
+        "action_density",
+        "action_intensity",
+        "action_repetition",
+        "action_variety",
+        "setting_variety",
+        "military_focus",
+        "high_concept",
+        "mystery",
+        "sports_fighting",
+        "drama_focus",
+        "romance_focus",
+        "wtf_comedy",
+        "visual_quality",
+        "visual_spectacle",
+        "retro_visual_style"
+      ],
+      "note": "An item must satisfy ALL THREE conditions to be DNA-score-eligible. required_known_dimensions contains every dimension referenced ANYWHERE in dna_guardrails, so an item can never dodge a penalty - or the action_density hard exclusion - merely because the relevant dimension was never measured. NOTE that min_known_dimensions is NOT the binding constraint for the DNA Match row: requiredFor() independently demands every weighted dimension for a baseline_profile row, so a title reaching DNA Match effectively needs all 31 weighted values. Lowering min_known_dimensions would relieve nothing that binds and would only weaken the eligibility floor."
+    },
+    "archetypes": [
+      {
+        "id": "spectacle_stunt_action",
+        "label": "Spectacle / Stunt Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "action_density",
+            "at_or_above": 7
+          }
+        ],
+        "emphasis": {
+          "action_density": 10,
+          "stunt_work": 9,
+          "vehicle_action": 9,
+          "destruction_spectacle": 8,
+          "ensemble_charisma": 7,
+          "visual_spectacle": 7
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "badass_combat_action",
+        "label": "Badass / Combat Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "badass_protagonist",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "action_density",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "action_density": 10,
+          "badass_protagonist": 9,
+          "melee_combat": 8,
+          "gunplay": 8,
+          "action_intensity": 8
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "high_concept_action",
+        "label": "High-Concept Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "high_concept",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "high_concept": 10,
+          "action_density": 9,
+          "sci_fi_elements": 7,
+          "mystery": 6,
+          "wtf_comedy": 4
+        },
+        "penalise": {
+          "military_focus": 4
+        }
+      },
+      {
+        "id": "mystery_conspiracy_action",
+        "label": "Mystery / Conspiracy Action",
+        "weight": 1,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "conspiracy",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "undercover_mole",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "investigation",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "conspiracy": 10,
+          "action_density": 9,
+          "undercover_mole": 8,
+          "investigation": 8,
+          "mystery": 8
+        },
+        "penalise": {
+          "military_focus": 4
+        }
+      },
+      {
+        "id": "fantasy_scifi_action",
+        "label": "Fantasy / Sci-Fi Action",
+        "weight": 1,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "sci_fi_elements",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "fantasy_elements",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "sci_fi_elements": 9,
+          "fantasy_elements": 9,
+          "action_density": 9,
+          "action_variety": 7,
+          "visual_spectacle": 6
+        },
+        "penalise": {
+          "military_focus": 3
+        }
+      },
+      {
+        "id": "deadly_game_action",
+        "label": "Deadly-Game Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "deadly_game",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "deadly_game": 10,
+          "rule_discovery": 9,
+          "action_density": 9,
+          "mystery": 8,
+          "suspense": 7
+        }
+      }
+    ],
+    "archetype_note": "Scoring takes the BEST-matching archetype, never an average. Every archetype emphasises action_density at 9 or 10: the archetypes exist to describe different FLAVOURS of action, and must never become a route around the density requirement. Every emphasis and penalise dimension is weighted or required-known, so bestArchetype() can never throw."
+  },
+  "dna_guardrails": {
+    "description": "Policy applied to descriptive DNA measurements. Not learnable away by ordinary feedback.",
+    "structural_note": "Judge superhero by story identity - costumed or superpowered hero-versus-villain framing - not by studio, source medium or the mere presence of a powered character.",
+    "evaluation_note": "A condition whose dimension is unknown/null evaluates FALSE. hard_exclusion entries remove the item from DNA-scored results AND are enforced at INGESTION by validate.mjs, because the plain watch rows do not consult DNA and would otherwise publish a title that every ranked row excludes.",
+    "hard_exclusion": [
+      {
+        "id": "insufficient_action_density",
+        "dimension": "action_density",
+        "at_or_below": 3,
+        "note": "THE defining rule of this addon. A title whose action occupies almost none of its runtime is not an Action recommendation, however strong its mystery, high concept, craft or cast. This is an INGESTION exclusion as well as a scoring one: such a title must never be written into library or discovery data. Density 4 and 5 are NOT excluded - they simply score lower. The same title may remain entirely valid in the Sci-Fi, Thriller, Fantasy or Anime profiles, which is the point of separate addons."
+      }
+    ],
+    "combination": [
+      {
+        "id": "repetitive_monotonous_action",
+        "penalty": -25,
+        "all_of": [
+          {
+            "dimension": "action_repetition",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "action_variety",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "setting_variety",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Dense action can still be wearying when it is the same beat in the same place for two hours. Requires all three: plenty of dense action is repetitive in one dimension only and is fine."
+      },
+      {
+        "id": "military_battlefield_focus",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "military_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "high_concept",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Generic soldiers-versus-enemies material. Military framing is NOT excluded on its own - military action with a real concept or a real mystery is wanted."
+      },
+      {
+        "id": "sports_fight_drama",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "sports_fighting",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "drama_focus",
+            "at_or_above": 5
+          }
+        ],
+        "any_of": [],
+        "note": "Boxing, MMA and wrestling careers framed as interpersonal drama. Sanctioned fighting inside an otherwise action-driven story does not fire this."
+      },
+      {
+        "id": "romance_drama_over_action",
+        "penalty": -28,
+        "all_of": [
+          {
+            "dimension": "romance_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "drama_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "action_density",
+            "at_or_below": 5
+          }
+        ],
+        "any_of": [],
+        "note": "An action-branded title that is really a relationship drama. Either element alone is tolerated, and dense action makes it moot."
+      },
+      {
+        "id": "traditional_superhero_framing",
+        "penalty": -35,
+        "all_of": [
+          {
+            "dimension": "superhero",
+            "at_or_above": 7
+          },
+          {
+            "dimension": "wtf_comedy",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "high_concept",
+            "at_or_below": 5
+          }
+        ],
+        "any_of": [],
+        "note": "Straight costumed hero-versus-villain framing. Deliberately a COMBINATION rather than a hard exclusion, so that an unusual or transgressive take survives on its actual differentiators - absurd humour or a real concept - instead of being blanket-banned by genre label."
+      },
+      {
+        "id": "cheap_presentation",
+        "penalty": -22,
+        "all_of": [
+          {
+            "dimension": "visual_quality",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "visual_spectacle",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "CRAFT, not age. retro_visual_style is deliberately NOT referenced here: an old-school look softens ranking only through its linear weight and must never exclude."
+      }
+    ],
+    "not_expressible_in_dna": {
+      "documentation_only": true,
+      "consumer_rule": "NO CONSUMER MAY READ, EVALUATE OR SCORE THIS FIELD. It carries zero runtime semantics. It records signals deliberately left out of the descriptive DNA vector so a future reader does not add dimensions for them by mistake.",
+      "entries": [
+        {
+          "signal": "Preferred lead actors",
+          "reason": "Stored as preference_notes.soft_actor_affinity and applied only through the generic tie_break_rank sort field, AFTER eligibility and scoring. It is metadata, never Content DNA, and never contributes a point."
+        },
+        {
+          "signal": "Release year / age of the title",
+          "reason": "Explicitly NOT a preference. The real objection is presentation style, which retro_visual_style measures directly."
+        },
+        {
+          "signal": "Marketing genre label",
+          "reason": "A title being sold as Action says nothing about how much of its runtime is action. Only whole-runtime evidence sets action_density."
+        }
+      ]
+    }
+  },
+  "execution_preferences": {
+    "description": "Baseline POLICY for how execution evidence would be applied if personalization were enabled. Policy only, and INERT in MG-4: this profile consumes no private feedback and generates no personalized-scores.json.",
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    },
+    "rules": [
+      "Personalization is DISABLED for this profile until the cross-profile feedback v3 schema is frozen.",
+      "When it is enabled, a feedback event may be consumed only if its imdb_id is already in THIS repository's own public identity set.",
+      "Execution feedback never changes topic or DNA eligibility.",
+      "Concept feedback may refine content preference, conservatively and preferably on repeated independent evidence.",
+      "Tone feedback is a soft ranking adjustment and never a hard subject blacklist.",
+      "A single title never establishes a generalised content aversion.",
+      "The stable baseline remains dominant while feedback history is small."
+    ]
+  },
+  "preference_notes": {
+    "soft_actor_affinity": [
+      "Jason Statham",
+      "Vin Diesel",
+      "Dwayne Johnson"
+    ],
+    "soft_actor_affinity_rule": "METADATA, outside Content DNA, with NO ELIGIBILITY EFFECT and NO SCORE EFFECT. It is applied only through the generic item field tie_break_rank, which sortItems() consults after both the row score and match_score have already compared EQUAL. It therefore reorders two equally-fitting titles and nothing else. It must never add points, lift a title over the threshold, overcome the action_density hard exclusion, weaken a guardrail, substitute for content research, or propagate to another profile. A low-density film starring a preferred actor is hard-excluded exactly like any other."
+  },
+  "baseline_evidence": {
+    "schema_version": 1,
+    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring, with no bonus for appearing here.",
+    "evidence_weights": {
+      "watched_favorite": {
+        "direction": "positive",
+        "magnitude": 1
+      },
+      "watched_love": {
+        "direction": "positive",
+        "magnitude": 0.85
+      },
+      "watched_like": {
+        "direction": "positive",
+        "magnitude": 0.6
+      },
+      "watched_mixed": {
+        "direction": "mixed",
+        "magnitude": 0
+      },
+      "watched_dislike": {
+        "direction": "negative",
+        "magnitude": 0.6
+      },
+      "trailer_interest": {
+        "direction": "positive",
+        "magnitude": 0.25
+      },
+      "trailer_aversion": {
+        "direction": "negative",
+        "magnitude": 0.25
+      }
+    },
+    "items": [
+      {
+        "title": "Fast & Furious saga",
+        "type": "movie",
+        "scope": "franchise",
+        "evidence_type": "watched",
+        "evidence_class": "watched_favorite",
+        "reaction": "love",
+        "recommendable": false,
+        "franchise_members": [
+          {
+            "title": "The Fast and the Furious",
+            "year": 2001,
+            "imdb_id": "tt0232500"
+          },
+          {
+            "title": "2 Fast 2 Furious",
+            "year": 2003,
+            "imdb_id": "tt0322259"
+          },
+          {
+            "title": "The Fast and the Furious: Tokyo Drift",
+            "year": 2006,
+            "imdb_id": "tt0463985"
+          },
+          {
+            "title": "Fast & Furious",
+            "year": 2009,
+            "imdb_id": "tt1013752"
+          },
+          {
+            "title": "Fast Five",
+            "year": 2011,
+            "imdb_id": "tt1596343"
+          },
+          {
+            "title": "Fast & Furious 6",
+            "year": 2013,
+            "imdb_id": "tt1905041"
+          },
+          {
+            "title": "Furious 7",
+            "year": 2015,
+            "imdb_id": "tt2820852"
+          },
+          {
+            "title": "The Fate of the Furious",
+            "year": 2017,
+            "imdb_id": "tt4630562"
+          },
+          {
+            "title": "F9: The Fast Saga",
+            "year": 2021,
+            "imdb_id": "tt5433138"
+          },
+          {
+            "title": "Fast X",
+            "year": 2023,
+            "imdb_id": "tt5433140"
+          }
+        ],
+        "notes": [
+          "all-time favorite and the strongest Action anchor",
+          "very high action density across the runtime",
+          "cars, chases, stunts, large set pieces",
+          "big cinematic spectacle and destruction",
+          "charismatic recurring ensemble",
+          "action-compatible humour",
+          "the actor affinity is drawn from this saga and is metadata, never DNA",
+          "franchise-level impression: the ten main saga entries are enumerated as watched"
+        ]
+      },
+      {
+        "title": "John Wick",
+        "type": "movie",
+        "scope": "franchise",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "franchise_members": [
+          {
+            "title": "John Wick",
+            "year": 2014,
+            "imdb_id": "tt2911666"
+          },
+          {
+            "title": "John Wick: Chapter 2",
+            "year": 2017,
+            "imdb_id": "tt4425200"
+          },
+          {
+            "title": "John Wick: Chapter 3 - Parabellum",
+            "year": 2019,
+            "imdb_id": "tt6146586"
+          },
+          {
+            "title": "John Wick: Chapter 4",
+            "year": 2023,
+            "imdb_id": "tt10366206"
+          }
+        ],
+        "notes": [
+          "high action density",
+          "gunplay and close-quarters combat",
+          "stylish, legible action presentation",
+          "iconically competent protagonist",
+          "sustained momentum",
+          "franchise-level impression: the four main chapters are enumerated as watched"
+        ]
+      },
+      {
+        "title": "Alice in Borderland",
+        "type": "series",
+        "year": 2020,
+        "imdb_id": "tt10795658",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "notes": [
+          "action inside a deadly game system",
+          "absurd and unusual rules",
+          "working out the rules is a real mechanic",
+          "suspense and survival stakes",
+          "strong high-concept hook"
+        ]
+      },
+      {
+        "title": "The Matrix",
+        "type": "movie",
+        "year": 1999,
+        "imdb_id": "tt0133093",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_like",
+        "reaction": "like",
+        "recommendable": false,
+        "notes": [
+          "action plus science fiction",
+          "reality mystery and a genuine high concept",
+          "unusual premise"
+        ]
+      },
+      {
+        "title": "The Boys",
+        "type": "series",
+        "year": 2019,
+        "imdb_id": "tt1190634",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_like",
+        "reaction": "like",
+        "recommendable": false,
+        "notes": [
+          "liked DESPITE the general dislike of superhero framing",
+          "the exception rests on WTF comedy, brutality and unusual execution",
+          "this is an exception, NOT evidence that superhero content is wanted generally",
+          "seasons 1-2 approximately; later seasons are not claimed as watched, but a series carries one public identity so the whole series is excluded"
+        ]
+      },
+      {
+        "title": "Nobody",
+        "type": "movie",
+        "year": 2021,
+        "imdb_id": "tt7888964",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "lots of action",
+          "the right kind of humour"
+        ]
+      },
+      {
+        "title": "Extraction",
+        "type": "movie",
+        "year": 2020,
+        "imdb_id": "tt8936646",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "appears action-heavy"
+        ]
+      },
+      {
+        "title": "Upgrade",
+        "type": "movie",
+        "year": 2018,
+        "imdb_id": "tt6499752",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "very high interest",
+          "sci-fi plus action plus comedy",
+          "unusual concept"
+        ]
+      },
+      {
+        "title": "Mission: Impossible - Fallout",
+        "type": "movie",
+        "year": 2018,
+        "imdb_id": "tt4912910",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "loves this style",
+          "lots of action",
+          "visually pleasing"
+        ]
+      },
+      {
+        "title": "Reacher",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt9288030",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "action",
+          "good presentation",
+          "the right kind of comedy"
+        ]
+      },
+      {
+        "title": "Tom Clancy's Jack Ryan",
+        "type": "series",
+        "year": 2018,
+        "imdb_id": "tt5057054",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "CIA and FBI framing",
+          "mole and conspiracy",
+          "figuring things out"
+        ]
+      },
+      {
+        "title": "The Terminal List",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt11743610",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "conspiracy",
+          "inside threat and mole",
+          "investigation",
+          "action"
+        ]
+      },
+      {
+        "title": "Into the Badlands",
+        "type": "series",
+        "year": 2015,
+        "imdb_id": "tt3865236",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "fantasy and martial-arts action"
+        ]
+      },
+      {
+        "title": "Fallout",
+        "type": "series",
+        "year": 2024,
+        "imdb_id": "tt12637874",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "looks very interesting"
+        ]
+      },
+      {
+        "title": "Altered Carbon",
+        "type": "series",
+        "year": 2018,
+        "imdb_id": "tt2261227",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "sci-fi plus murder mystery plus action"
+        ]
+      },
+      {
+        "title": "Mad Max: Fury Road",
+        "type": "movie",
+        "year": 2015,
+        "imdb_id": "tt1392190",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "nonstop action is a strong positive",
+          "concern about repetition of the same beat",
+          "concern about a monotonous single-palette desert environment",
+          "this is the evidence behind action_repetition and setting_variety existing at all"
+        ]
+      },
+      {
+        "title": "The Raid: Redemption",
+        "type": "movie",
+        "year": 2011,
+        "imdb_id": "tt1899353",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "action itself is a positive",
+          "presentation reads as old-school or period-like",
+          "the aversion is to the presentation, NOT to the release year"
+        ]
+      },
+      {
+        "title": "Edge of Tomorrow",
+        "type": "movie",
+        "year": 2014,
+        "imdb_id": "tt1631867",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "sci-fi time-loop hook is a positive",
+          "robotic battlefield and soldier-war framing is a negative"
+        ]
+      },
+      {
+        "title": "Dredd",
+        "type": "movie",
+        "year": 2012,
+        "imdb_id": "tt1343727",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "the new-substance high concept is a positive",
+          "masked superhero-style framing is a negative"
+        ]
+      },
+      {
+        "title": "Banshee",
+        "type": "series",
+        "year": 2013,
+        "imdb_id": "tt2017109",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "possibly action-interesting",
+          "presentation looks old and the pace may be slow"
+        ]
+      },
+      {
+        "title": "Warrior",
+        "type": "movie",
+        "year": 2011,
+        "imdb_id": "tt1291584",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "drama-led",
+          "boxing and MMA sporting-fight framing is a negative",
+          "this is the evidence behind the sports_fight_drama guardrail"
+        ]
+      }
+    ]
+  }
+}

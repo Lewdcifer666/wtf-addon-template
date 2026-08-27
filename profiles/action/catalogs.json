@@ -1,0 +1,284 @@
+{
+  "schema_version": 2,
+  "manifest": {
+    "id": "com.github.wtfaction.discovery",
+    "version": "1.0.0",
+    "name": "WTF Action Discovery",
+    "description": "Automated action that actually runs on action: high density across the whole runtime, stunts, chases and combat, plus high-concept, conspiracy, sci-fi and deadly-game hooks. Titles with three big sequences and ninety quiet minutes are excluded on purpose."
+  },
+  "site": {
+    "title": "WTF Action Discovery",
+    "emoji": "💥",
+    "blurb": "Automated Stremio catalogs for action that keeps happening: sustained density across the whole runtime, stunts, chases and combat, with high-concept, conspiracy, sci-fi and deadly-game hooks. Trailer-dense sleepers are excluded by design."
+  },
+  "catalogs": [
+    {
+      "id": "full-watchlist",
+      "name": "Full Watchlist",
+      "filter": "watch",
+      "sort": "score"
+    },
+    {
+      "id": "past-24h",
+      "name": "🔥 Past 24h Findings",
+      "filter": "past24",
+      "sort": "newest"
+    },
+    {
+      "id": "best-matches",
+      "name": "⭐ Best Matches",
+      "filter": "best",
+      "sort": "score"
+    },
+    {
+      "id": "dna-match",
+      "name": "🧬 DNA Match",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "baseline_profile",
+        "archetype_bonus_max": 25
+      }
+    },
+    {
+      "id": "high-action-density",
+      "name": "💥 High Action Density",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 60,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "action_density",
+              "at_or_above": 7
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "action_density": 16,
+          "action_intensity": 9,
+          "action_variety": 8,
+          "visual_spectacle": 5
+        },
+        "penalties": {
+          "action_repetition": 6,
+          "military_focus": 5,
+          "retro_visual_style": 4
+        }
+      }
+    },
+    {
+      "id": "stunts-chases",
+      "name": "🏎️ Stunts & Chases",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [],
+          "any_of": [
+            {
+              "dimension": "stunt_work",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "vehicle_action",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "chase_pursuit",
+              "at_or_above": 6
+            }
+          ]
+        },
+        "weights": {
+          "stunt_work": 12,
+          "vehicle_action": 11,
+          "chase_pursuit": 10,
+          "destruction_spectacle": 8,
+          "action_density": 8
+        },
+        "penalties": {
+          "action_repetition": 5
+        }
+      }
+    },
+    {
+      "id": "badass-combat",
+      "name": "🥊 Badass Combat",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "badass_protagonist",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "action_density",
+              "at_or_above": 6
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "badass_protagonist": 12,
+          "melee_combat": 10,
+          "gunplay": 10,
+          "action_density": 10,
+          "action_intensity": 7
+        },
+        "penalties": {
+          "drama_focus": 5,
+          "sports_fighting": 6
+        }
+      }
+    },
+    {
+      "id": "high-concept-action",
+      "name": "🌀 High-Concept Action",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "high_concept",
+              "at_or_above": 6
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "high_concept": 14,
+          "action_density": 10,
+          "sci_fi_elements": 8,
+          "rule_discovery": 7,
+          "mystery": 6
+        },
+        "penalties": {
+          "military_focus": 6
+        }
+      }
+    },
+    {
+      "id": "mystery-conspiracy-action",
+      "name": "🕵️ Mystery / Conspiracy Action",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "action_density",
+              "at_or_above": 5
+            }
+          ],
+          "any_of": [
+            {
+              "dimension": "conspiracy",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "undercover_mole",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "investigation",
+              "at_or_above": 5
+            }
+          ]
+        },
+        "weights": {
+          "conspiracy": 12,
+          "undercover_mole": 10,
+          "investigation": 9,
+          "mystery": 9,
+          "action_density": 8
+        },
+        "penalties": {
+          "military_focus": 6
+        }
+      }
+    },
+    {
+      "id": "fantasy-scifi-action",
+      "name": "🚀 Fantasy / Sci-Fi Action",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [],
+          "any_of": [
+            {
+              "dimension": "sci_fi_elements",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "fantasy_elements",
+              "at_or_above": 5
+            }
+          ]
+        },
+        "weights": {
+          "sci_fi_elements": 11,
+          "fantasy_elements": 11,
+          "action_density": 10,
+          "high_concept": 8,
+          "visual_spectacle": 6
+        },
+        "penalties": {
+          "military_focus": 6
+        }
+      }
+    },
+    {
+      "id": "relentless-momentum",
+      "name": "⚡ Relentless Momentum",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 65,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "action_density",
+              "at_or_above": 8
+            },
+            {
+              "dimension": "pace_speed",
+              "at_or_above": 7
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "action_density": 16,
+          "pace_speed": 10,
+          "action_intensity": 8,
+          "action_variety": 7,
+          "chase_pursuit": 5
+        },
+        "penalties": {
+          "action_repetition": 7,
+          "drama_focus": 4
+        }
+      }
+    }
+  ]
+}
