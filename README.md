@@ -179,3 +179,18 @@ no `imdb_id` for exactly this reason.
 
 Widening the namespace list is a deliberate decision, never a side effect of
 one item needing somewhere to put a value.
+
+### A repeated citation is not a second source
+
+Wherever a phase asks for "two sources" or "three sources", that always means
+**distinct** source URLs. `validate.mjs` rejects a `source` field that cites the
+same document twice, so a count can never be reached by repetition.
+
+Distinctness is compared on the normalised URL with the **fragment dropped** —
+`#one` and `#two` address the same page. Everything else (host, path, query) is
+compared as-is, so two different pages on the same host remain two sources: an
+article and its episode list, for instance.
+
+This is deliberately shallow and must not grow into a URL-equivalence engine.
+Its job is the obvious duplicate. Whether two genuinely different pages say
+anything genuinely different stays a research responsibility.

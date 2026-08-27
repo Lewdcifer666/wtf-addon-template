@@ -28,6 +28,31 @@ for (const message of profileErrors) console.error(`taste-profile.json: ${messag
 // it can do is make an unsupported claim impossible to ship silently.
 const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
 
+// A REPEATED CITATION IS NOT A SECOND SOURCE.
+//
+// Counting URLs rather than distinct documents lets a source field look
+// well-researched while resting on one page. That is not hypothetical: it
+// happened, produced by a lookup that silently redirected to an article
+// already cited, and it survived review because the count was right.
+//
+// Normalisation is deliberately shallow. The fragment is dropped, because
+// #one and #two address the same document. Everything else - host, path,
+// query - is compared as-is. Two different pages on the same host stay two
+// sources, which is the common and legitimate case (an article and its
+// episode list). This is not a URL-equivalence engine and must not become
+// one: it exists to catch the obvious duplicate, and whether two genuinely
+// different pages say anything genuinely different remains a research
+// responsibility no validator can discharge.
+export function normalizeSourceUrl(href) {
+  const url = new URL(href);
+  url.hash = "";
+  return url.href;
+}
+
+export function distinctSourceUrls(value) {
+  return [...new Set(sourceUrls(value).map(normalizeSourceUrl))];
+}
+
 export function sourceUrls(value) {
   if (typeof value !== "string") return [];
   // Split on separators only. Prose words simply fail to parse as URLs and are
@@ -170,6 +195,16 @@ for (const [i, item] of all.entries()) {
       `provenance. Put the explanation in 'reason' and cite the actual material in 'source', ` +
       `for example "https://example.org/a ; https://example.org/b".`);
     errors++;
+  } else {
+    const parsed = sourceUrls(item.source).map(normalizeSourceUrl);
+    const seen = new Set();
+    const repeated = [...new Set(parsed.filter(u => seen.has(u) ? true : (seen.add(u), false)))];
+    if (repeated.length) {
+      console.error(`${prefix}: 'source' cites the same document more than once (${repeated.join(", ")}). ` +
+        `A repeated citation is NOT a second source - it makes a field look researched while resting ` +
+        `on one page. Cite genuinely different material, or cite it once.`);
+      errors++;
+    }
   }
 
   // A soft metadata preference, never a score. Non-negative so it can only ever

@@ -297,6 +297,71 @@ try {
   }
 
   // -------------------------------------------------------------------------
+  // distinct sources - a repeated citation is not a second source
+  //
+  // Counting URLs rather than documents lets a source field look
+  // well-researched while resting on one page. That is not hypothetical: a
+  // lookup silently redirected to an article already cited, the count was
+  // right, and it survived review.
+  // -------------------------------------------------------------------------
+  library([item({ source: "https://example.org/only" })]);
+  check("DS-A", "one valid URL still passes", runValidate().code === 0);
+
+  library([item({ source: "https://a.example.org/x ; https://b.example.org/y" })]);
+  check("DS-B", "two genuinely distinct URLs pass", runValidate().code === 0);
+
+  library([item({ source: "https://a.example.org/x ; https://a.example.org/x" })]);
+  {
+    const r = runValidate();
+    check("DS-C", "the SAME URL twice is REJECTED",
+      r.code !== 0 && /same document more than once/.test(r.output),
+      "this is the exact defect that shipped in the Anime bootstrap");
+  }
+
+  library([item({ source: "https://a.example.org/x   ;;   https://a.example.org/x" })]);
+  check("DS-D", "separator and whitespace variation does not make a duplicate distinct",
+    runValidate().code !== 0);
+
+  library([item({ source: "https://en.wikipedia.org/wiki/A ; https://en.wikipedia.org/wiki/List_of_A_episodes" })]);
+  check("DS-E", "two distinct pages on the SAME host are two sources",
+    runValidate().code === 0,
+    "an article and its episode list are genuinely different documents");
+
+  library([item({ source: "https://a.example.org/p#one ; https://a.example.org/p#two" })]);
+  check("DS-F1", "fragments do not make one document into two",
+    runValidate().code !== 0, "#one and #two address the same page");
+
+  library([item({ source: "https://a.example.org/p?q=1 ; https://a.example.org/p?q=2" })]);
+  check("DS-F2", "different query strings ARE treated as different documents",
+    runValidate().code === 0,
+    "deliberately shallow: this is not a URL-equivalence engine");
+
+  // A duplicate must not let an item reach a higher source bar by repetition:
+  // three raw URLs that are only two documents is still two sources.
+  library([item({ source: "https://a.example.org/x ; https://b.example.org/y ; https://a.example.org/x" })]);
+  {
+    const r = runValidate();
+    check("DS-G", "a duplicate cannot inflate a source count",
+      r.code !== 0 && /same document more than once/.test(r.output),
+      "three URLs that are two documents must not pass as three sources");
+  }
+
+  {
+    library([]);
+    const discovery = path.join(out, "data", "discoveries", "2026-08-27-ds.json");
+    fs.writeFileSync(discovery, JSON.stringify({
+      schema_version: 1, run_id: "2026-08-27-ds", timestamp: "2026-08-27T00:00:00Z",
+      items: [item({ imdb_id: "tt9100700", title: "Dup", added_by: "daily-automation",
+        source: "https://a.example.org/x ; https://a.example.org/x" })]
+    }, null, 2) + "\n");
+    const r = runValidate();
+    check("DS-H", "discovery-file items get the same duplicate check",
+      r.code !== 0 && /same document more than once/.test(r.output),
+      "the daily task writes here, so the gate has to hold here too");
+    fs.rmSync(discovery, { force: true });
+  }
+
+  // -------------------------------------------------------------------------
   // external_ids - optional, closed, and INERT
   //
   // A secondary id is a note for later work. The moment it can influence
