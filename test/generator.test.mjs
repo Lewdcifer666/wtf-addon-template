@@ -505,6 +505,45 @@ try {
     fs.rmSync(twinBase, { recursive: true, force: true });
   }
 
+  // -------------------------------------------------------------------------
+  // baseline_evidence is OPTIONAL, and the vendored test must agree
+  //
+  // validate-profile.mjs documents the block as optional and returns early when
+  // it is absent. The vendored baseline-evidence test used to hard-fail on
+  // absence, which contradicted the validator and made the canonical suite
+  // unhostable for a profile that legitimately carries none (wtf-scifi-stremio
+  // predates the block and encodes its derivation in reference_titles). These
+  // assertions pin both directions so the contradiction cannot come back.
+  // -------------------------------------------------------------------------
+  {
+    const profilePath = path.join(out, "data", "taste-profile.json");
+    const original = fs.readFileSync(profilePath, "utf8");
+    const profile = JSON.parse(original);
+
+    check("G37", "the fixture profile does carry a baseline_evidence block",
+      !!profile.baseline_evidence);
+
+    delete profile.baseline_evidence;
+    fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2) + "\n");
+    try {
+      let code = 0, output = "";
+      try {
+        output = execFileSync(process.execPath, ["test/baseline-evidence.test.mjs"],
+          { cwd: out, encoding: "utf8" });
+      } catch (error) {
+        code = error.status ?? 1;
+        output = String(error.stdout || "") + String(error.stderr || "");
+      }
+      const tail = output.split("\n").slice(-8).join("\n");
+      check("G38", "the vendored baseline-evidence test PASSES on a profile with no block",
+        code === 0, tail);
+      check("G39", "and it reports the block-specific assertions as not applicable",
+        /not applicable/.test(output), tail);
+    } finally {
+      fs.writeFileSync(profilePath, original);
+    }
+  }
+
 } finally {
   cleanup();
 }
