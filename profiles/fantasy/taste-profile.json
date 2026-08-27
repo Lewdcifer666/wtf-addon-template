@@ -5,13 +5,14 @@
   "automation_rules": {
     "daily_movie_max": 5,
     "daily_series_max": 3,
-    "minimum_match_score": 82,
-    "best_match_score": 90,
+    "minimum_match_score": 65,
+    "best_match_score": 80,
     "zero_findings_is_valid": true,
     "never_silently_delete_existing_watchlist_items": true,
     "dedupe_primary_key": "imdb_id",
     "dedupe_fallback": "normalized title + year + type",
-    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours. Bootstrap items carry added_by=bootstrap and therefore never appear in this row."
+    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours. Bootstrap items carry added_by=bootstrap and therefore never appear in this row.",
+    "match_score_definition": "match_score IS the deterministic baseline DNA score for this title: the dna-match row score, post-archetype-bonus, post-guardrail, clamped 0..100. It is COMPUTED, never an invented holistic judgement, so any accepted title can be re-derived from its DNA vector and this profile alone. The thresholds are therefore expressed on that same 0..100 DNA scale. They are NOT comparable to the Sci-Fi profile numbers, where match_score is a separate holistic figure on a different scale - copying 82 across would have been a scale error, not a stricter standard."
   },
   "controlled_tags": [
     "best",
