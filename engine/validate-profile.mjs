@@ -573,6 +573,19 @@ function validateExecutionPreferences(section, errs) {
 //   never be recommended again. An UNWATCHED one stays fully eligible - it just
 //   has to earn its place through ordinary research and scoring like any other
 //   candidate. Being cited as evidence is neither a ban nor a shortcut.
+//
+//   WATCHED REQUIRES EXPLICIT CONFIRMATION, AND IS NEVER INFERRED. Citing a
+//   title as a structural taste anchor does NOT mean it was watched. Neither do
+//   trailers, clips, snippets, partial exposure, franchise familiarity, or a
+//   confident-sounding "probably liked". Marking a title watched permanently
+//   removes it from recommendation, so an inferred watch silently deletes
+//   something the user may actively want to see.
+//
+//   That is a research judgement no validator can verify - it cannot know what
+//   the user confirmed. What it CAN do is refuse to accept the claim silently:
+//   every watched entry must carry a non-empty watched_confirmation recording
+//   HOW watching was established. If that sentence cannot be written honestly,
+//   the entry is not watched. Uncertainty resolves to UNWATCHED.
 // ---------------------------------------------------------------------------
 export const EVIDENCE_CLASSES = {
   watched_favorite: { direction: "positive", evidence_type: "watched" },
@@ -644,7 +657,7 @@ export function validateBaselineEvidence(section, errs) {
     if (!isPlainObject(item)) { errs.push(`${iAt} must be an object`); continue; }
     strictKeys(item, iAt,
       ["title", "type", "scope", "evidence_type", "evidence_class", "reaction", "recommendable", "notes"],
-      ["year", "imdb_id", "franchise_members"], errs);
+      ["year", "imdb_id", "franchise_members", "watched_confirmation"], errs);
 
     if (!isNonEmptyString(item.title)) errs.push(`${iAt}.title must be a non-empty string`);
     if (item.type !== "movie" && item.type !== "series") errs.push(`${iAt}.type must be 'movie' or 'series'`);
@@ -666,6 +679,24 @@ export function validateBaselineEvidence(section, errs) {
       const allowed = item.evidence_type === "watched" ? WATCHED_REACTIONS : UNWATCHED_REACTIONS;
       if (!allowed.includes(item.reaction)) {
         errs.push(`${iAt}.reaction must be one of: ${allowed.join(", ")} (for evidence_type '${item.evidence_type}')`);
+      }
+
+      // WATCHED IS A CLAIM AND MUST BE ACCOUNTED FOR.
+      //
+      // Marking a title watched bans it from recommendation forever, so the
+      // author has to say how that was established. An inferred watch - from a
+      // taste anchor, a franchise, a trailer or a vague memory - cannot produce
+      // an honest sentence here, which is the point.
+      if (item.evidence_type === "watched") {
+        if (!isNonEmptyString(item.watched_confirmation)) {
+          errs.push(`${iAt}.watched_confirmation is required on a watched entry: state how watching was ` +
+            `EXPLICITLY confirmed. Citing a title as a taste anchor, knowing the franchise, or seeing ` +
+            `trailers, clips or snippets is NOT watching. If you cannot write this honestly, the entry ` +
+            `is evidence_type 'unwatched' - uncertainty resolves to unwatched, because a wrong watch ` +
+            `permanently hides something the user may want to see.`);
+        }
+      } else if (has(item, "watched_confirmation")) {
+        errs.push(`${iAt}.watched_confirmation is only valid on a watched entry`);
       }
 
       // RECOMMENDABILITY IS DERIVED, NEVER AUTHORED FREELY.
@@ -694,6 +725,9 @@ export function validateBaselineEvidence(section, errs) {
           const mAt = `${iAt}.franchise_members[${j}]`;
           if (!isPlainObject(member)) { errs.push(`${mAt} must be an object`); continue; }
           strictKeys(member, mAt, ["title", "year"], ["imdb_id"], errs);
+          // Franchise membership NEVER propagates watched status. Every member
+          // listed here is an individual claim that THAT installment was
+          // watched, and each one is individually banned from recommendation.
           if (!isNonEmptyString(member.title)) errs.push(`${mAt}.title must be a non-empty string`);
           if (!Number.isInteger(member.year)) errs.push(`${mAt}.year must be an integer`);
           if (has(member, "imdb_id") && !IMDB_ID_RE.test(member.imdb_id)) errs.push(`${mAt}.imdb_id must be a tt id`);

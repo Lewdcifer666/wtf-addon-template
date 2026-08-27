@@ -215,6 +215,70 @@ check("T6b8", "watchedEvidenceIdentities returns NOTHING for unwatched entries",
   }
 }
 
+// ---------------------------------------------------------------------------
+// WATCHED REQUIRES EXPLICIT CONFIRMATION
+//
+// Marking a title watched bans it from recommendation permanently. Inferring
+// that from a taste anchor, a franchise, or a trailer silently deletes
+// something the user may actively want to see - which is exactly what
+// happened before this rule existed.
+// ---------------------------------------------------------------------------
+{
+  const watchedEntries = evidence.items.filter(i => i.evidence_type === "watched");
+
+  check("WC1", "every watched entry accounts for HOW watching was confirmed",
+    watchedEntries.every(i => typeof i.watched_confirmation === "string" && i.watched_confirmation.trim().length > 0),
+    watchedEntries.filter(i => !i.watched_confirmation).map(i => i.title).join(", "));
+
+  check("WC2", "no watched_confirmation appears on an unwatched entry",
+    unwatchedItems.every(i => !("watched_confirmation" in i)));
+
+  const noConfirm = clone(profile);
+  const target = noConfirm.baseline_evidence.items.find(i => i.evidence_type === "watched");
+  if (target) {
+    delete target.watched_confirmation;
+    check("WC3", "the validator REJECTS a watched entry with no confirmation",
+      validateProfile(noConfirm).some(e => e.includes("watched_confirmation is required")),
+      "an unaccounted watch is how an inferred one gets in");
+  } else {
+    check("WC3", "the validator REJECTS a watched entry with no confirmation", true, "(skipped: no watched entries)");
+  }
+
+  const strayConfirm = clone(profile);
+  const u = strayConfirm.baseline_evidence.items.find(i => i.evidence_type === "unwatched");
+  u.watched_confirmation = "not applicable";
+  check("WC4", "the validator REJECTS watched_confirmation on an unwatched entry",
+    validateProfile(strayConfirm).some(e => e.includes("only valid on a watched entry")));
+
+  // A - an unwatched structural anchor is still recommendable.
+  check("WC5", "an unwatched STRUCTURAL ANCHOR stays recommendable",
+    unwatchedItems.every(i => i.recommendable === true),
+    "a title used to BUILD the profile must not be banned for that reason alone");
+
+  // B / C - snippet or trailer exposure cannot be spelled as watched.
+  const snippet = clone(profile);
+  const su = snippet.baseline_evidence.items.find(i => i.evidence_type === "unwatched");
+  su.evidence_type = "watched";
+  check("WC6", "trailer/snippet evidence cannot be relabelled watched without a class change",
+    validateProfile(snippet).length > 0,
+    "trailer_interest requires evidence_type unwatched");
+
+  // D / E - franchise membership never propagates watched status.
+  const franchiseWatched = evidence.items.filter(i => i.scope === "franchise" && i.evidence_type === "watched");
+  const identities = watchedEvidenceIdentities(profile);
+  check("WC7", "ONLY explicitly listed franchise members enter the watched identity set",
+    franchiseWatched.every(f => f.franchise_members.every(m =>
+      identities.some(x => x.title === m.title && x.year === m.year))));
+  check("WC8", "the watched identity set contains nothing beyond the declared entries",
+    identities.length ===
+      evidence.items.filter(i => i.evidence_type === "watched" && i.scope === "title").length +
+      franchiseWatched.reduce((n, f) => n + f.franchise_members.length, 0),
+    "membership is enumerated, never expanded by inference");
+  check("WC9", "no UNWATCHED franchise contributes identities",
+    !identities.some(x => evidence.items.some(i =>
+      i.evidence_type === "unwatched" && i.title === x.title)));
+}
+
 console.log("");
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -124,3 +124,38 @@ rejected almost everything.
 
 This is a calibration discipline, not engine behaviour. **Do not add
 cross-profile threshold coupling to engine code.**
+
+## Baseline evidence membership is NOT watched status
+
+Marking a title `evidence_type: "watched"` bans it from recommendation
+**permanently**. That is a strong claim and it must be earned.
+
+**Watched requires explicit user confirmation that the title was actually
+watched.** None of the following are watching:
+
+- trailers, clips, snippets, scenes seen online
+- partial exposure, or some episodes of a series
+- "looks interesting", "probably liked", "I think I saw it"
+- using the title as a structural taste anchor when building the profile
+- knowing or liking the franchise
+- one franchise entry having been seen
+
+**Franchise membership never propagates watched status.** "I love Fast &
+Furious" does not establish that every entry was watched; "I like Harry Potter"
+does not establish all eight films. Enumerate only installments explicitly
+confirmed, or use individual `scope: "title"` entries.
+
+**Uncertainty resolves to unwatched.** A wrong `watched` silently deletes
+something the user may actively want to see and rate; a wrong `unwatched` only
+risks recommending something they have already seen. The costs are not
+symmetric, so the default is not symmetric either.
+
+This is a research judgement no validator can check — it cannot know what the
+user confirmed. So the schema refuses to let the claim pass *silently*: every
+watched entry must carry a non-empty **`watched_confirmation`** stating how
+watching was established. If that sentence cannot be written honestly, the
+entry is not watched.
+
+The rule this replaces is unchanged: `watched` ⇒ `recommendable: false`,
+`unwatched` ⇒ `recommendable: true`. What changed is how `evidence_type` gets
+assigned in the first place.

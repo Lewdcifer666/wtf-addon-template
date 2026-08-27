@@ -399,7 +399,8 @@
           "all-time favorite",
           "deep worldbuilding",
           "sustained mystery"
-        ]
+        ],
+        "watched_confirmation": "Fixture data: watched status is asserted by the fixture itself, which is what this scaffold exists to exercise."
       },
       {
         "title": "Fixture Anchor Two",
@@ -414,7 +415,8 @@
         "notes": [
           "high action density",
           "competent craft"
-        ]
+        ],
+        "watched_confirmation": "Fixture data: watched status is asserted by the fixture itself, which is what this scaffold exists to exercise."
       },
       {
         "title": "Fixture Ambivalent",
@@ -428,7 +430,8 @@
         "notes": [
           "interesting premise",
           "action too sparse across the runtime"
-        ]
+        ],
+        "watched_confirmation": "Fixture data: watched status is asserted by the fixture itself, which is what this scaffold exists to exercise."
       },
       {
         "title": "Fixture Disliked",
@@ -442,7 +445,8 @@
         "notes": [
           "military framing dominated",
           "nothing driving the story forward"
-        ]
+        ],
+        "watched_confirmation": "Fixture data: watched status is asserted by the fixture itself, which is what this scaffold exists to exercise."
       },
       {
         "title": "Fixture Saga",
@@ -467,7 +471,8 @@
           "all-time favorite",
           "very high action density",
           "charismatic ensemble"
-        ]
+        ],
+        "watched_confirmation": "Fixture data: watched status is asserted by the fixture itself, which is what this scaffold exists to exercise."
       },
       {
         "title": "Fixture Prospect",
