@@ -297,6 +297,52 @@ try {
   }
 
   // -------------------------------------------------------------------------
+  // external_ids - optional, closed, and INERT
+  //
+  // A secondary id is a note for later work. The moment it can influence
+  // identity, dedupe or scoring it stops being a note and becomes a second
+  // identity system, which is exactly what this phase defers.
+  // -------------------------------------------------------------------------
+  library([item({ external_ids: { kitsu: "1376" } })]);
+  check("EX-A", "an item may carry a supported external id", runValidate().code === 0);
+
+  library([item({ external_ids: { anilist: "9253" } })]);
+  check("EX-B", "an unsupported namespace is REJECTED", runValidate().code !== 0,
+    "the vocabulary is closed so a typo cannot quietly become schema");
+
+  library([item({ external_ids: { kitsu: "" } })]);
+  check("EX-C", "an empty external id value is REJECTED", runValidate().code !== 0);
+
+  library([item({ external_ids: "kitsu:1376" })]);
+  check("EX-D", "a non-object external_ids is REJECTED", runValidate().code !== 0);
+
+  library([(() => { const i = item({ external_ids: { kitsu: "1376" } }); delete i.imdb_id; return i; })()]);
+  check("EX-E", "external_ids can NEVER stand in for a missing canonical identity",
+    runValidate().code !== 0,
+    "a title with no IMDb id has no public identity: log it unresolved, never publish it on a secondary id");
+
+  {
+    const toUrl = p => "file:///" + p.split(path.sep).join("/");
+    const { identityKey } = await import(toUrl(path.join(out, "scripts", "identity.mjs")));
+    const { normalizeTitle } = await import(toUrl(path.join(out, "scripts", "cinemeta.mjs")));
+    check("EX-F", "external_ids does not change identityKey",
+      identityKey(item(), normalizeTitle) === identityKey(item({ external_ids: { kitsu: "1376" } }), normalizeTitle));
+
+    library([item({ imdb_id: "tt9100900", external_ids: { kitsu: "1" } }),
+             item({ imdb_id: "tt9100900", title: "Twin", external_ids: { kitsu: "2" } })]);
+    check("EX-G", "different external_ids do NOT make two items distinct",
+      runValidate().code !== 0, "dedupe keys on canonical identity only");
+
+    library([item({ imdb_id: "tt9100901", title: "Tagged", external_ids: { kitsu: "1376" } })]);
+    execFileSync(process.execPath, ["scripts/build-site.mjs"], { cwd: out, stdio: "pipe" });
+    const metas = readJson("site/catalog/movie/dna-match-movie.json").metas;
+    const tagged = metas.find(m => m.name === "Tagged");
+    check("EX-H", "external_ids never reaches the Stremio output",
+      !tagged || (tagged.id === "tt9100901" && !JSON.stringify(tagged).includes("1376")),
+      "the emitted id must be the IMDb id and nothing else");
+  }
+
+  // -------------------------------------------------------------------------
   // rows actually rank
   // -------------------------------------------------------------------------
   library([

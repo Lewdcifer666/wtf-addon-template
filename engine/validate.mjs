@@ -42,6 +42,22 @@ export function sourceUrls(value) {
   });
 }
 
+// SECONDARY EXTERNAL IDS - OPTIONAL AND DELIBERATELY INERT.
+//
+// Some catalogues (anime especially) are indexed elsewhere under ids this
+// system does not use. Recording one is useful for later work; letting it near
+// the identity model is not.
+//
+// IMDb remains the ONE canonical public identity. Nothing here reaches
+// identityKey(), duplicate detection, the Stremio id, poster routing, Cinemeta
+// resolution, Content-DNA scoring, match_score, catalog membership or sorting -
+// and that inertness is asserted by tests rather than assumed.
+//
+// The vocabulary is CLOSED, so a typo or a speculative new namespace fails
+// loudly instead of quietly becoming schema. Widening it is a deliberate
+// decision, not a side effect of one item needing somewhere to put a value.
+export const SUPPORTED_EXTERNAL_ID_NAMESPACES = ["kitsu"];
+
 const validTypes = new Set(["movie", "series"]);
 const validStatus = new Set(["watch", "seen"]);
 const tags = new Set(profile.controlled_tags);
@@ -113,6 +129,34 @@ for (const [i, item] of all.entries()) {
   for (const message of validateItemDna(item, dnaDimensionIds, dnaTagIds)) {
     console.error(`${prefix}: ${message}`);
     errors++;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(item, "external_ids")) {
+    const ext = item.external_ids;
+    if (ext === null || typeof ext !== "object" || Array.isArray(ext)) {
+      console.error(`${prefix}: external_ids must be an object`);
+      errors++;
+    } else {
+      for (const [ns, value] of Object.entries(ext)) {
+        if (!SUPPORTED_EXTERNAL_ID_NAMESPACES.includes(ns)) {
+          console.error(`${prefix}: external_ids has unsupported namespace '${ns}' ` +
+            `(supported: ${SUPPORTED_EXTERNAL_ID_NAMESPACES.join(", ")}). The vocabulary is closed ` +
+            `so a typo cannot quietly become schema; widening it is a deliberate decision.`);
+          errors++;
+        } else if (typeof value !== "string" || value.trim() === "") {
+          console.error(`${prefix}: external_ids.${ns} must be a non-empty string`);
+          errors++;
+        }
+      }
+      // A secondary id is a note, never an identity. If IMDb is missing, the
+      // item has no canonical public identity and does not belong in public
+      // data - a Kitsu id must never be used to paper over that.
+      if (!item.imdb_id && Object.keys(ext).length > 0) {
+        console.error(`${prefix}: carries external_ids but no imdb_id - a secondary id is inert metadata ` +
+          `and can never stand in for the canonical public identity. Log the title as unresolved and skip it.`);
+        errors++;
+      }
+    }
   }
 
   if (!Object.prototype.hasOwnProperty.call(item, "source")) {

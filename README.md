@@ -159,3 +159,23 @@ entry is not watched.
 The rule this replaces is unchanged: `watched` ⇒ `recommendable: false`,
 `unwatched` ⇒ `recommendable: true`. What changed is how `evidence_type` gets
 assigned in the first place.
+
+## Secondary external ids are inert
+
+An item may optionally carry `external_ids`, a **closed** vocabulary of
+secondary identifiers from catalogues this system does not use (currently
+`kitsu` only, for anime).
+
+**IMDb remains the one canonical public identity.** A secondary id is a note
+for later work and reaches nothing: not `identityKey()`, not duplicate
+detection, not the Stremio id, not poster routing, Cinemeta resolution,
+Content-DNA scoring, `match_score`, catalog membership or sorting. That
+inertness is asserted by tests rather than assumed.
+
+A title with **no resolvable IMDb id has no public identity** and does not
+belong in public data. A secondary id can never stand in for it — log the title
+as unresolved and skip it. The validator rejects `external_ids` on an item with
+no `imdb_id` for exactly this reason.
+
+Widening the namespace list is a deliberate decision, never a side effect of
+one item needing somewhere to put a value.
