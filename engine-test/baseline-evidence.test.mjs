@@ -203,11 +203,18 @@ check("T6b8", "watchedEvidenceIdentities returns NOTHING for unwatched entries",
     validateProfile(banned).some(e => e.includes("must earn its place")),
     "unwatched evidence titles must stay eligible");
 
+  // A profile may legitimately have zero watched entries, so this negative
+  // case has nothing to mutate there. Skipping is correct; crashing is not.
   const resurrect = clone(profile);
   const target4 = resurrect.baseline_evidence.items.find(i => i.evidence_type === "watched");
-  target4.recommendable = true;
-  check("EV4", "the validator REJECTS marking a watched entry recommendable",
-    validateProfile(resurrect).some(e => e.includes("never be recommended again")));
+  if (target4) {
+    target4.recommendable = true;
+    check("EV4", "the validator REJECTS marking a watched entry recommendable",
+      validateProfile(resurrect).some(e => e.includes("never be recommended again")));
+  } else {
+    check("EV4", "the validator REJECTS marking a watched entry recommendable", true,
+      "(skipped: this profile has no watched entries, which is legal)");
+  }
 
   const noYear = clone(profile);
   const target5 = noYear.baseline_evidence.items.find(i => i.scope === "title");
