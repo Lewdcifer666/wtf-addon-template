@@ -169,6 +169,7 @@ try {
     imdb_id: "tt9100001", type: "movie", title: "Fixture Candidate", year: 2024,
     status: "watch", match_score: 91, tags: ["best"], reason: "A scaffold fixture candidate.",
     added_at: "2026-08-27T00:00:00Z", added_by: "bootstrap",
+    source: "https://example.org/identity ; https://example.org/structural-analysis",
     dna: { ...fullDna }, dna_confidence: 0.9, dna_tags: ["probe_alpha"],
     ...over
   });
@@ -230,6 +231,70 @@ try {
     try { execFileSync(process.execPath, ["scripts/build-site.mjs"], { cwd: out, stdio: "pipe" }); return true; }
     catch { return false; }
   })(), "it must degrade to ineligible, never throw out of bestArchetype()");
+
+  // -------------------------------------------------------------------------
+  // source provenance
+  //
+  // 'reason' explains a title to a human. 'source' has to say where the
+  // research came from, so a DNA fingerprint can be audited later by someone
+  // who was not there. A prose evidence summary reads like justification and
+  // is not checkable, so it must not be accepted as provenance.
+  // -------------------------------------------------------------------------
+  library([item({ source: "https://en.wikipedia.org/wiki/Example" })]);
+  check("SP-A", "a single real https source URL is accepted", runValidate().code === 0);
+
+  library([item({ source: "https://a.example.org/identity ; https://b.example.org/analysis" })]);
+  check("SP-B", "several semicolon-separated URLs are accepted", runValidate().code === 0);
+
+  library([item({ source: "Adult animated; sustained combat across short episodes; strong art direction" })]);
+  {
+    const r = runValidate();
+    check("SP-C", "a prose-only source is REJECTED",
+      r.code !== 0 && /no usable http\(s\) URL/.test(r.output),
+      "this is exactly the defect that shipped: an evidence summary masquerading as provenance");
+  }
+
+  library([item({ source: "   " })]);
+  check("SP-D", "an empty source is REJECTED", runValidate().code !== 0);
+
+  library([(() => { const i = item(); delete i.source; return i; })()]);
+  {
+    const r = runValidate();
+    check("SP-E", "a missing source is REJECTED", r.code !== 0 && /missing 'source'/.test(r.output));
+  }
+
+  for (const bad of ["https://", "https://notahost", "ftp://example.org/x", "www.example.org"]) {
+    library([item({ source: bad })]);
+    check("SP-F", `a malformed source is REJECTED: ${JSON.stringify(bad)}`, runValidate().code !== 0);
+  }
+
+  library([item({ source: "https://example.org/title?id=42&ref=a%20b#frag" })]);
+  check("SP-G", "an ordinary query string and fragment do not break validation",
+    runValidate().code === 0);
+
+  library([item({ source: "https://example.org/only" })]);
+  check("SP-H", "the rule applies to data/library.json items", runValidate().code === 0);
+
+  {
+    // ...and to discovery files, which is where the daily task actually writes.
+    library([]);
+    const discovery = path.join(out, "data", "discoveries", "2026-08-27-t1.json");
+    const writeDiscovery = source => fs.writeFileSync(discovery, JSON.stringify({
+      schema_version: 1, run_id: "2026-08-27-t1", timestamp: "2026-08-27T00:00:00Z",
+      items: [item({ imdb_id: "tt9100500", title: "Discovered", added_by: "daily-automation", source })]
+    }, null, 2) + "\n");
+
+    writeDiscovery("https://example.org/identity ; https://example.org/analysis");
+    check("SP-I1", "a discovery item with real URLs is accepted", runValidate().code === 0);
+
+    writeDiscovery("Looks action-heavy across the whole runtime");
+    const r = runValidate();
+    check("SP-I2", "a prose-only discovery source is REJECTED",
+      r.code !== 0 && /no usable http\(s\) URL/.test(r.output),
+      "the daily task writes here, so the gate has to hold here too");
+
+    fs.rmSync(discovery, { force: true });
+  }
 
   // -------------------------------------------------------------------------
   // rows actually rank

@@ -69,3 +69,58 @@ invariants end to end. It is deliberately not named after any real genre so it c
 never be mistaken for production taste policy, and it deliberately declares a
 hard exclusion in **each** direction (`superhero` `at_or_above`, `action_density`
 `at_or_below`) so both halves of the exclusion grammar are exercised on every run.
+
+## Source provenance is not an evidence summary
+
+Every item in `data/library.json` and `data/discoveries/*.json` carries both:
+
+- **`reason`** — the concise human-readable explanation shown on the catalog card.
+- **`source`** — the actual material the research rested on, as HTTP(S) URLs.
+
+These are easy to conflate, and conflating them is how an unsupported DNA
+fingerprint ships. "Sustained combat across short episodes" restates a
+conclusion; it does not say where the conclusion came from and nobody can check
+it later. `validate.mjs` therefore rejects a `source` containing zero usable
+URLs.
+
+Recommended form: `"https://source-one/… ; https://source-two/…"`
+
+**Research policy** (not enforceable by a validator, and deliberately not
+faked in one):
+
+- Prefer **two or more** useful sources per accepted title — one may establish
+  identity and basic premise, but at least one should support the substantive
+  Content-DNA assessment.
+- `action_density` needs **whole-runtime** evidence: episode structure, scene
+  distribution, or reviews describing pacing across the whole work. **A trailer
+  is never adequate** — trailers are cut to imply density that may not exist.
+- `retro_visual_style` needs evidence about the **presentation itself**.
+  **Release year is never adequate**, and is explicitly not a preference signal
+  anywhere in this system.
+
+The validator deliberately does not judge whether a URL *proves* a DNA value.
+No validator can. What it can do is make an unsupported claim impossible to
+ship silently.
+
+## Thresholds are per-profile and must be calibrated per-profile
+
+`automation_rules.minimum_match_score` and `best_match_score` are expressed on
+that profile's own deterministic DNA-score scale.
+
+**A shared 0..100 output range does NOT mean the same number is equally
+selective across profiles.** Each profile has different weights, a different
+archetype set and different guardrails, so the score distribution its real
+candidates land in is also different.
+
+Fantasy calibrated to **65 / 80** against its own observed distribution. Those
+numbers are **Fantasy-specific and must not be copied** into Action, Anime or
+Thriller. Each new genre has to score a real candidate set first, look at where
+that profile's titles actually fall, and pick its own bar.
+
+The same trap in the other direction: Fantasy originally inherited 82/90 from
+Sci-Fi, where `match_score` is a separate holistic figure on a different scale.
+That was a scale error rather than a stricter standard, and it would have
+rejected almost everything.
+
+This is a calibration discipline, not engine behaviour. **Do not add
+cross-profile threshold coupling to engine code.**

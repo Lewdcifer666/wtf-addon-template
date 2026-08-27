@@ -11,6 +11,37 @@ const profile = JSON.parse(fs.readFileSync("data/taste-profile.json", "utf8"));
 const profileErrors = validateProfile(profile);
 for (const message of profileErrors) console.error(`taste-profile.json: ${message}`);
 
+// SOURCE PROVENANCE.
+//
+// `reason` is the human-readable explanation shown on the catalog card.
+// `source` is something different and is easy to confuse with it: it must
+// identify the MATERIAL the research actually rested on, so that a DNA
+// fingerprint can be audited months later by someone who was not there.
+//
+// A prose evidence summary is NOT provenance. "Sustained combat across short
+// episodes" restates a conclusion; it does not say where the conclusion came
+// from, and it cannot be checked. This validator therefore requires at least
+// one real HTTP(S) URL and rejects prose that merely sounds like justification.
+//
+// It deliberately does NOT try to judge whether a URL supports the DNA values.
+// That is a research-quality responsibility and no validator can carry it. What
+// it can do is make an unsupported claim impossible to ship silently.
+const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
+
+export function sourceUrls(value) {
+  if (typeof value !== "string") return [];
+  // Split on separators only. Prose words simply fail to parse as URLs and are
+  // dropped, so "some prose https://example.com/x" still yields one real URL.
+  return value.split(/[;,\s]+/).flatMap(token => {
+    let url;
+    try { url = new URL(token.trim()); } catch { return []; }
+    if (!HTTP_PROTOCOLS.has(url.protocol)) return [];
+    // A bare "https://localhost" or "https://x" is not an auditable citation.
+    if (!url.hostname.includes(".") || url.hostname.startsWith(".") || url.hostname.endsWith(".")) return [];
+    return [url.href];
+  });
+}
+
 const validTypes = new Set(["movie", "series"]);
 const validStatus = new Set(["watch", "seen"]);
 const tags = new Set(profile.controlled_tags);
@@ -81,6 +112,19 @@ for (const [i, item] of all.entries()) {
 
   for (const message of validateItemDna(item, dnaDimensionIds, dnaTagIds)) {
     console.error(`${prefix}: ${message}`);
+    errors++;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(item, "source")) {
+    console.error(`${prefix}: missing 'source' - every public source item must cite the material its research rested on`);
+    errors++;
+  } else if (typeof item.source !== "string" || item.source.trim() === "") {
+    console.error(`${prefix}: 'source' must be a non-empty string`);
+    errors++;
+  } else if (sourceUrls(item.source).length === 0) {
+    console.error(`${prefix}: 'source' contains no usable http(s) URL - a prose evidence summary is not ` +
+      `provenance. Put the explanation in 'reason' and cite the actual material in 'source', ` +
+      `for example "https://example.org/a ; https://example.org/b".`);
     errors++;
   }
 
