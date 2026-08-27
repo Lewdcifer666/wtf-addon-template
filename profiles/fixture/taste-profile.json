@@ -1,0 +1,502 @@
+{
+  "schema_version": 3,
+  "profile_name": "WTF Fixture (scaffold proof)",
+  "mission": "Throwaway fixture profile. It exists to prove that a generated repository satisfies every structural invariant end to end, and is deliberately not modelled on any real genre so it can never be mistaken for production taste policy.",
+  "automation_rules": {
+    "daily_movie_max": 5,
+    "daily_series_max": 3,
+    "minimum_match_score": 82,
+    "best_match_score": 90,
+    "zero_findings_is_valid": true,
+    "never_silently_delete_existing_watchlist_items": true,
+    "dedupe_primary_key": "imdb_id",
+    "dedupe_fallback": "normalized title + year + type",
+    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours."
+  },
+  "controlled_tags": [
+    "best",
+    "favorite"
+  ],
+  "dna_dimensions": {
+    "registry_version": 1,
+    "count": 12,
+    "scale": {
+      "min": 0,
+      "max": 10,
+      "integer": true,
+      "unknown": null
+    },
+    "principles": {
+      "descriptive_only": "A DNA value describes how strongly a property exists in a TITLE. It never states whether that property is desirable. Desirability lives only in dna_baseline and dna_guardrails.",
+      "unknown_is_not_zero": "Missing or null means UNKNOWN, never 'definitely absent'. Never substitute 0.",
+      "unknown_never_satisfies": "A threshold comparison against an unknown value is false in both directions. Unknown can never satisfy a positive or a negative test.",
+      "unknown_is_not_safe": "Unknown must not be read as 'passes the guardrail'. An item is not DNA-score-eligible unless every dimension referenced ANYWHERE in dna_guardrails is known - hard_exclusion and combination alike.",
+      "independent_dimensions": "action_intensity and action_density are separate information and must never be combined, averaged or substituted for one another: intensity is how hard the action hits when it happens, density is how much of the runtime it occupies. Likewise visual_quality (craft) and retro_visual_style (era aesthetic) are independent - a title may be excellent AND strongly old-school, and release year is never an input to either."
+    },
+    "tag_registry": [
+      "probe_alpha",
+      "probe_beta"
+    ],
+    "dimensions": [
+      {
+        "id": "mystery",
+        "label": "Mystery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing withheld",
+          "5": "substantial mystery thread",
+          "10": "the whole structure is a mystery"
+        }
+      },
+      {
+        "id": "suspense",
+        "label": "Suspense",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "recurring tension",
+          "10": "sustained throughout"
+        }
+      },
+      {
+        "id": "action_density",
+        "label": "Action Density",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "essentially no action across the runtime",
+          "3": "a few isolated action scenes in an otherwise inactive runtime",
+          "5": "action recurs regularly, roughly a third of the runtime",
+          "8": "action occupies most of the runtime",
+          "10": "near-continuous action"
+        }
+      },
+      {
+        "id": "action_intensity",
+        "label": "Action Intensity",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "ordinary force and stakes when action occurs",
+          "10": "peak sequences are extreme in force, scale and stakes"
+        }
+      },
+      {
+        "id": "worldbuilding",
+        "label": "Worldbuilding",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no invented world",
+          "5": "a coherent invented world matters",
+          "10": "the invented world is deep, consistent and load-bearing"
+        }
+      },
+      {
+        "id": "horror",
+        "label": "Horror",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "real horror content",
+          "10": "horror is the operating mode"
+        }
+      },
+      {
+        "id": "comedy",
+        "label": "Comedy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "substantial comic register",
+          "10": "primarily a comedy"
+        }
+      },
+      {
+        "id": "visual_quality",
+        "label": "Visual Quality",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "crude or careless craft",
+          "5": "competent, unremarkable craft",
+          "10": "exceptional craft - judged on its own presentation, never on release year"
+        }
+      },
+      {
+        "id": "retro_visual_style",
+        "label": "Retro Visual Style",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "strongly contemporary visual language",
+          "5": "mixed or classic presentation",
+          "10": "strongly retro, legacy or old-school aesthetic - judged from colour grading, lensing, editing rhythm, effects technique and design language, NEVER from the release date"
+        }
+      },
+      {
+        "id": "military_focus",
+        "label": "Military Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "major military component",
+          "10": "military institutions, operations or combat framing dominates"
+        }
+      },
+      {
+        "id": "superhero",
+        "label": "Superhero",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "costumed or superpowered hero structure present",
+          "10": "superhero structure is central"
+        }
+      },
+      {
+        "id": "pace_speed",
+        "label": "Pace (speed)",
+        "direction": "slow_to_fast",
+        "rubric": {
+          "0": "very slow / contemplative",
+          "5": "moderate / steady",
+          "10": "relentless / extremely fast"
+        }
+      }
+    ]
+  },
+  "dna_baseline": {
+    "description": "The desired CONTENT universe expressed on the DNA scale. Stable baseline. Accumulated user feedback is NEVER merged into this section.",
+    "weights": {
+      "action_density": 20,
+      "mystery": 18,
+      "suspense": 16,
+      "worldbuilding": 12,
+      "visual_quality": 10,
+      "action_intensity": 8,
+      "horror": 0,
+      "comedy": 0,
+      "retro_visual_style": -8,
+      "military_focus": -12
+    },
+    "unweighted": [
+      "pace_speed",
+      "superhero"
+    ],
+    "unweighted_note": "pace_speed is meaningful only in combination. superhero is hard-excluded, and a dimension handled by a HARD exclusion is never also weighted - that would penalise it twice, once by removing the item and once by lowering a score it no longer has.",
+    "completeness_defaults": {
+      "min_known_dimensions": 10,
+      "min_confidence": 0.6,
+      "required_known_dimensions": [
+        "superhero",
+        "action_density",
+        "military_focus",
+        "mystery",
+        "suspense",
+        "visual_quality",
+        "retro_visual_style",
+        "pace_speed"
+      ],
+      "note": "An item must satisfy ALL THREE conditions to be scored by the DNA path. required_known_dimensions must contain every dimension referenced ANYWHERE in dna_guardrails, so an item can never pass a structural guardrail or dodge a combination penalty merely because the relevant dimension is unknown. retro_visual_style is required despite no guardrail referencing it: it carries a load-bearing negative weight, so leaving it unmeasured would quietly favour untested titles."
+    },
+    "archetypes": [
+      {
+        "id": "mystery_driven",
+        "label": "Mystery Driven",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "mystery",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "mystery": 10,
+          "suspense": 8,
+          "worldbuilding": 6
+        },
+        "penalise": {
+          "military_focus": 4
+        }
+      },
+      {
+        "id": "action_forward",
+        "label": "Action Forward",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "action_density",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "action_density": 10,
+          "action_intensity": 8,
+          "visual_quality": 5
+        }
+      },
+      {
+        "id": "strange_world",
+        "label": "Strange World",
+        "weight": 0.9,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "worldbuilding",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "horror",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "worldbuilding": 9,
+          "horror": 6,
+          "mystery": 6
+        }
+      }
+    ],
+    "archetype_note": "Scoring takes the BEST-matching archetype, never an average. Every emphasis and penalise dimension must be weighted or required-known, or bestArchetype() would throw on an item that never measured it."
+  },
+  "dna_guardrails": {
+    "description": "Policy applied to descriptive DNA measurements. Not learnable away by ordinary feedback.",
+    "evaluation_note": "A condition whose dimension is unknown/null evaluates FALSE. hard_exclusion entries remove the item from DNA-scored results AND are enforced at ingestion by validate.mjs, because the plain watch rows do not consult DNA and would otherwise publish an excluded title anyway. combination entries apply a score penalty and never remove an item on their own.",
+    "hard_exclusion": [
+      {
+        "id": "superhero_first",
+        "dimension": "superhero",
+        "at_or_above": 8,
+        "note": "Excludes on a value being too HIGH. Superhero structure is central, not merely a powered character appearing."
+      },
+      {
+        "id": "insufficient_action_density",
+        "dimension": "action_density",
+        "at_or_below": 3,
+        "note": "Excludes on a value being too LOW - the definitional floor this fixture exists to exercise. A title with a handful of action scenes across an otherwise inactive runtime does not belong in an action-shaped addon however good its other properties are. The same title may qualify normally in a differently-shaped profile."
+      }
+    ],
+    "combination": [
+      {
+        "id": "military_first",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "military_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Military framing is fine when something else is driving the story; this fires only when it is not."
+      },
+      {
+        "id": "cheap_presentation",
+        "penalty": -22,
+        "all_of": [
+          {
+            "dimension": "visual_quality",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "Craft, not age. retro_visual_style is deliberately NOT referenced here: a strongly old-school look softens ranking through its linear weight and must never exclude or heavily penalise on its own."
+      },
+      {
+        "id": "slow_without_mystery",
+        "penalty": -20,
+        "all_of": [
+          {
+            "dimension": "pace_speed",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "suspense",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Slow is not bad; slow WITHOUT anything pulling the viewer forward is."
+      }
+    ]
+  },
+  "execution_preferences": {
+    "description": "Baseline POLICY for how execution evidence is applied. Policy only. Accumulated feedback is NEVER written here.",
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    },
+    "rules": [
+      "Execution feedback never changes topic or DNA eligibility.",
+      "Concept feedback may refine content preference, conservatively and preferably on repeated independent evidence.",
+      "Tone feedback is a soft ranking adjustment and never a hard subject blacklist.",
+      "A single title never establishes a generalised content aversion.",
+      "The stable baseline remains dominant while feedback history is small."
+    ]
+  },
+  "preference_notes": {
+    "soft_actor_affinity": [
+      "Fixture Person A"
+    ],
+    "soft_actor_affinity_rule": "METADATA, outside Content DNA, with NO ELIGIBILITY EFFECT. It may be consulted only after normal content scoring and every guardrail have already qualified a title, and only as a deterministic sort tie-break among titles whose scores are already equal (item.tie_break_rank). It must never alter descriptive DNA, lift a failing title over the threshold, cancel a guardrail, overcome low action density, substitute for content research, or propagate to another profile."
+  },
+  "baseline_evidence": {
+    "schema_version": 1,
+    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring.",
+    "evidence_weights": {
+      "watched_favorite": {
+        "direction": "positive",
+        "magnitude": 1
+      },
+      "watched_love": {
+        "direction": "positive",
+        "magnitude": 0.85
+      },
+      "watched_like": {
+        "direction": "positive",
+        "magnitude": 0.6
+      },
+      "watched_mixed": {
+        "direction": "mixed",
+        "magnitude": 0
+      },
+      "watched_dislike": {
+        "direction": "negative",
+        "magnitude": 0.6
+      },
+      "trailer_interest": {
+        "direction": "positive",
+        "magnitude": 0.25
+      },
+      "trailer_aversion": {
+        "direction": "negative",
+        "magnitude": 0.25
+      }
+    },
+    "items": [
+      {
+        "title": "Fixture Anchor One",
+        "type": "series",
+        "year": 2011,
+        "imdb_id": "tt9000001",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_favorite",
+        "reaction": "love",
+        "recommendable": false,
+        "notes": [
+          "all-time favorite",
+          "deep worldbuilding",
+          "sustained mystery"
+        ]
+      },
+      {
+        "title": "Fixture Anchor Two",
+        "type": "movie",
+        "year": 2018,
+        "imdb_id": "tt9000002",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_like",
+        "reaction": "like",
+        "recommendable": false,
+        "notes": [
+          "high action density",
+          "competent craft"
+        ]
+      },
+      {
+        "title": "Fixture Ambivalent",
+        "type": "movie",
+        "year": 2020,
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_mixed",
+        "reaction": "mixed",
+        "recommendable": false,
+        "notes": [
+          "interesting premise",
+          "action too sparse across the runtime"
+        ]
+      },
+      {
+        "title": "Fixture Disliked",
+        "type": "movie",
+        "year": 2016,
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_dislike",
+        "reaction": "dislike",
+        "recommendable": false,
+        "notes": [
+          "military framing dominated",
+          "nothing driving the story forward"
+        ]
+      },
+      {
+        "title": "Fixture Saga",
+        "type": "movie",
+        "scope": "franchise",
+        "evidence_type": "watched",
+        "evidence_class": "watched_favorite",
+        "reaction": "love",
+        "recommendable": false,
+        "franchise_members": [
+          {
+            "title": "Fixture Saga",
+            "year": 2001,
+            "imdb_id": "tt9000010"
+          },
+          {
+            "title": "Fixture Saga Two",
+            "year": 2003
+          }
+        ],
+        "notes": [
+          "all-time favorite",
+          "very high action density",
+          "charismatic ensemble"
+        ]
+      },
+      {
+        "title": "Fixture Prospect",
+        "type": "movie",
+        "year": 2023,
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "looks visually striking",
+          "unusual premise"
+        ]
+      },
+      {
+        "title": "Fixture Unappealing",
+        "type": "series",
+        "year": 2015,
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "presentation looks strongly old-school",
+          "still eligible - a trailer reaction is a weak prior, not a ban"
+        ]
+      }
+    ]
+  }
+}

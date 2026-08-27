@@ -1,0 +1,101 @@
+{
+  "schema_version": 2,
+  "manifest": {
+    "id": "com.github.wtffixture.template-fixture",
+    "version": "1.0.0",
+    "name": "WTF Fixture Discovery",
+    "description": "Throwaway scaffold fixture used to prove the generator and the engine invariants. Not a real product."
+  },
+  "site": {
+    "title": "WTF Fixture Discovery",
+    "emoji": "🧪",
+    "blurb": "Scaffold fixture. This addon exists only to prove that a generated repository validates, builds and deploys on its own."
+  },
+  "catalogs": [
+    {
+      "id": "full-watchlist",
+      "name": "Full Watchlist",
+      "filter": "watch",
+      "sort": "score"
+    },
+    {
+      "id": "past-24h",
+      "name": "🔥 Past 24h Findings",
+      "filter": "past24",
+      "sort": "newest"
+    },
+    {
+      "id": "best-matches",
+      "name": "⭐ Best Matches",
+      "filter": "best",
+      "sort": "score"
+    },
+    {
+      "id": "dna-match",
+      "name": "🧬 DNA Match",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "baseline_profile",
+        "archetype_bonus_max": 25
+      }
+    },
+    {
+      "id": "high-action",
+      "name": "💥 High Action",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "action_density",
+              "at_or_above": 6
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "action_density": 14,
+          "action_intensity": 9,
+          "visual_quality": 6,
+          "suspense": 5
+        },
+        "penalties": {
+          "military_focus": 6,
+          "retro_visual_style": 4
+        }
+      }
+    },
+    {
+      "id": "mystery-first",
+      "name": "❓ Mystery First",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "mystery",
+              "at_or_above": 5
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "mystery": 14,
+          "suspense": 10,
+          "worldbuilding": 6
+        },
+        "penalties": {
+          "military_focus": 5
+        }
+      }
+    }
+  ]
+}

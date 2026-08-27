@@ -1,0 +1,7 @@
+{
+  "repo": "wtf-fixture-stremio",
+  "package_name": "wtf-fixture-stremio-automation",
+  "user_agent": "WTF-Fixture-Stremio-Automation/1.0",
+  "created_at": "2026-08-27T00:00:00Z",
+  "note": "THROWAWAY TEMPLATE FIXTURE. Not one of the five products. It exists only to prove the generator and the engine invariants end to end, and is deliberately not named after any real genre so it can never be mistaken for a production profile."
+}

@@ -1,0 +1,8 @@
+# The engine is checksummed over raw bytes in every generated repo, so a CRLF
+# conversion here would silently change what gets vendored outward. Pin LF for
+# the canonical source of truth itself, exactly as generated repos do.
+* text=auto eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf

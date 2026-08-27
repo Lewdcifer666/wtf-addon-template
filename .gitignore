@@ -1,0 +1,7 @@
+node_modules/
+
+# Throwaway output from `node generate.mjs`. Generated repos are their own
+# repositories and must never be committed into the template.
+/out/
+/tmp/
+wtf-*-stremio/

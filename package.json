@@ -1,0 +1,13 @@
+{
+  "name": "wtf-addon-template",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node test/generator.test.mjs",
+    "generate": "node generate.mjs"
+  }
+}
