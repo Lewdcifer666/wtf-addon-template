@@ -1,0 +1,1164 @@
+{
+  "schema_version": 3,
+  "profile_name": "WTF Fantasy / Dark Mature Worldbuilding",
+  "mission": "Find fantasy movies and series built on a serious, mature, visually rich invented world: real magic with rules, creatures and non-human races, warring kingdoms and factions, mythic strangeness, and action that belongs to that world. Tone and presentation matter as much as subject: the same premise pitched at children, played for silliness, or dominated by romance drama is not the same recommendation.",
+  "automation_rules": {
+    "daily_movie_max": 5,
+    "daily_series_max": 3,
+    "minimum_match_score": 82,
+    "best_match_score": 90,
+    "zero_findings_is_valid": true,
+    "never_silently_delete_existing_watchlist_items": true,
+    "dedupe_primary_key": "imdb_id",
+    "dedupe_fallback": "normalized title + year + type",
+    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours. Bootstrap items carry added_by=bootstrap and therefore never appear in this row."
+  },
+  "controlled_tags": [
+    "best",
+    "favorite"
+  ],
+  "dna_dimensions": {
+    "registry_version": 1,
+    "count": 28,
+    "scale": {
+      "min": 0,
+      "max": 10,
+      "integer": true,
+      "unknown": null
+    },
+    "principles": {
+      "descriptive_only": "A DNA value describes how strongly a property exists in a TITLE. It never states whether that property is desirable. Desirability lives only in dna_baseline and dna_guardrails.",
+      "unknown_is_not_zero": "Missing or null means UNKNOWN, never 'definitely absent'. Never substitute 0.",
+      "unknown_never_satisfies": "A threshold comparison against an unknown value is false in both directions. Unknown can never satisfy a positive or a negative test.",
+      "unknown_is_not_safe": "Unknown must not be read as 'passes the guardrail'. An item is not DNA-score-eligible unless every dimension referenced ANYWHERE in dna_guardrails is known - hard_exclusion and combination alike. See dna_baseline.completeness_defaults.required_known_dimensions.",
+      "independent_dimensions": "Three visual dimensions are separate information and must never be combined, averaged or substituted for one another. visual_quality is CRAFT. visual_spectacle is SCALE AND AMBITION. retro_visual_style is ERA AESTHETIC. A title may be high craft AND strongly old-school (visual_quality 9, retro_visual_style 9), or polished and intimate (visual_quality 9, visual_spectacle 2). RELEASE YEAR IS NEVER AN INPUT TO ANY OF THEM: retro_visual_style is judged from colour grading, lensing, editing rhythm, effects technique and costume/production-design language, so a new film shot to look old scores high and an older film with contemporary visual language scores low. Likewise magic_presence (how much magic exists) and magic_system_depth (how rule-bound it is) are independent: a world can be saturated with magic that has no stated limits, or contain little magic that is rigorously systematised. action_density is how much of the RUNTIME is action, and must be derived from whole-runtime evidence - scene or episode structure, reviews describing pacing across the whole work. It must NEVER be inferred from trailer editing, and never from action_intensity, which measures only how hard the action hits when it does occur."
+    },
+    "tag_registry": [
+      "medieval",
+      "royal_court",
+      "war_campaign",
+      "quest",
+      "prophecy",
+      "dragon",
+      "undead",
+      "witchcraft",
+      "necromancy",
+      "fae",
+      "elves_dwarves",
+      "beast",
+      "monster_hunter",
+      "portal_world",
+      "ancient_ruins",
+      "curse",
+      "sword_sorcery",
+      "folk_myth",
+      "wilderness",
+      "urban_fantasy"
+    ],
+    "tag_registry_note": "Controlled descriptive DNA tags. This vocabulary is CLOSED: item.dna_tags may contain only values from this array. It is deliberately separate from the top-level controlled_tags array, which is the public catalog tag vocabulary and has different semantics. The two must never be merged or cross-validated.",
+    "dimensions": [
+      {
+        "id": "magic_presence",
+        "label": "Magic Presence",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no magic",
+          "3": "a rumour or a single unexplained event",
+          "5": "magic is a real, recurring element",
+          "8": "magic shapes most of the plot",
+          "10": "magic saturates the world and the story"
+        }
+      },
+      {
+        "id": "magic_system_depth",
+        "label": "Magic System Depth",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "magic has no stated rules, or there is no magic",
+          "3": "vague limits implied but never explained",
+          "5": "consistent stated limits and costs",
+          "8": "the rules are explicit and drive how conflicts resolve",
+          "10": "the magic system is systematic, taught, and load-bearing"
+        }
+      },
+      {
+        "id": "fantasy_creatures",
+        "label": "Fantasy Creatures",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no non-human creatures",
+          "3": "a single creature appears briefly",
+          "5": "creatures are a real recurring element",
+          "8": "creatures drive much of the plot",
+          "10": "the world's creatures are central to the story"
+        }
+      },
+      {
+        "id": "nonhuman_races",
+        "label": "Non-Human Races",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "all-human cast",
+          "3": "one non-human character or a mentioned people",
+          "5": "distinct non-human peoples with their own culture",
+          "8": "several developed races shape the politics or conflict",
+          "10": "the interplay of non-human peoples IS the setting"
+        }
+      },
+      {
+        "id": "dark_fantasy",
+        "label": "Dark / Mature Fantasy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "bright, heroic, consequence-light",
+          "3": "occasional darkness in an otherwise safe world",
+          "5": "real moral weight and lasting consequence",
+          "8": "grim, morally compromised, genuinely dangerous",
+          "10": "unremittingly grim, violent and morally bleak"
+        }
+      },
+      {
+        "id": "mythology",
+        "label": "Mythology",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no myth, legend or folklore",
+          "3": "decorative references to legend",
+          "5": "myth or folklore is a real structural element",
+          "8": "the story is built on a mythic or legendary framework",
+          "10": "retelling or enacting myth IS the story"
+        }
+      },
+      {
+        "id": "epic_scale",
+        "label": "Epic Scale",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "intimate, local, few characters",
+          "3": "a single community's stakes",
+          "5": "a region, large cast or long journey",
+          "8": "continent-spanning stakes and armies",
+          "10": "the fate of the whole world, across a vast canvas"
+        }
+      },
+      {
+        "id": "kingdom_politics",
+        "label": "Kingdom Politics",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no rulers, courts or governance",
+          "3": "a king exists but politics stays offscreen",
+          "5": "court intrigue or succession genuinely matters",
+          "8": "political manoeuvring drives the plot",
+          "10": "the struggle for rule IS the story"
+        }
+      },
+      {
+        "id": "faction_conflict",
+        "label": "Faction Conflict",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no organised opposing groups",
+          "3": "a single villain and his followers",
+          "5": "several real factions with competing aims",
+          "8": "shifting multi-sided conflict drives the plot",
+          "10": "the war between factions IS the structure"
+        }
+      },
+      {
+        "id": "other_realms",
+        "label": "Other Realms",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "one world only",
+          "3": "another realm is referenced",
+          "5": "a second world or plane is genuinely visited",
+          "8": "movement between realms drives the plot",
+          "10": "the relationship between worlds IS the premise"
+        }
+      },
+      {
+        "id": "adventure",
+        "label": "Adventure",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "static single location, no journey",
+          "3": "brief travel between two places",
+          "5": "a real journey or quest thread",
+          "8": "the story is largely a journey into new territory",
+          "10": "continuous travel and discovery IS the structure"
+        }
+      },
+      {
+        "id": "family_tone",
+        "label": "Family Tone",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "clearly pitched at adults",
+          "3": "broadly accessible but adult in register",
+          "5": "genuinely all-ages",
+          "8": "aimed primarily at children, with adult-facing edges softened",
+          "10": "squarely a children's film or series"
+        }
+      },
+      {
+        "id": "worldbuilding",
+        "label": "Worldbuilding",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no invented world",
+          "3": "a thin backdrop with a few invented names",
+          "5": "a coherent invented world that matters",
+          "8": "deep, consistent history, geography and cultures",
+          "10": "the invented world is deep, consistent and load-bearing"
+        }
+      },
+      {
+        "id": "ability_variety",
+        "label": "Ability Variety",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "one ability or none",
+          "3": "two broadly similar powers",
+          "5": "several distinct abilities",
+          "8": "many differentiated abilities used tactically",
+          "10": "a broad, well-differentiated ability space"
+        }
+      },
+      {
+        "id": "mystery",
+        "label": "Mystery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing withheld",
+          "3": "a minor unanswered question",
+          "5": "substantial mystery thread",
+          "8": "mystery drives the structure",
+          "10": "the whole structure is a mystery"
+        }
+      },
+      {
+        "id": "suspense",
+        "label": "Suspense",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "occasional tension",
+          "5": "recurring tension",
+          "8": "sustained tension",
+          "10": "sustained throughout"
+        }
+      },
+      {
+        "id": "action_density",
+        "label": "Action Density",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "essentially no action across the runtime",
+          "3": "a few isolated action scenes in an otherwise quiet runtime",
+          "5": "action recurs regularly, roughly a third of the runtime",
+          "8": "action occupies most of the runtime",
+          "10": "near-continuous action"
+        }
+      },
+      {
+        "id": "action_intensity",
+        "label": "Action Intensity",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "minor scuffles",
+          "5": "ordinary force and stakes when action occurs",
+          "8": "large, punishing set pieces",
+          "10": "peak sequences are extreme in force, scale and stakes"
+        }
+      },
+      {
+        "id": "creature_threat",
+        "label": "Creature Threat",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no creature",
+          "3": "a creature appears but threatens little",
+          "5": "a creature is a real element",
+          "8": "a central threat",
+          "10": "the creature is the antagonist"
+        }
+      },
+      {
+        "id": "horror",
+        "label": "Horror",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "isolated frightening moments",
+          "5": "real horror content",
+          "8": "horror-forward",
+          "10": "horror is the operating mode"
+        }
+      },
+      {
+        "id": "visual_quality",
+        "label": "Visual Quality",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "crude or careless craft",
+          "3": "visibly cheap or inconsistent",
+          "5": "competent, unremarkable craft",
+          "8": "polished and confident",
+          "10": "exceptional craft - judged on its own presentation, never on release year"
+        }
+      },
+      {
+        "id": "retro_visual_style",
+        "label": "Retro Visual Style",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "strongly contemporary visual language",
+          "3": "modern with occasional classical flourishes",
+          "5": "mixed or classic presentation",
+          "8": "clearly of an earlier visual era",
+          "10": "strongly retro, legacy or old-school aesthetic - judged from colour grading, lensing, editing rhythm, effects technique and design language, NEVER from the release date"
+        }
+      },
+      {
+        "id": "visual_spectacle",
+        "label": "Visual Spectacle",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing shown at scale",
+          "3": "one or two larger moments",
+          "5": "real set pieces or vistas",
+          "8": "repeated large-scale imagery",
+          "10": "sustained large-scale visual ambition"
+        }
+      },
+      {
+        "id": "comedy",
+        "label": "Comedy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "occasional levity",
+          "5": "substantial comic register",
+          "8": "comedy-forward",
+          "10": "primarily a comedy"
+        }
+      },
+      {
+        "id": "romance_focus",
+        "label": "Romance Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "a background attraction",
+          "5": "a real romance thread",
+          "8": "romance drives much of the plot",
+          "10": "romance is the primary structural driver"
+        }
+      },
+      {
+        "id": "drama_focus",
+        "label": "Drama Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "occasional emotional beats",
+          "5": "real interpersonal drama",
+          "8": "emotional conflict drives the plot",
+          "10": "interpersonal drama is the primary mode"
+        }
+      },
+      {
+        "id": "superhero",
+        "label": "Superhero",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "a powered individual with no hero framing",
+          "5": "costumed or superpowered hero structure present",
+          "8": "central hero-versus-villain framing",
+          "10": "superhero structure is central"
+        }
+      },
+      {
+        "id": "pace_speed",
+        "label": "Pace (speed)",
+        "direction": "slow_to_fast",
+        "rubric": {
+          "0": "very slow / contemplative",
+          "3": "deliberate",
+          "5": "moderate / steady",
+          "8": "brisk",
+          "10": "relentless / extremely fast"
+        }
+      }
+    ]
+  },
+  "dna_baseline": {
+    "description": "The desired CONTENT universe expressed on the DNA scale. Stable baseline. Accumulated user feedback is NEVER merged into this section.",
+    "scale_note": "Weights are in the range -40..40 and are commensurate with one another only within this profile. A shared dimension id carries NO shared weight: horror is 0 here and strongly positive in the Anime profile, and that is intended. horror 0 and comedy 0 are deliberate, not omissions. Neither is disliked in fantasy on its own - the actual objection is a childish or unserious register, which is expressed by the childish_family_fantasy and silly_comedy_fantasy guardrails. A weight of 0 means neutral by default and still learnable later.",
+    "weights": {
+      "dark_fantasy": 20,
+      "magic_presence": 18,
+      "worldbuilding": 18,
+      "fantasy_creatures": 16,
+      "magic_system_depth": 15,
+      "nonhuman_races": 14,
+      "epic_scale": 14,
+      "visual_spectacle": 13,
+      "faction_conflict": 12,
+      "kingdom_politics": 11,
+      "mythology": 11,
+      "action_density": 10,
+      "visual_quality": 10,
+      "adventure": 9,
+      "mystery": 9,
+      "other_realms": 8,
+      "ability_variety": 8,
+      "action_intensity": 6,
+      "suspense": 6,
+      "creature_threat": 5,
+      "horror": 0,
+      "comedy": 0,
+      "drama_focus": -6,
+      "retro_visual_style": -10,
+      "romance_focus": -10,
+      "family_tone": -14
+    },
+    "unweighted": [
+      "pace_speed",
+      "superhero"
+    ],
+    "unweighted_note": "pace_speed is meaningful only in combination (see slow_without_stakes). superhero is HARD-EXCLUDED, and a dimension handled by a hard exclusion is never also weighted: that would penalise it twice, once by removing the item and once by lowering a score it no longer has. weights and unweighted are disjoint and their union is exactly the 28 registry ids.",
+    "completeness_defaults": {
+      "min_known_dimensions": 20,
+      "min_confidence": 0.6,
+      "required_known_dimensions": [
+        "superhero",
+        "family_tone",
+        "dark_fantasy",
+        "comedy",
+        "epic_scale",
+        "romance_focus",
+        "drama_focus",
+        "action_density",
+        "magic_presence",
+        "worldbuilding",
+        "fantasy_creatures",
+        "nonhuman_races",
+        "visual_quality",
+        "visual_spectacle",
+        "retro_visual_style",
+        "pace_speed",
+        "mystery"
+      ],
+      "note": "An item must satisfy ALL THREE conditions to be DNA-score-eligible. required_known_dimensions contains every dimension referenced ANYWHERE in dna_guardrails, so an item can never pass a structural guardrail or dodge a combination penalty merely because the relevant dimension is unknown. retro_visual_style is required despite no guardrail referencing it: it carries a load-bearing negative weight, so leaving it unmeasured would quietly favour untested titles. NOTE that min_known_dimensions is NOT the binding constraint for the DNA Match row - requiredFor() independently demands every weighted dimension for a baseline_profile row, so a title reaching DNA Match effectively needs all 26 weighted values. Lowering min_known_dimensions would relieve nothing that binds and would only weaken the eligibility floor."
+    },
+    "archetypes": [
+      {
+        "id": "dark_epic_fantasy",
+        "label": "Dark Epic Fantasy",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "dark_fantasy",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "epic_scale",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "dark_fantasy": 10,
+          "epic_scale": 9,
+          "worldbuilding": 9,
+          "faction_conflict": 8,
+          "kingdom_politics": 7,
+          "visual_spectacle": 6
+        },
+        "penalise": {
+          "family_tone": 5,
+          "romance_focus": 3
+        }
+      },
+      {
+        "id": "monster_magic_fantasy",
+        "label": "Monster & Magic Fantasy",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "fantasy_creatures",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "magic_presence",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "fantasy_creatures": 10,
+          "magic_presence": 8,
+          "dark_fantasy": 8,
+          "creature_threat": 7,
+          "action_density": 6,
+          "mystery": 5
+        },
+        "penalise": {
+          "family_tone": 5
+        }
+      },
+      {
+        "id": "magic_system_fantasy",
+        "label": "Magic-System Fantasy",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "magic_system_depth",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "magic_system_depth": 10,
+          "magic_presence": 9,
+          "ability_variety": 8,
+          "worldbuilding": 7,
+          "visual_spectacle": 6
+        },
+        "penalise": {
+          "family_tone": 4
+        }
+      },
+      {
+        "id": "creature_race_fantasy",
+        "label": "Creature & Race Fantasy",
+        "weight": 1,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "nonhuman_races",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "fantasy_creatures",
+            "at_or_above": 7
+          }
+        ],
+        "emphasis": {
+          "nonhuman_races": 10,
+          "fantasy_creatures": 9,
+          "worldbuilding": 7,
+          "visual_spectacle": 7,
+          "epic_scale": 5
+        },
+        "penalise": {
+          "family_tone": 4
+        }
+      },
+      {
+        "id": "mythic_strange_fantasy",
+        "label": "Mythic / Strange Fantasy",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "mythology",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "mythology": 10,
+          "visual_spectacle": 8,
+          "other_realms": 7,
+          "dark_fantasy": 7,
+          "mystery": 6
+        },
+        "penalise": {
+          "comedy": 4,
+          "family_tone": 4
+        }
+      },
+      {
+        "id": "high_fantasy_action",
+        "label": "High Fantasy Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "action_density",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "magic_presence",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "action_density": 10,
+          "action_intensity": 8,
+          "magic_presence": 7,
+          "fantasy_creatures": 6,
+          "visual_spectacle": 6
+        },
+        "penalise": {
+          "drama_focus": 3,
+          "family_tone": 4
+        }
+      }
+    ],
+    "archetype_note": "Scoring takes the BEST-matching archetype, never an average: averaging distinct interests produces a mediocre midpoint and erases exactly the clusters this profile exists to find. requires_mode is mandatory and has no default. Every emphasis and penalise dimension must be weighted or required-known, or bestArchetype() would throw on an item that never measured it."
+  },
+  "dna_guardrails": {
+    "description": "Policy applied to descriptive DNA measurements. Not learnable away by ordinary feedback; changing these requires a deliberate edit of this file.",
+    "structural_note": "Judge superhero by story identity - costumed or superpowered hero-versus-villain structure - not by franchise name or by the presence of a powered character. A sorcerer is not a superhero.",
+    "evaluation_note": "Guardrails are evaluated only for items that are DNA-score-eligible. A condition whose dimension is unknown/null evaluates FALSE. A combination guardrail fires if and only if EVERY condition in all_of is true AND (any_of is empty OR at least one condition in any_of is true). hard_exclusion entries remove the item from DNA-scored results AND are enforced at INGESTION by validate.mjs, because the plain watch rows do not consult DNA and would otherwise publish a title that every ranked row excludes.",
+    "hard_exclusion": [
+      {
+        "id": "traditional_superhero_fantasy",
+        "dimension": "superhero",
+        "at_or_above": 8,
+        "note": "Costumed hero-versus-villain framing is central. This is an INGESTION exclusion as well as a scoring one: such a title must never be written into library or discovery data merely to surface later in Full Watchlist."
+      }
+    ],
+    "combination": [
+      {
+        "id": "childish_family_fantasy",
+        "penalty": -35,
+        "all_of": [
+          {
+            "dimension": "family_tone",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "dark_fantasy",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "A children's-register fantasy with no real consequence. A high family_tone alone is NOT penalised - an all-ages epic with genuine darkness is fine."
+      },
+      {
+        "id": "silly_comedy_fantasy",
+        "penalty": -28,
+        "all_of": [
+          {
+            "dimension": "comedy",
+            "at_or_above": 7
+          },
+          {
+            "dimension": "dark_fantasy",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "epic_scale",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Comedy is NOT disliked in fantasy. This fires only when comedy makes the fantasy unserious AND there is neither darkness nor scale holding it up."
+      },
+      {
+        "id": "romance_drama_dominant",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "romance_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "drama_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "action_density",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Fantasy trappings around what is really a romance drama. Either element alone is tolerated."
+      },
+      {
+        "id": "flat_world_fantasy",
+        "penalty": -22,
+        "all_of": [
+          {
+            "dimension": "worldbuilding",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "magic_presence",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "fantasy_creatures",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "nonhuman_races",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "Nominally fantasy but with no invented world, no magic, no creatures and no races - generic period adventure wearing the label."
+      },
+      {
+        "id": "cheap_presentation",
+        "penalty": -25,
+        "all_of": [
+          {
+            "dimension": "visual_quality",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "visual_spectacle",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "CRAFT, not age. retro_visual_style is deliberately NOT referenced here: an old-school look softens ranking only through its linear weight and must never exclude or heavily penalise on its own."
+      },
+      {
+        "id": "slow_without_stakes",
+        "penalty": -20,
+        "all_of": [
+          {
+            "dimension": "pace_speed",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "action_density",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "Slow is not bad; slow with nothing pulling the viewer forward is."
+      }
+    ],
+    "not_expressible_in_dna": {
+      "documentation_only": true,
+      "consumer_rule": "NO CONSUMER MAY READ, EVALUATE OR SCORE THIS FIELD. It carries zero runtime semantics. It exists only to record that these signals were considered and deliberately left out of the descriptive DNA vector, so a future reader does not add dimensions for them by mistake.",
+      "entries": [
+        {
+          "signal": "Release year / age of the title",
+          "reason": "Explicitly NOT a preference. The real objection is presentation style, which retro_visual_style measures directly. Encoding year would wrongly reject well-preserved older fantasy and wrongly accept new titles shot to look dated."
+        },
+        {
+          "signal": "Franchise or studio identity",
+          "reason": "Judged by story identity instead - see structural_note. A fantasy film from a comic-book studio is not thereby a superhero film."
+        }
+      ]
+    }
+  },
+  "execution_preferences": {
+    "description": "Baseline POLICY for how execution evidence would be applied if personalization were enabled. Policy only, and INERT in MG-3: this profile consumes no private feedback and generates no personalized-scores.json. Accumulated feedback is NEVER written here.",
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    },
+    "rules": [
+      "Personalization is DISABLED for this profile until MG-8 freezes the cross-profile feedback v3 schema.",
+      "When it is enabled, a feedback event may be consumed only if its imdb_id is already in THIS repository's own public identity set.",
+      "Execution feedback never changes topic or DNA eligibility.",
+      "Concept feedback may refine content preference, conservatively and preferably on repeated independent evidence.",
+      "Tone feedback is a soft ranking adjustment and never a hard subject blacklist.",
+      "A single title never establishes a generalised content aversion.",
+      "The stable baseline remains dominant while feedback history is small."
+    ]
+  },
+  "baseline_evidence": {
+    "schema_version": 1,
+    "description": "Audit trail for how the weights above were derived. NOT read at runtime by the scorer: the weights, archetypes and guardrails ARE the encoding of this evidence. Watched entries may never be recommended again; unwatched entries stay fully eligible and must earn their place through ordinary research and scoring, with no bonus for appearing here.",
+    "evidence_weights": {
+      "watched_favorite": {
+        "direction": "positive",
+        "magnitude": 1
+      },
+      "watched_love": {
+        "direction": "positive",
+        "magnitude": 0.85
+      },
+      "watched_like": {
+        "direction": "positive",
+        "magnitude": 0.6
+      },
+      "watched_mixed": {
+        "direction": "mixed",
+        "magnitude": 0
+      },
+      "watched_dislike": {
+        "direction": "negative",
+        "magnitude": 0.6
+      },
+      "trailer_interest": {
+        "direction": "positive",
+        "magnitude": 0.25
+      },
+      "trailer_aversion": {
+        "direction": "negative",
+        "magnitude": 0.25
+      }
+    },
+    "items": [
+      {
+        "title": "Game of Thrones",
+        "type": "series",
+        "year": 2011,
+        "imdb_id": "tt0944947",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_favorite",
+        "reaction": "love",
+        "recommendable": false,
+        "notes": [
+          "all-time favorite",
+          "dark mature fantasy",
+          "deep worldbuilding",
+          "kingdoms, factions and politics",
+          "dragons and creatures",
+          "large cast, serious tone",
+          "visually impressive",
+          "violence and consequence"
+        ]
+      },
+      {
+        "title": "The Witcher",
+        "type": "series",
+        "year": 2019,
+        "imdb_id": "tt5180504",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_favorite",
+        "reaction": "love",
+        "recommendable": false,
+        "notes": [
+          "all-time favorite",
+          "dark mature fantasy",
+          "magic with cost",
+          "monsters and monster hunting",
+          "different races",
+          "action",
+          "visually rich world",
+          "supernatural mysteries"
+        ]
+      },
+      {
+        "title": "The Lord of the Rings trilogy",
+        "type": "movie",
+        "scope": "franchise",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "franchise_members": [
+          {
+            "title": "The Lord of the Rings: The Fellowship of the Ring",
+            "year": 2001,
+            "imdb_id": "tt0120737"
+          },
+          {
+            "title": "The Lord of the Rings: The Two Towers",
+            "year": 2002,
+            "imdb_id": "tt0167261"
+          },
+          {
+            "title": "The Lord of the Rings: The Return of the King",
+            "year": 2003,
+            "imdb_id": "tt0167260"
+          }
+        ],
+        "notes": [
+          "epic fantasy",
+          "mature serious tone",
+          "deep worldbuilding and mythology",
+          "multiple races and creatures",
+          "large-scale conflict",
+          "visually impressive environments",
+          "adventure and action"
+        ]
+      },
+      {
+        "title": "Harry Potter",
+        "type": "movie",
+        "scope": "franchise",
+        "evidence_type": "watched",
+        "evidence_class": "watched_mixed",
+        "reaction": "mixed",
+        "recommendable": false,
+        "franchise_members": [
+          {
+            "title": "Harry Potter and the Sorcerer's Stone",
+            "year": 2001,
+            "imdb_id": "tt0241527"
+          },
+          {
+            "title": "Harry Potter and the Chamber of Secrets",
+            "year": 2002,
+            "imdb_id": "tt0295297"
+          },
+          {
+            "title": "Harry Potter and the Prisoner of Azkaban",
+            "year": 2004,
+            "imdb_id": "tt0304141"
+          },
+          {
+            "title": "Harry Potter and the Goblet of Fire",
+            "year": 2005,
+            "imdb_id": "tt0330373"
+          },
+          {
+            "title": "Harry Potter and the Order of the Phoenix",
+            "year": 2007,
+            "imdb_id": "tt0373889"
+          },
+          {
+            "title": "Harry Potter and the Half-Blood Prince",
+            "year": 2009,
+            "imdb_id": "tt0417741"
+          },
+          {
+            "title": "Harry Potter and the Deathly Hallows: Part 1",
+            "year": 2010,
+            "imdb_id": "tt0926084"
+          },
+          {
+            "title": "Harry Potter and the Deathly Hallows: Part 2",
+            "year": 2011,
+            "imdb_id": "tt1201607"
+          }
+        ],
+        "notes": [
+          "meh - watched but not a positive anchor",
+          "magic school material is NOT blacklisted; this is a weak signal, not an anti-magic rule",
+          "franchise-level impression: the baseline gave no per-film detail, so all eight main-series films are enumerated as watched",
+          "the mixed class contributes zero direction on its own"
+        ]
+      },
+      {
+        "title": "Pan's Labyrinth",
+        "type": "movie",
+        "year": 2007,
+        "imdb_id": "tt0457430",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "unusual creatures",
+          "dark mature register"
+        ]
+      },
+      {
+        "title": "Warcraft",
+        "type": "movie",
+        "year": 2016,
+        "imdb_id": "tt0803096",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "different races and creatures",
+          "visually stunning"
+        ]
+      },
+      {
+        "title": "The Green Knight",
+        "type": "movie",
+        "year": 2021,
+        "imdb_id": "tt9243804",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "very interesting",
+          "mythic and strange",
+          "visually stunning",
+          "wants to watch it"
+        ]
+      },
+      {
+        "title": "Shadow and Bone",
+        "type": "series",
+        "year": 2021,
+        "imdb_id": "tt2403776",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "varied magic",
+          "strong visuals"
+        ]
+      },
+      {
+        "title": "The Wheel of Time",
+        "type": "series",
+        "year": 2021,
+        "imdb_id": "tt7462410",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "magic",
+          "strong visuals"
+        ]
+      },
+      {
+        "title": "Bright",
+        "type": "movie",
+        "year": 2017,
+        "imdb_id": "tt5519340",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "different races",
+          "action",
+          "uncertain about the comedy register"
+        ]
+      },
+      {
+        "title": "His Dark Materials",
+        "type": "series",
+        "year": 2019,
+        "imdb_id": "tt5607976",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "could be interesting",
+          "weaker initial interest"
+        ]
+      },
+      {
+        "title": "Wednesday",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt13443470",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "meh / uncertain"
+        ]
+      },
+      {
+        "title": "Stardust",
+        "type": "movie",
+        "year": 2007,
+        "imdb_id": "tt0486655",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "looks too silly and child-oriented",
+          "comedy-heavy impression",
+          "still eligible - a trailer reaction is a weak prior, not a ban"
+        ]
+      },
+      {
+        "title": "Dungeons & Dragons: Honor Among Thieves",
+        "type": "movie",
+        "year": 2023,
+        "imdb_id": "tt2906216",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "appears child-oriented and comedic"
+        ]
+      },
+      {
+        "title": "The NeverEnding Story",
+        "type": "movie",
+        "year": 1984,
+        "imdb_id": "tt0088323",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "feels like a kids film",
+          "presentation looks strongly old-school",
+          "the aversion is to the presentation, NOT to the release year"
+        ]
+      },
+      {
+        "title": "The Sandman",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt1751634",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "looks meh",
+          "perceived superhero-versus-villain framing"
+        ]
+      },
+      {
+        "title": "Carnival Row",
+        "type": "series",
+        "year": 2019,
+        "imdb_id": "tt0489974",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "romance and drama appear too dominant"
+        ]
+      },
+      {
+        "title": "Once Upon a Time",
+        "type": "series",
+        "year": 2011,
+        "imdb_id": "tt1843230",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "child-oriented impression",
+          "presentation looks dated",
+          "the aversion is to the presentation, NOT to the release year"
+        ]
+      }
+    ]
+  }
+}

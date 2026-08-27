@@ -1,0 +1,246 @@
+{
+  "schema_version": 2,
+  "manifest": {
+    "id": "com.github.wtffantasy.discovery",
+    "version": "1.0.0",
+    "name": "WTF Fantasy Discovery",
+    "description": "Automated dark, mature, visually rich fantasy: deep worldbuilding, varied magic systems, creatures and non-human races, kingdoms and factions, mythic strangeness and fantasy action."
+  },
+  "site": {
+    "title": "WTF Fantasy Discovery",
+    "emoji": "🐉",
+    "blurb": "Automated Stremio catalogs for dark and mature fantasy: deep worldbuilding, varied magic systems, creatures and non-human races, warring kingdoms, mythic strangeness and visually spectacular worlds."
+  },
+  "catalogs": [
+    {
+      "id": "full-watchlist",
+      "name": "Full Watchlist",
+      "filter": "watch",
+      "sort": "score"
+    },
+    {
+      "id": "past-24h",
+      "name": "🔥 Past 24h Findings",
+      "filter": "past24",
+      "sort": "newest"
+    },
+    {
+      "id": "best-matches",
+      "name": "⭐ Best Matches",
+      "filter": "best",
+      "sort": "score"
+    },
+    {
+      "id": "dna-match",
+      "name": "🧬 DNA Match",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "baseline_profile",
+        "archetype_bonus_max": 25
+      }
+    },
+    {
+      "id": "dark-epic-fantasy",
+      "name": "🐉 Dark Epic Fantasy",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "dark_fantasy",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "epic_scale",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "worldbuilding",
+              "at_or_above": 5
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "dark_fantasy": 14,
+          "epic_scale": 12,
+          "worldbuilding": 11,
+          "faction_conflict": 9,
+          "kingdom_politics": 8,
+          "nonhuman_races": 7,
+          "fantasy_creatures": 7,
+          "visual_spectacle": 7
+        },
+        "penalties": {
+          "family_tone": 8,
+          "comedy": 4,
+          "romance_focus": 4
+        }
+      }
+    },
+    {
+      "id": "magic-systems",
+      "name": "✨ Magic Systems",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "magic_system_depth",
+              "at_or_above": 5
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "magic_system_depth": 14,
+          "magic_presence": 11,
+          "ability_variety": 9,
+          "worldbuilding": 7,
+          "visual_spectacle": 5
+        },
+        "penalties": {
+          "family_tone": 6
+        }
+      }
+    },
+    {
+      "id": "creatures-races",
+      "name": "🧝 Creatures & Races",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [],
+          "any_of": [
+            {
+              "dimension": "fantasy_creatures",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "nonhuman_races",
+              "at_or_above": 5
+            }
+          ]
+        },
+        "weights": {
+          "fantasy_creatures": 12,
+          "nonhuman_races": 11,
+          "creature_threat": 7,
+          "worldbuilding": 7,
+          "visual_spectacle": 6
+        },
+        "penalties": {
+          "family_tone": 6
+        }
+      }
+    },
+    {
+      "id": "mythic-strange",
+      "name": "🗿 Mythic / Strange",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "mythology",
+              "at_or_above": 5
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "mythology": 13,
+          "other_realms": 9,
+          "visual_spectacle": 8,
+          "dark_fantasy": 7,
+          "mystery": 6
+        },
+        "penalties": {
+          "comedy": 5,
+          "family_tone": 5
+        }
+      }
+    },
+    {
+      "id": "high-fantasy-action",
+      "name": "⚔️ High Fantasy Action",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "action_density",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "magic_presence",
+              "at_or_above": 4
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "action_density": 13,
+          "action_intensity": 9,
+          "magic_presence": 8,
+          "fantasy_creatures": 6,
+          "visual_spectacle": 6
+        },
+        "penalties": {
+          "drama_focus": 4,
+          "family_tone": 5
+        }
+      }
+    },
+    {
+      "id": "visually-spectacular",
+      "name": "🏔️ Visually Spectacular",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 60,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            {
+              "dimension": "visual_spectacle",
+              "at_or_above": 7
+            },
+            {
+              "dimension": "visual_quality",
+              "at_or_above": 6
+            }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "visual_spectacle": 13,
+          "visual_quality": 12,
+          "worldbuilding": 7,
+          "other_realms": 5,
+          "fantasy_creatures": 5
+        },
+        "penalties": {
+          "retro_visual_style": 5
+        }
+      }
+    }
+  ]
+}

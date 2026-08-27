@@ -97,6 +97,9 @@ try {
     check("G5", "package.json declares no dependencies at all",
       !pkg.dependencies && !pkg.devDependencies,
       "a generated addon must build with a bare node install");
+    check("G5b", "the test script DISCOVERS suites rather than listing them",
+      pkg.scripts.test === "node test/run-all.mjs",
+      "package.json is regenerated, so a hardcoded list would drop a genre repo's own tests");
   }
 
   // -------------------------------------------------------------------------
@@ -289,6 +292,16 @@ try {
     check("G32", "regeneration preserves a hand-written README",
       read("README.md") === "# hand-written readme\n");
     check("G33", "regeneration reports what it preserved", /preserved \(genre-owned/.test(log));
+    check("G33b", "a repo-owned test survives regeneration AND is picked up by the runner", (() => {
+      write("test/genre-owned.test.mjs", `console.log("  ok   OWN  a genre-owned suite ran");
+`);
+      execFileSync(process.execPath, [path.join(templateRoot, "generate.mjs"), "--profile", "fixture", "--out", out, "--force"],
+        { stdio: "pipe", cwd: templateRoot });
+      if (!exists("test/genre-owned.test.mjs")) return false;
+      const log = execFileSync(process.execPath, ["test/run-all.mjs"], { cwd: out, encoding: "utf8" });
+      return /a genre-owned suite ran/.test(log);
+    })(), "this is exactly what a hardcoded package.json test list would have destroyed");
+
     check("G34", "regeneration still refreshes the vendored engine",
       read("scripts/dna-score.mjs") === fs.readFileSync(path.join(templateRoot, "engine", "dna-score.mjs"), "utf8"));
     check("G35", "regeneration without --force refuses to touch an existing repo", (() => {

@@ -68,7 +68,7 @@ check("C1", `censused ${before.size} tracked files under ${WATCHED.join(", ")}`,
 // test added later - which is exactly when a new fixture starts writing to a
 // production path. Everything in test/ runs except this file (which would
 // recurse) and the helpers, which are imported rather than executed.
-const NOT_A_SUITE_MEMBER = new Set(["no-production-mutation.test.mjs", "safe-fixture.mjs"]);
+const NOT_A_SUITE_MEMBER = new Set(["no-production-mutation.test.mjs", "safe-fixture.mjs", "run-all.mjs"]);
 const SUITE = fs.readdirSync("test")
   .filter(name => name.endsWith(".mjs") && !NOT_A_SUITE_MEMBER.has(name))
   .sort()

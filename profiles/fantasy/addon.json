@@ -1,0 +1,7 @@
+{
+  "repo": "wtf-fantasy-stremio",
+  "package_name": "wtf-fantasy-stremio-automation",
+  "user_agent": "WTF-Fantasy-Stremio-Automation/1.0",
+  "created_at": "2026-08-27T00:00:00Z",
+  "note": "Generation input only. Once wtf-fantasy-stremio exists, ITS genre-owned files are the canonical Fantasy product state - this seed is not synchronised with them and nothing reads it at runtime."
+}

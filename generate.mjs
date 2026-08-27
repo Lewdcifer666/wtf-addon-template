@@ -42,6 +42,7 @@ export const ENGINE_FILES = [
 // Vendored verbatim into <repo>/test/.
 export const ENGINE_TESTS = [
   "safe-fixture.mjs",
+  "run-all.mjs",
   "engine-checksum.test.mjs",
   "engine-invariants.test.mjs",
   "baseline-evidence.test.mjs",
@@ -130,7 +131,6 @@ export const USER_AGENT = ${JSON.stringify(addon.user_agent)};
 }
 
 function packageJson(addon) {
-  const suite = ENGINE_TESTS.filter(n => n.endsWith(".test.mjs") && n !== "no-production-mutation.test.mjs");
   return {
     name: addon.package_name,
     version: "1.0.0",
@@ -141,9 +141,10 @@ function packageJson(addon) {
       resolve: "node scripts/resolve-library.mjs",
       build: "node scripts/build-site.mjs",
       validate: "node scripts/validate.mjs",
-      // no-production-mutation runs LAST, deliberately: it censuses the files
-      // every other test has already had its fixtures through.
-      test: [...suite.map(n => `node test/${n}`), "node test/no-production-mutation.test.mjs"].join(" && ")
+      // Discovered, not listed. package.json is regenerated, so a hardcoded
+      // suite list here would silently drop a genre repo's own acceptance tests
+      // the next time it was regenerated. See test/run-all.mjs.
+      test: "node test/run-all.mjs"
     }
   };
 }
