@@ -5,16 +5,16 @@
   "automation_rules": {
     "daily_movie_max": 5,
     "daily_series_max": 3,
-    "minimum_match_score": 0,
-    "best_match_score": 0,
-    "calibration_status": "PROVISIONAL - thresholds not yet calibrated",
+    "minimum_match_score": 58,
+    "best_match_score": 67,
     "zero_findings_is_valid": true,
     "never_silently_delete_existing_watchlist_items": true,
     "dedupe_primary_key": "imdb_id",
     "dedupe_fallback": "normalized title + year + type",
     "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours. Bootstrap items carry added_by=bootstrap and therefore never appear in this row.",
     "identity_policy": "IMDb is the ONE canonical public identity and every public item must carry a real tt id. A Kitsu id may be recorded in external_ids as inert metadata for later work; it never becomes an identity, never affects dedupe, routing, posters or scoring, and can never stand in for a missing IMDb id. A candidate with no reliably resolvable IMDb id is logged as unresolved_identity and skipped for that run - it is NOT a taste rejection.",
-    "match_score_definition": "match_score IS the deterministic baseline DNA score: the dna-match row score, post-archetype-bonus, post-guardrail, clamped 0..100. It is COMPUTED, never an invented holistic judgement. The thresholds are on that same scale and were calibrated against THIS profile's own distribution. They are NOT comparable to Fantasy 65/80, Action 60/70 or Sci-Fi 82/90."
+    "match_score_definition": "match_score IS the deterministic baseline DNA score: the dna-match row score, post-archetype-bonus, post-guardrail, clamped 0..100. It is COMPUTED, never an invented holistic judgement. The thresholds are on that same scale and were calibrated against THIS profile's own distribution. They are NOT comparable to Fantasy 65/80, Action 60/70 or Sci-Fi 82/90.",
+    "calibration_note": "CALIBRATED against this profile's own deterministic score distribution over a 55-title pool spanning psychological mystery, battle/progression, supernatural horror, gore-heavy, sci-fi mystery, strange-world exploration, comedy, romance, sports, mecha/military, slice-of-life, retro art and modern polish. 21 fell below the DNA row floor on guardrails - every sports, cute-slice-of-life, romance-led and mecha/military title in the pool - leaving 34 scored: min 52, Q1 58, median 60, Q3 65, max 77. minimum_match_score sits at 58, which is Q1 and the point where a sparse marginal tail (52,53,53,54,55,57 - one or two titles per value) gives way to the dense band. best_match_score sits at 67 because 66 is the ONLY empty bucket in the whole distribution, cleanly isolating a top tier of eight. THESE NUMBERS ARE ANIME-SPECIFIC and are not comparable to Fantasy 65/80, Action 60/70 or Sci-Fi 82/90."
   },
   "controlled_tags": [
     "best",
