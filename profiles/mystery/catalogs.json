@@ -1,0 +1,278 @@
+{
+  "schema_version": 2,
+  "manifest": {
+    "id": "com.github.wtfmystery.discovery",
+    "version": "1.0.0",
+    "name": "WTF Mystery Discovery",
+    "description": "Unexplained phenomena, hidden causes, reality and time puzzles, trapped worlds and twisty murder mysteries that keep revealing meaningful answers instead of drifting into generic procedural or drama."
+  },
+  "site": {
+    "title": "WTF Mystery Discovery",
+    "emoji": "🧩",
+    "blurb": "Automated Stremio catalogs for mysteries where something is wrong, unknown or impossible - and the story keeps working out what is happening, why, and what the rules are. Great premises that stop paying out, procedurals that investigate and reveal nothing, and paranormal horror with a mystery bolted on are all penalised on purpose."
+  },
+  "catalogs": [
+    {
+      "id": "full-watchlist",
+      "name": "Full Watchlist",
+      "filter": "watch",
+      "sort": "score"
+    },
+    {
+      "id": "past-24h",
+      "name": "🔥 Past 24h Findings",
+      "filter": "past24",
+      "sort": "newest"
+    },
+    {
+      "id": "best-matches",
+      "name": "⭐ Best Matches",
+      "filter": "best",
+      "sort": "score"
+    },
+    {
+      "id": "dna-match",
+      "name": "🧬 DNA Match",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 50,
+      "dna": {
+        "mode": "baseline_profile",
+        "archetype_bonus_max": 25
+      }
+    },
+    {
+      "id": "unexplained-phenomena",
+      "name": "🌫️ Unexplained Phenomena",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "unexplained_phenomenon", "at_or_above": 6 },
+            { "dimension": "cause_uncertainty", "at_or_above": 5 },
+            { "dimension": "mystery_density", "at_or_above": 5 }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "unexplained_phenomenon": 14,
+          "cause_uncertainty": 12,
+          "central_mystery": 10,
+          "unknown_rules": 10,
+          "mystery_density": 9,
+          "revelation_frequency": 8
+        },
+        "penalties": {
+          "drama_focus": 5
+        }
+      }
+    },
+    {
+      "id": "reality-time-wtf",
+      "name": "🌀 Reality / Time / WTF",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "mystery_density", "at_or_above": 5 }
+          ],
+          "any_of": [
+            { "dimension": "reality_uncertainty", "at_or_above": 6 },
+            { "dimension": "time_anomaly", "at_or_above": 6 }
+          ]
+        },
+        "weights": {
+          "reality_uncertainty": 13,
+          "time_anomaly": 12,
+          "progressive_revelation": 10,
+          "unknown_rules": 10,
+          "mystery_density": 8,
+          "weirdness": 8
+        },
+        "penalties": {
+          "drama_focus": 4
+        }
+      }
+    },
+    {
+      "id": "trapped-contained",
+      "name": "🔒 Trapped & Contained",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "containment", "at_or_above": 6 },
+            { "dimension": "central_mystery", "at_or_above": 5 },
+            { "dimension": "mystery_density", "at_or_above": 5 }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "containment": 14,
+          "unknown_rules": 11,
+          "cause_uncertainty": 10,
+          "hidden_truth": 9,
+          "central_mystery": 9,
+          "revelation_frequency": 8
+        },
+        "penalties": {
+          "drama_focus": 4
+        }
+      }
+    },
+    {
+      "id": "murder-culprit-hunt",
+      "name": "🕵️ Murder & Culprit Hunt",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "culprit_hunt", "at_or_above": 6 },
+            { "dimension": "revelation_frequency", "at_or_above": 5 }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "culprit_hunt": 14,
+          "misdirection": 11,
+          "plot_twists": 10,
+          "clue_puzzling": 10,
+          "revelation_frequency": 9,
+          "suspense": 9
+        },
+        "penalties": {
+          "drama_focus": 5
+        }
+      }
+    },
+    {
+      "id": "clues-puzzles",
+      "name": "🧩 Clues & Puzzles",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "clue_puzzling", "at_or_above": 7 },
+            { "dimension": "misdirection", "at_or_above": 6 },
+            { "dimension": "revelation_frequency", "at_or_above": 6 }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "clue_puzzling": 15,
+          "misdirection": 11,
+          "progressive_revelation": 10,
+          "investigation": 9,
+          "plot_twists": 9,
+          "central_mystery": 8
+        },
+        "penalties": {
+          "drama_focus": 4
+        }
+      }
+    },
+    {
+      "id": "hidden-truths-conspiracies",
+      "name": "🕸️ Hidden Truths & Conspiracies",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "mystery_density", "at_or_above": 5 }
+          ],
+          "any_of": [
+            { "dimension": "conspiracy_coverup", "at_or_above": 5 },
+            { "dimension": "hidden_truth", "at_or_above": 6 }
+          ]
+        },
+        "weights": {
+          "conspiracy_coverup": 14,
+          "hidden_truth": 12,
+          "progressive_revelation": 9,
+          "unknown_rules": 9,
+          "revelation_frequency": 8,
+          "containment": 7
+        },
+        "penalties": {
+          "drama_focus": 4
+        }
+      }
+    },
+    {
+      "id": "high-suspense",
+      "name": "⚡ High Suspense",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 60,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "suspense", "at_or_above": 8 },
+            { "dimension": "revelation_frequency", "at_or_above": 6 }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "suspense": 15,
+          "revelation_frequency": 11,
+          "central_mystery": 9,
+          "mystery_density": 8,
+          "plot_twists": 8
+        },
+        "penalties": {
+          "romance_focus": 5,
+          "drama_focus": 4
+        }
+      }
+    },
+    {
+      "id": "impossible-supernatural",
+      "name": "👁️ Impossible & Supernatural Mysteries",
+      "filter": "dna",
+      "sort": "dna_score",
+      "min_score": 55,
+      "dna": {
+        "mode": "weighted",
+        "gate": {
+          "all_of": [
+            { "dimension": "supernatural_cause", "at_or_above": 6 },
+            { "dimension": "central_mystery", "at_or_above": 6 },
+            { "dimension": "unknown_rules", "at_or_above": 5 },
+            { "dimension": "mystery_density", "at_or_above": 5 }
+          ],
+          "any_of": []
+        },
+        "weights": {
+          "unknown_rules": 13,
+          "supernatural_cause": 12,
+          "central_mystery": 11,
+          "cause_uncertainty": 10,
+          "progressive_revelation": 10,
+          "mystery_density": 9
+        },
+        "penalties": {
+          "paranormal_horror_focus": 7
+        }
+      }
+    }
+  ]
+}

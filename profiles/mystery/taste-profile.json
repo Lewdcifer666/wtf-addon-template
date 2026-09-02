@@ -1,0 +1,1782 @@
+{
+  "schema_version": 3,
+  "profile_name": "WTF Mystery / Unknown Causes and Progressive Answers",
+  "mission": "Find mysteries where something is WRONG, UNKNOWN or IMPOSSIBLE and the story keeps working out what is happening, why, what the rules are and what the actual explanation is. Unexplained phenomena, hidden causes, reality and time puzzles, trapped worlds, hidden organisations and twisty culprit hunts all qualify. This profile exists because a premise is not a mystery: a story can open with a magnificent unanswered question and then spend its runtime on relationship, grief or faction drama, or simply stop delivering, and that is the concrete disappointment it is built to avoid. So central_mystery and mystery_density are measured separately, investigation is measured separately from revelation cadence, and one enormous final twist is measured separately from a story that keeps rebuilding what you understood. Under the Dome, Dark, Lost, Severance, Archive 81 and Bodies are the shape being sought; The Rain and The Mist are cited as further descriptions of that shape only, with no viewing implied and, for The Mist, no adaptation identity assumed. Supernatural and impossible causes are welcome when they serve the central question; paranormal horror delivered for scares with a thin mystery attached is not. Natural, biological, environmental and scientific causes are equally welcome. An earlier-era visual presentation is a ranking penalty and never an exclusion, and RELEASE YEAR IS NEVER AN INPUT to it.",
+  "automation_rules": {
+    "daily_movie_max": 5,
+    "daily_series_max": 3,
+    "minimum_match_score": 61,
+    "best_match_score": 85,
+    "zero_findings_is_valid": true,
+    "never_silently_delete_existing_watchlist_items": true,
+    "dedupe_primary_key": "imdb_id",
+    "dedupe_fallback": "normalized title + year + type",
+    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours. Bootstrap items carry added_by=bootstrap and never appear in this row.",
+    "match_score_definition": "match_score IS the deterministic baseline DNA score: the dna-match row score, post-archetype-bonus, post-guardrail, clamped 0..100. It is COMPUTED by scripts/dna-score.mjs, never an invented holistic judgement and never a felt number. The thresholds are on that same scale and were calibrated against THIS profile's own distribution. They are NOT comparable to Thriller 62/80, Fantasy 65/80, Action 60/70, Anime 58/67 or Sci-Fi 82/90.",
+    "calibration_note": "CALIBRATED against this profile's own deterministic score distribution over a 95-title pool that deliberately contained every failure shape this addon exists to reject, because a pool of good mysteries would prove nothing about the rules. 20 fell below the DNA row floor or were hard-excluded; 75 scored: min 50, Q1 65, median 76, Q3 84, max 100. EVERY guardrail fired on real pool members, none is untested: premise_without_density on The Leftovers, The Society, Mare of Easttown, Sharp Objects, Mystic River and Personal Shopper; slow_procedural_without_payoff on Broadchurch, The Night Of, The Killing, The Undoing, Sharp Objects and Mystic River; drama_drift on twelve titles including Constellation, The Terror, Bad Sisters and La Brea; paranormal_horror_first on The Others, The Sixth Sense, The Conjuring, Insidious and Grave Encounters; survival_without_question on A Quiet Place and Greenland; low_revelation_mystery on Personal Shopper; romance_drama_dominant on The Time Traveler's Wife; cheap_presentation on Grave Encounters. The single hard exclusion fired on exactly one title, Greenland, whose central_mystery is 2. minimum_match_score is NOT a quartile: it is the empirical separating line between two classes that do not overlap in this pool. The highest-scoring designed negative is Hereditary at 60 and the lowest-scoring title the user positively wants is The Pale Blue Eye at 61, with an eleven-title band from 50 to 60 containing nothing but designed negatives and titles the user rated unappealing. Q1 (65) was rejected because it would cut Zodiac (63), Yellowjackets (63) and The Pale Blue Eye (61), all explicit user interests, which would make the threshold an aesthetic choice rather than a derived one. best_match_score sits at 85, Q3+1, inside the 84-to-86 gap, capturing the top 23% (17 titles). IMPORTANT BOUNDARY CASES: Dept. Q scores 63 and SURVIVES, which is the point - a genuinely twisty procedural is wanted and being a procedural is never the objection, while Broadchurch, The Night Of, The Killing, Mare of Easttown and Sharp Objects all fall below the floor on cadence and drama share. The Outsider (75) and Archive 81 (86) are supernatural and are NOT rejected, while The Others, The Conjuring and Insidious are, which is the paranormal-horror split working. Identity (84) and Memento (78) carry high retro_visual_style and stay high because their mysteries are strong - retro is a linear penalty referenced by NO guardrail, exactly as specified. Knives Out, the user's strongest watched anchor, scores 76 rather than topping the list because it has zero unexplained phenomenon, zero unknown rules and zero temporal anomaly; that is honest and is the clearest evidence this is not a whodunit addon wearing a Mystery label. Wayward Pines is the one real tension: it scores 82 on genuinely strong containment, conspiracy and hidden-truth structure while the user's unwatched impression was only lukewarm, so it is recorded here rather than smoothed away, and it is not bootstrapped. THESE NUMBERS ARE MYSTERY-SPECIFIC and are not comparable to Thriller 62/80, Fantasy 65/80, Action 60/70, Anime 58/67 or Sci-Fi 82/90."
+  },
+  "controlled_tags": [
+    "best",
+    "favorite"
+  ],
+  "dna_dimensions": {
+    "registry_version": 1,
+    "count": 30,
+    "scale": {
+      "min": 0,
+      "max": 10,
+      "integer": true,
+      "unknown": null
+    },
+    "principles": {
+      "descriptive_only": "A DNA value describes how strongly a property exists in a TITLE. It never states whether that property is desirable. supernatural_cause 9 means the impossible explanation is strongly present, NOT that it is liked; retro_visual_style 9 means the presentation strongly reads as an earlier era, NOT that the work is bad. Desirability lives only in dna_baseline and dna_guardrails.",
+      "unknown_is_not_zero": "Missing or null means UNKNOWN, never 'definitely absent'. Never substitute 0, and never use null to avoid research.",
+      "unknown_never_satisfies": "A threshold comparison against an unknown value is false in both directions.",
+      "unknown_is_not_safe": "Unknown must not be read as 'passes the guardrail'. An item is not DNA-score-eligible unless every dimension referenced anywhere in dna_guardrails is known - which for this profile specifically includes mystery_density, revelation_frequency and progressive_revelation, because an unmeasured cadence is exactly how a premise-only show or a silent procedural would slip through.",
+      "independent_dimensions": "THE SEPARATIONS THIS PROFILE EXISTS FOR. central_mystery is how strong the unresolved question is; mystery_density is how much of the WHOLE RUNTIME actually pushes it - a show can be 9 and 3. investigation is how much inquiry work exists; revelation_frequency is how often meaningful information lands; progressive_revelation is whether it REFRAMES what was understood - a procedural can be 9, 3 and 3. plot_twists is reversals delivered; a film built on one enormous final twist is high there and only moderate on progressive_revelation, because nothing was rebuilt along the way. supernatural_cause is an impossible explanation being present; paranormal_horror_focus is haunting and possession material delivered for scares - Archive 81 and The Outsider are high on the first and moderate on the second, The Others and A Haunting in Venice the reverse. scientific_cause and supernatural_cause are both legitimate answers to the same question and neither is preferred for its kind. visual_quality is craft and retro_visual_style is era aesthetic; they are independent and RELEASE YEAR IS NEVER AN INPUT to either. weirdness is strangeness, which can exist with no mystery at all."
+    },
+    "tag_registry_note": "Controlled descriptive DNA tags. CLOSED vocabulary: item.dna_tags may contain only these values.",
+    "tag_registry": [
+      "whodunit",
+      "closed_circle",
+      "detective_lead",
+      "serial_killer",
+      "cold_case",
+      "disappearance",
+      "small_town",
+      "island_or_remote",
+      "sealed_barrier",
+      "time_loop",
+      "parallel_timeline",
+      "amnesia",
+      "secret_organization",
+      "human_experiment",
+      "contagion",
+      "environmental_event",
+      "screenlife",
+      "cult",
+      "haunting",
+      "anthology_case"
+    ],
+    "dimensions": [
+      {
+        "id": "central_mystery",
+        "label": "Central Mystery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing is unresolved; the story has no open question",
+          "3": "a mystery thread exists beside the main story",
+          "5": "a substantial unresolved question drives a large part of the story",
+          "8": "the story is organised around one dominant unanswered question",
+          "10": "the entire structure IS the question - everything serves finding out what is going on"
+        }
+      },
+      {
+        "id": "mystery_density",
+        "label": "Mystery Density (whole runtime)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "the mystery is set up and then effectively abandoned",
+          "3": "the mystery surfaces occasionally between long unrelated stretches",
+          "5": "the mystery is present in roughly half the runtime",
+          "8": "the mystery is actively worked in most scenes across the whole runtime",
+          "10": "almost no runtime passes without the central question being pushed"
+        }
+      },
+      {
+        "id": "unexplained_phenomenon",
+        "label": "Unexplained Phenomenon",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no anomalous event; everything is ordinary",
+          "3": "an odd event that is quickly and fully explained",
+          "5": "a strange event whose nature stays unclear for a long stretch",
+          "8": "a large anomalous or seemingly impossible event dominates the premise",
+          "10": "the phenomenon is the story - its nature, extent and rules are the subject"
+        }
+      },
+      {
+        "id": "cause_uncertainty",
+        "label": "Unknown Cause",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "the cause is known from the start and never in doubt",
+          "3": "the cause is briefly uncertain",
+          "5": "why it is happening is a live and sustained question",
+          "8": "finding the cause is a primary engine of the plot",
+          "10": "nobody knows what is causing it and establishing that is the whole pursuit"
+        }
+      },
+      {
+        "id": "investigation",
+        "label": "Investigation (work present)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nobody investigates anything",
+          "3": "occasional inquiry alongside other business",
+          "5": "sustained procedural or evidence work",
+          "8": "the story is structured as an investigation",
+          "10": "wall-to-wall procedure, interviews, evidence and case work"
+        }
+      },
+      {
+        "id": "clue_puzzling",
+        "label": "Clues and Puzzling",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no clues; information simply arrives",
+          "3": "a few clues are noted in passing",
+          "5": "real clues the audience can weigh and assemble",
+          "8": "deduction, codes or puzzle-solving are a central pleasure",
+          "10": "the story is a solvable puzzle laid out for the viewer to work"
+        }
+      },
+      {
+        "id": "culprit_hunt",
+        "label": "Culprit Hunt",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no perpetrator is being sought",
+          "3": "a perpetrator exists but identifying them is not the drive",
+          "5": "identifying or finding who did it is a major thread",
+          "8": "a field of suspects and a sustained who-did-it question",
+          "10": "the whole story is the hunt for who is responsible"
+        }
+      },
+      {
+        "id": "progressive_revelation",
+        "label": "Progressive Revelation (reframing)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "what is learned never changes the picture",
+          "3": "one late reveal rearranges things; nothing was rebuilt along the way",
+          "5": "several reveals meaningfully change what the viewer understood",
+          "8": "the picture is repeatedly rebuilt as answers arrive",
+          "10": "every answer reframes the whole story and opens a larger question"
+        }
+      },
+      {
+        "id": "revelation_frequency",
+        "label": "Revelation Frequency (cadence)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "meaningful new information almost never lands",
+          "3": "long stretches pass with nothing learned",
+          "5": "new information lands at a steady, moderate rate",
+          "8": "meaningful new information lands often across the whole runtime",
+          "10": "relentless - something real is learned constantly"
+        }
+      },
+      {
+        "id": "plot_twists",
+        "label": "Plot Twists and Reversals",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no reversals",
+          "3": "one notable reversal",
+          "5": "several genuine reversals",
+          "8": "twist-driven storytelling",
+          "10": "reversal after reversal is the mode of the story"
+        }
+      },
+      {
+        "id": "misdirection",
+        "label": "Misdirection and False Leads",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "the story never points the audience the wrong way",
+          "3": "a single red herring",
+          "5": "real false leads that make a plausible reading wrong",
+          "8": "sustained misdirection; suspicion keeps moving",
+          "10": "the story is built to make you confidently wrong before it corrects you"
+        }
+      },
+      {
+        "id": "suspense",
+        "label": "Suspense",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no tension",
+          "3": "occasional tension",
+          "5": "recurring sustained tension",
+          "8": "tension is maintained across most of the runtime",
+          "10": "near-constant dread or pressure"
+        }
+      },
+      {
+        "id": "hidden_truth",
+        "label": "Hidden Truth and Deception",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "everyone is straightforward and nothing is withheld",
+          "3": "one character conceals something",
+          "5": "significant lies or withheld truth shape the plot",
+          "8": "systematic concealment; most parties are hiding something",
+          "10": "the story is about a truth being deliberately kept from everyone"
+        }
+      },
+      {
+        "id": "conspiracy_coverup",
+        "label": "Conspiracy and Cover-up",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no organised concealment",
+          "3": "a hint of institutional wrongdoing",
+          "5": "a real cover-up, secret programme or hidden organisation",
+          "8": "an organised power is running and concealing the situation",
+          "10": "the conspiracy and its purpose are the mystery"
+        }
+      },
+      {
+        "id": "containment",
+        "label": "Trapped / Contained World",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "characters move freely; no restriction",
+          "3": "a temporary or partial confinement",
+          "5": "a place or condition they largely cannot leave",
+          "8": "escape is impossible and defines the situation",
+          "10": "the barrier or enclosure and what lies outside it is the subject"
+        }
+      },
+      {
+        "id": "unknown_rules",
+        "label": "Unknown Rules / Rule Discovery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "the world works exactly as expected",
+          "3": "one unusual rule is stated and then simply applies",
+          "5": "characters must work out how the situation behaves",
+          "8": "discovering the rules is a primary activity and they keep changing the picture",
+          "10": "the rule set is the mystery; nothing can be predicted until it is learned"
+        }
+      },
+      {
+        "id": "time_anomaly",
+        "label": "Time and Causality Anomaly",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "time behaves normally",
+          "3": "non-linear storytelling only, no in-world anomaly",
+          "5": "a real temporal element - a loop, a jump, a causal knot",
+          "8": "time or causality is central and load-bearing",
+          "10": "the entire mystery is the shape of time itself"
+        }
+      },
+      {
+        "id": "reality_uncertainty",
+        "label": "Reality Uncertainty",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "what is shown is reliably real",
+          "3": "one moment of doubt about what is real",
+          "5": "sustained doubt about whether events are what they appear",
+          "8": "reality itself is unstable and is being investigated",
+          "10": "the nature of reality is the central unanswered question"
+        }
+      },
+      {
+        "id": "memory_identity_uncertainty",
+        "label": "Memory and Identity Uncertainty",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "memory and identity are stable and trusted",
+          "3": "a gap in someone's account",
+          "5": "altered memory, altered perception or a contested identity matters to the plot",
+          "8": "who someone is, or what they actually remember, is a driving question",
+          "10": "the whole story turns on an identity or a memory that cannot be trusted"
+        }
+      },
+      {
+        "id": "scientific_cause",
+        "label": "Scientific / Natural Cause",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no natural, biological, environmental or technological mechanism at issue",
+          "3": "a light scientific dressing",
+          "5": "a real natural or engineered mechanism - a virus, a weather event, an experiment, a device",
+          "8": "the natural or scientific mechanism is the thing being uncovered",
+          "10": "the whole mystery is a natural, biological, environmental or technological system to be understood"
+        }
+      },
+      {
+        "id": "supernatural_cause",
+        "label": "Supernatural / Impossible Cause",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing impossible occurs",
+          "3": "an ambiguous element that may or may not be impossible",
+          "5": "a genuinely impossible or supernatural element is real in the story",
+          "8": "the impossible cause is central to what must be explained",
+          "10": "the story is entirely about an impossible force and its rules"
+        }
+      },
+      {
+        "id": "paranormal_horror_focus",
+        "label": "Paranormal-Horror Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no hauntings, ghosts, possession or seance material",
+          "3": "brief paranormal-horror imagery",
+          "5": "recurring haunting, possession or ghost material",
+          "8": "paranormal horror is a primary mode and a primary intent",
+          "10": "the work exists to deliver haunting and possession scares"
+        }
+      },
+      {
+        "id": "horror_focus",
+        "label": "Horror Focus (broad)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "not a horror work in any register",
+          "3": "occasional horror texture",
+          "5": "substantial horror content alongside other modes",
+          "8": "horror is the governing mode",
+          "10": "a horror work first and anything else second"
+        }
+      },
+      {
+        "id": "survival_pressure",
+        "label": "Survival Pressure",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no physical danger to stay alive through",
+          "3": "occasional physical peril",
+          "5": "sustained danger; staying alive is a real concern",
+          "8": "day-to-day survival drives much of the plot",
+          "10": "the whole story is survival under lethal pressure"
+        }
+      },
+      {
+        "id": "weirdness",
+        "label": "Weirdness / Strangeness",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "entirely mundane texture",
+          "3": "mildly offbeat",
+          "5": "distinctly strange atmosphere or events",
+          "8": "pervasively uncanny",
+          "10": "aggressively strange from end to end"
+        }
+      },
+      {
+        "id": "drama_focus",
+        "label": "Drama Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no interpersonal, family or grief drama",
+          "3": "some character drama around the plot",
+          "5": "substantial relationship, family, grief or faction drama",
+          "8": "drama is the primary subject and the plot serves it",
+          "10": "essentially a drama with a genre premise attached"
+        }
+      },
+      {
+        "id": "romance_focus",
+        "label": "Romance Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no romance",
+          "3": "a minor romantic thread",
+          "5": "a substantial romantic storyline",
+          "8": "romance is a primary driver",
+          "10": "a romance first"
+        }
+      },
+      {
+        "id": "visual_quality",
+        "label": "Visual Quality (craft)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "visually cheap or incompetent",
+          "3": "flat, functional, low-budget look",
+          "5": "competent, unremarkable",
+          "8": "strong cinematography, design and finish",
+          "10": "exceptional, striking visual craft"
+        }
+      },
+      {
+        "id": "retro_visual_style",
+        "label": "Retro Visual Style (era aesthetic)",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "reads as contemporary in grading, lensing, editing and design",
+          "3": "faintly of an earlier era",
+          "5": "clearly reads as an earlier era of filmmaking",
+          "8": "strongly dated presentation by current standards",
+          "10": "unmistakably of a much earlier era in every visual respect. RELEASE YEAR IS NEVER AN INPUT: a new work shot in a period style scores high and a restored older work with a timeless look scores low."
+        }
+      },
+      {
+        "id": "pace_speed",
+        "label": "Pace (speed)",
+        "direction": "slow_to_fast",
+        "rubric": {
+          "0": "very slow / contemplative",
+          "3": "deliberate",
+          "5": "moderate / steady",
+          "8": "brisk",
+          "10": "relentless / extremely fast"
+        }
+      }
+    ]
+  },
+  "dna_baseline": {
+    "description": "The desired CONTENT universe expressed on the DNA scale. Stable baseline. Accumulated user feedback is NEVER merged into this section.",
+    "scale_note": "Weights are -40..40 and commensurate only within this profile. central_mystery and mystery_density sit jointly at the top because the premise and its whole-runtime delivery are equally load-bearing. progressive_revelation and revelation_frequency at 18 sit ABOVE investigation at 12: this profile buys the answers, not the procedure. scientific_cause (8) and supernatural_cause (6) are both positive - the kind of explanation is not the preference, the pursuit of one is. paranormal_horror_focus carries the largest negative because the objection is scare-delivery, not the impossible. A shared dimension id carries no shared weight with any other WTF profile.",
+    "weights": {
+      "central_mystery": 20,
+      "mystery_density": 20,
+      "progressive_revelation": 18,
+      "revelation_frequency": 18,
+      "unexplained_phenomenon": 17,
+      "cause_uncertainty": 16,
+      "suspense": 15,
+      "unknown_rules": 14,
+      "clue_puzzling": 14,
+      "plot_twists": 13,
+      "reality_uncertainty": 13,
+      "investigation": 12,
+      "hidden_truth": 12,
+      "conspiracy_coverup": 12,
+      "containment": 12,
+      "culprit_hunt": 11,
+      "time_anomaly": 11,
+      "misdirection": 11,
+      "memory_identity_uncertainty": 10,
+      "weirdness": 10,
+      "visual_quality": 10,
+      "scientific_cause": 8,
+      "supernatural_cause": 6,
+      "survival_pressure": 5,
+      "horror_focus": -4,
+      "drama_focus": -10,
+      "romance_focus": -10,
+      "retro_visual_style": -12,
+      "paranormal_horror_focus": -14
+    },
+    "unweighted": [
+      "pace_speed"
+    ],
+    "unweighted_note": "pace_speed is the sole unweighted dimension. Speed is NOT itself desirable here: Lost was explicitly slow and sometimes boring and was still liked because the island phenomenon kept mattering, while a fast story that reveals nothing is not wanted. So pace carries no linear weight and is used only inside slow_procedural_without_payoff, where slowness is one of four conditions rather than the objection. weights and unweighted are disjoint and their union is exactly the 30 registry ids.",
+    "completeness_defaults": {
+      "min_known_dimensions": 22,
+      "min_confidence": 0.6,
+      "required_known_dimensions": [
+        "cause_uncertainty",
+        "central_mystery",
+        "drama_focus",
+        "investigation",
+        "mystery_density",
+        "pace_speed",
+        "paranormal_horror_focus",
+        "progressive_revelation",
+        "retro_visual_style",
+        "revelation_frequency",
+        "romance_focus",
+        "survival_pressure",
+        "suspense",
+        "unknown_rules",
+        "visual_quality"
+      ],
+      "note": "An item must satisfy ALL THREE conditions to be DNA-score-eligible. required_known_dimensions contains every dimension referenced anywhere in dna_guardrails - critically mystery_density, revelation_frequency and progressive_revelation - plus retro_visual_style, which no guardrail may reference but which must always be measured so the era aesthetic is never silently skipped. NOTE that min_known_dimensions is NOT the binding constraint for the DNA Match row: requiredFor() independently demands every weighted dimension, so a title reaching DNA Match needs all 29 weighted values. Lowering min_known_dimensions would relieve nothing that binds - research fewer titles instead."
+    },
+    "archetype_note": "Best-matching archetype only, never an average. EVERY archetype emphasises BOTH mystery_density and revelation_frequency at 7 or more, by construction. Archetypes describe different SHAPES of mystery and must never become the route by which a magnificent premise with no whole-runtime delivery, or a heavy investigation with no payoff, collects a large bonus. impossible_cause_mystery additionally REQUIRES central_mystery and unknown_rules and penalises paranormal_horror_focus, so 'a ghost is present' can never match it.",
+    "archetypes": [
+      {
+        "id": "unexplained_phenomenon_mystery",
+        "label": "Unexplained Phenomenon Mystery",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "unexplained_phenomenon",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "central_mystery",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "unexplained_phenomenon": 10,
+          "central_mystery": 10,
+          "cause_uncertainty": 9,
+          "unknown_rules": 8,
+          "mystery_density": 9,
+          "revelation_frequency": 8,
+          "progressive_revelation": 8,
+          "suspense": 7
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "reality_time_mystery",
+        "label": "Reality / Time / WTF Mystery",
+        "weight": 1,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "reality_uncertainty",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "time_anomaly",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "reality_uncertainty": 10,
+          "time_anomaly": 9,
+          "unknown_rules": 9,
+          "weirdness": 7,
+          "central_mystery": 9,
+          "mystery_density": 9,
+          "progressive_revelation": 9,
+          "revelation_frequency": 8
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "contained_world_mystery",
+        "label": "Trapped / Contained Mystery",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "containment",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "central_mystery",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "containment": 10,
+          "unknown_rules": 9,
+          "cause_uncertainty": 9,
+          "hidden_truth": 7,
+          "central_mystery": 9,
+          "mystery_density": 9,
+          "revelation_frequency": 8,
+          "progressive_revelation": 8,
+          "suspense": 7
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "hidden_world_conspiracy",
+        "label": "Hidden World / Conspiracy Mystery",
+        "weight": 1,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "conspiracy_coverup",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "hidden_truth",
+            "at_or_above": 7
+          }
+        ],
+        "emphasis": {
+          "conspiracy_coverup": 10,
+          "hidden_truth": 9,
+          "unknown_rules": 8,
+          "containment": 6,
+          "central_mystery": 9,
+          "mystery_density": 9,
+          "progressive_revelation": 9,
+          "revelation_frequency": 8
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "twisty_culprit_mystery",
+        "label": "Twisty Murder / Culprit Mystery",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "culprit_hunt",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "clue_puzzling",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "culprit_hunt": 10,
+          "clue_puzzling": 10,
+          "misdirection": 9,
+          "plot_twists": 9,
+          "investigation": 6,
+          "central_mystery": 8,
+          "mystery_density": 8,
+          "revelation_frequency": 9,
+          "suspense": 7
+        },
+        "penalise": {
+          "drama_focus": 4
+        }
+      },
+      {
+        "id": "hidden_cause_whydunit",
+        "label": "Why-dunit / Hidden Cause Mystery",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "cause_uncertainty",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "central_mystery",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "cause_uncertainty": 10,
+          "memory_identity_uncertainty": 9,
+          "hidden_truth": 8,
+          "central_mystery": 9,
+          "mystery_density": 9,
+          "progressive_revelation": 9,
+          "revelation_frequency": 8
+        },
+        "penalise": {
+          "drama_focus": 3
+        }
+      },
+      {
+        "id": "impossible_cause_mystery",
+        "label": "Impossible / Supernatural Mystery",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "supernatural_cause",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "central_mystery",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "unknown_rules",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "supernatural_cause": 9,
+          "unknown_rules": 10,
+          "central_mystery": 10,
+          "cause_uncertainty": 9,
+          "mystery_density": 9,
+          "progressive_revelation": 9,
+          "revelation_frequency": 8,
+          "weirdness": 7
+        },
+        "penalise": {
+          "paranormal_horror_focus": 5
+        }
+      }
+    ]
+  },
+  "dna_guardrails": {
+    "description": "Policy applied to descriptive DNA measurements. Not learnable away by ordinary feedback.",
+    "evaluation_note": "A condition whose dimension is unknown/null evaluates FALSE. This profile has exactly ONE hard exclusion - a title with no central mystery at all - and every other negative context is a contextual combination penalty, so a strong enough title can still clear the bar despite one.",
+    "hard_exclusion": [
+      {
+        "id": "no_central_mystery",
+        "dimension": "central_mystery",
+        "at_or_below": 2,
+        "note": "A title with essentially no unresolved central question is not a Mystery recommendation, however good it is otherwise. This is an INGESTION gate, not only a scoring one: the Full Watchlist row does not consult DNA and would publish a title that every ranked row excludes. The bound is deliberately low - anything with a real open question clears it - and it is the ONLY hard exclusion in this profile."
+      }
+    ],
+    "combination": [
+      {
+        "id": "premise_without_density",
+        "penalty": -42,
+        "all_of": [
+          {
+            "dimension": "central_mystery",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "mystery_density",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [
+          {
+            "dimension": "drama_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "revelation_frequency",
+            "at_or_below": 4
+          }
+        ],
+        "note": "THE defining rule of this addon. A huge unexplained premise can be set up in episode one and then effectively abandoned while the runtime goes to interpersonal or faction material, or simply stops delivering. central_mystery measures how strong the question is; mystery_density measures how much of the WHOLE RUNTIME actually pushes it. A great premise is not a great mystery, and an episode-one hook is never evidence of density."
+      },
+      {
+        "id": "slow_procedural_without_payoff",
+        "penalty": -38,
+        "all_of": [
+          {
+            "dimension": "investigation",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "revelation_frequency",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "progressive_revelation",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "pace_speed",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Procedure is not payoff. A detective can investigate for ten hours while almost nothing meaningful lands and nothing is reframed. This fires ONLY when the investigation is present AND the cadence, the reframing and the forward motion are all absent - a twisty procedural is exactly what the profile wants, and being a procedural is never the objection."
+      },
+      {
+        "id": "low_revelation_mystery",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "revelation_frequency",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "mystery_density",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "suspense",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "Nothing is landing, the mystery is not being worked, and no tension is being sustained. Catches the low-payoff case where there is no formal investigation to trip the rule above."
+      },
+      {
+        "id": "paranormal_horror_first",
+        "penalty": -36,
+        "all_of": [
+          {
+            "dimension": "paranormal_horror_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "progressive_revelation",
+            "at_or_below": 5
+          }
+        ],
+        "any_of": [
+          {
+            "dimension": "revelation_frequency",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "central_mystery",
+            "at_or_below": 5
+          }
+        ],
+        "note": "Haunting, possession and seance material delivered for scares with only a thin mystery attached. THE SUPERNATURAL IS NEVER THE OBJECTION: an impossible cause serving a real central question, with rules and answers arriving, is actively wanted and cannot fire this rule, because it requires the central mystery AND the reframing to both be weak."
+      },
+      {
+        "id": "drama_drift",
+        "penalty": -34,
+        "all_of": [
+          {
+            "dimension": "drama_focus",
+            "at_or_above": 7
+          },
+          {
+            "dimension": "mystery_density",
+            "at_or_below": 5
+          },
+          {
+            "dimension": "revelation_frequency",
+            "at_or_below": 5
+          }
+        ],
+        "any_of": [],
+        "note": "The runtime has gone to relationship, family, grief or faction drama and the mystery has become the frame rather than the subject. Drama is measured descriptively and is never disqualifying on its own - a dense mystery with heavy drama does not fire this."
+      },
+      {
+        "id": "survival_without_question",
+        "penalty": -32,
+        "all_of": [
+          {
+            "dimension": "survival_pressure",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "cause_uncertainty",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "unknown_rules",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "central_mystery",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "A deadly environment is not a mystery. If people simply run from a known danger for the whole runtime, with no live question about what caused it, how it works or whether the apparent rules are correct, this is not the profile. Under the Dome is the counter-example and cannot fire this: its cause, rules and origin are all open."
+      },
+      {
+        "id": "romance_drama_dominant",
+        "penalty": -26,
+        "all_of": [
+          {
+            "dimension": "romance_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "drama_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "suspense",
+            "at_or_below": 5
+          }
+        ],
+        "any_of": [],
+        "note": "A relationship drama wearing mystery clothing. Sustained suspense makes it moot."
+      },
+      {
+        "id": "cheap_presentation",
+        "penalty": -22,
+        "all_of": [
+          {
+            "dimension": "visual_quality",
+            "at_or_below": 3
+          }
+        ],
+        "any_of": [],
+        "note": "CRAFT, NEVER AGE. retro_visual_style is deliberately absent from every guardrail in this profile: an earlier-era look softens ranking through its linear weight alone and must never exclude, because a conceptually exceptional mystery is allowed to overcome it. A high-craft work that simply looks of an earlier era is not cheap."
+      }
+    ],
+    "not_expressible_in_dna": {
+      "documentation_only": true,
+      "consumer_rule": "NO CONSUMER MAY READ, EVALUATE OR SCORE THIS FIELD. It carries zero runtime semantics.",
+      "entries": [
+        {
+          "signal": "A Mystery genre label on IMDb, TMDB or a streamer",
+          "reason": "Proves almost nothing. The genre tag says a mystery exists somewhere in the work; it says nothing about whether the mystery is worked across the runtime, whether answers arrive, or whether the runtime actually belongs to drama. Every DNA value must come from researched narrative structure."
+        },
+        {
+          "signal": "Investigation as a proxy for payoff",
+          "reason": "Explicitly rejected. investigation measures how much inquiry work exists, never whether it pays off. revelation_frequency and progressive_revelation carry the payoff, and slow_procedural_without_payoff exists because conflating them is the failure this profile was built around."
+        },
+        {
+          "signal": "A strong premise as a proxy for mystery density",
+          "reason": "Explicitly rejected. An unexplained event in episode one is evidence about episode one. Whole-runtime density needs episode guides, recaps and season reviews."
+        },
+        {
+          "signal": "One famous ending twist as a proxy for progressive revelation",
+          "reason": "Explicitly rejected. plot_twists and progressive_revelation are separate dimensions precisely so a single final reversal cannot masquerade as a story that kept rebuilding what you understood."
+        },
+        {
+          "signal": "Release year / age of the title",
+          "reason": "Never a preference and never a DNA dimension. The objection is presentation style, measured directly by retro_visual_style, which is weight-only and referenced by NO guardrail. A recent film shot in a period style can be high; a restored older film with a timeless look can be low."
+        },
+        {
+          "signal": "The presence of a supernatural or impossible element",
+          "reason": "Neither a positive nor a negative in itself. The Outsider and Archive 81 are wanted; The Others and A Haunting in Venice are not. The discriminator is whether the impossible cause serves a central question that keeps being answered, which is why supernatural_cause and paranormal_horror_focus are separate dimensions."
+        },
+        {
+          "signal": "Critical acclaim, awards or IMDb rating",
+          "reason": "Never taste fit. The Night Of, Mystic River and Memories of Murder are all acclaimed and are all negative anchors here."
+        }
+      ]
+    }
+  },
+  "execution_preferences": {
+    "description": "Baseline POLICY for how execution evidence would be applied if personalization were enabled. Policy only, and INERT: this repository contains no data/personalized-scores.json.",
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    },
+    "rules": [
+      "Personalization is DISABLED for this profile until the cross-profile feedback v3 schema is frozen.",
+      "When enabled, a feedback event may be consumed only if its imdb_id is already in THIS repository's own public identity set.",
+      "Execution feedback never changes topic or DNA eligibility.",
+      "A pacing complaint is execution evidence about one title and never a general preference for faster work - Lost is the standing counter-example.",
+      "A single title never establishes a generalised content aversion, and one disliked ghost story never makes supernatural_cause negative.",
+      "mystery_density, revelation_frequency and progressive_revelation are NON-PROJECTABLE, so the payoff safeguards can never be learned away.",
+      "The stable baseline remains dominant while feedback history is small."
+    ]
+  },
+  "baseline_evidence": {
+    "description": "Audit trail for how the weights above were derived, from a single explicit calibration round of 50 titles. NOT read at runtime: the weights, archetypes and guardrails ARE the encoding of this evidence. SIX public identities are watched-confirmed - Knives Out, The Sixth Sense, Dark, Lost, Severance and Under the Dome - each recording how watching was established, and each therefore permanently excluded from recommendation. Everything else is UNWATCHED and fully recommendable. That deliberately includes The OA, Archive 81, Bodies and Twin Peaks, where there was real partial exposure but no confirmed completion: Stremio carries ONE identity per series, so marking them watched would hide the episodes still unseen. Shutter Island is unwatched because the user explicitly could not remember, and uncertainty resolves to unwatched. Zodiac is unwatched because documentaries about the real case are not the film. The Rain and The Mist appear only in the mission prose as descriptions of the desired shape - no viewing is implied and no adaptation identity is assumed for The Mist.",
+    "schema_version": 1,
+    "evidence_weights": {
+      "watched_favorite": {
+        "direction": "positive",
+        "magnitude": 1
+      },
+      "watched_love": {
+        "direction": "positive",
+        "magnitude": 0.85
+      },
+      "watched_like": {
+        "direction": "positive",
+        "magnitude": 0.6
+      },
+      "watched_mixed": {
+        "direction": "mixed",
+        "magnitude": 0
+      },
+      "watched_dislike": {
+        "direction": "negative",
+        "magnitude": 0.6
+      },
+      "trailer_interest": {
+        "direction": "positive",
+        "magnitude": 0.25
+      },
+      "trailer_aversion": {
+        "direction": "negative",
+        "magnitude": 0.25
+      }
+    },
+    "items": [
+      {
+        "title": "Knives Out",
+        "type": "movie",
+        "year": 2019,
+        "imdb_id": "tt8946378",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "watched_confirmation": "The user stated outright: STATUS WATCHED, REACTION LOVE - 'full of twists and leaves me guessing who the actual culprit is'.",
+        "notes": [
+          "watched and loved: twists, a field of suspects, shifting suspicion and a guessable culprit",
+          "the primary anchor for the twisty-culprit archetype: culprit_hunt, clue_puzzling, misdirection and plot_twists together",
+          "proves a murder mystery can be top-tier here when the mystery itself is dense and twisty, not merely present",
+          "excluded from recommendation because it is confirmed watched"
+        ]
+      },
+      {
+        "title": "Glass Onion",
+        "type": "movie",
+        "year": 2022,
+        "imdb_id": "tt11564570",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest: wanted specifically because it repeats the Knives Out structure",
+          "corroborates the twisty-culprit archetype rather than adding a new shape",
+          "listed on IMDb and Cinemeta as 'Glass Onion'; the marketing title is 'Glass Onion: A Knives Out Mystery'",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Prisoners",
+        "type": "movie",
+        "year": 2013,
+        "imdb_id": "tt1392214",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest: described as looking really interesting, suspenseful and mysterious",
+          "supports weighting suspense highly alongside the culprit hunt",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Zodiac",
+        "type": "movie",
+        "year": 2007,
+        "imdb_id": "tt0443706",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interest is in puzzles, codes, figuring things out and identifying the culprit",
+          "THE FILM IS NOT WATCHED. The user has watched documentaries about the real Zodiac case; that is not the film and never marks it watched",
+          "anchor for clue_puzzling and culprit_hunt being separable from revelation cadence",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Shutter Island",
+        "type": "movie",
+        "year": 2010,
+        "imdb_id": "tt1130884",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "WATCHED STATUS EXPLICITLY UNCERTAIN: the user cannot remember whether they saw it",
+          "uncertainty resolves to UNWATCHED, so it stays recommendable; a wrong watched flag would permanently hide it",
+          "interest is in suspense plus reality/identity uncertainty",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Prestige",
+        "type": "movie",
+        "year": 2006,
+        "imdb_id": "tt0482571",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "mild interest: an interesting concept, read as an older-school take on the magic-mystery shape",
+          "useful for keeping visual_quality and retro_visual_style independent - high craft, somewhat earlier-era presentation",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Memento",
+        "type": "movie",
+        "year": 2000,
+        "imdb_id": "tt0209144",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "THE KEY RETRO-STYLE ANCHOR: the concept is interesting but the presentation looks too old and visually unappealing",
+          "net position is negative, so it is aversion evidence even though the premise attracts",
+          "this is why retro_visual_style exists as a dimension and why RELEASE YEAR IS NEVER USED as a proxy for it",
+          "retro style is a ranking penalty here, never a hard exclusion: a strong enough mystery can overcome it"
+        ]
+      },
+      {
+        "title": "Gone Girl",
+        "type": "movie",
+        "year": 2014,
+        "imdb_id": "tt2267998",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interest is in the mystery, figuring things out and reaching the answers",
+          "supports hidden_truth and misdirection as separate from plot_twists",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Girl with the Dragon Tattoo",
+        "type": "movie",
+        "year": 2011,
+        "imdb_id": "tt1568346",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest: read as containing many plot twists and mysteries; the user plans to watch it",
+          "the 2011 Fincher version, which is the identity the user described",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Identity",
+        "type": "movie",
+        "year": 2003,
+        "imdb_id": "tt0309698",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "mild interest: the old look is a negative but the 'WTF is going on?' mystery still attracts",
+          "BOUNDARY CASE: proves retro style must soften ranking rather than exclude, because a strong enough central mystery overcomes it",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Others",
+        "type": "movie",
+        "year": 2001,
+        "imdb_id": "tt0230600",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR for paranormal-horror-first material: reads as old and as leaning to paranormal horror rather than mystery",
+          "one of the two titles that force paranormal_horror_focus to be measured separately from supernatural_cause",
+          "it must be penalised WITHOUT making supernatural content negative in itself"
+        ]
+      },
+      {
+        "title": "The Sixth Sense",
+        "type": "movie",
+        "year": 1999,
+        "imdb_id": "tt0167404",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_mixed",
+        "reaction": "mixed",
+        "recommendable": false,
+        "watched_confirmation": "The user stated: WATCHED A LONG TIME AGO, REACTION MIXED - 'I barely remember it'. Faded memory of a real viewing is still a confirmed watch.",
+        "notes": [
+          "watched, mixed: remembered only faintly, reads as more paranormal than mystery, and the older presentation reduces appeal",
+          "mixed evidence moves nothing on its own by schema; the signal it carries is that paranormal framing plus retro presentation is a weak combination",
+          "excluded from recommendation because it is confirmed watched"
+        ]
+      },
+      {
+        "title": "The Village",
+        "type": "movie",
+        "year": 2004,
+        "imdb_id": "tt0368447",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interest is in suspense and a contained community with withheld truth about the outside world",
+          "supports containment and hidden_truth as a wanted combination",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Machinist",
+        "type": "movie",
+        "year": 2004,
+        "imdb_id": "tt0361862",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "negative: simply does not look interesting to the user",
+          "useful as a low-appeal reality/identity title, which stops reality_uncertainty from being treated as automatically sufficient"
+        ]
+      },
+      {
+        "title": "Coherence",
+        "type": "movie",
+        "year": 2013,
+        "imdb_id": "tt2866360",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest: reads as really interesting and suspenseful",
+          "a core anchor for the reality/time archetype - unknown rules discovered under sustained tension",
+          "also shows craft is not the same as budget: low-budget but not read as cheap",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Triangle",
+        "type": "movie",
+        "year": 2009,
+        "imdb_id": "tt1187064",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interested despite older visuals, because the loop/anomaly concept attracts",
+          "second boundary case (with Identity) for retro style softening rather than excluding",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Invitation",
+        "type": "movie",
+        "year": 2015,
+        "imdb_id": "tt2400463",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "negative: reads as slow and boring",
+          "the 2015 Karyn Kusama film, not the 2022 vampire film of the same name",
+          "a slow-burn title with a real central question but low revelation cadence - the shape the profile must not reward"
+        ]
+      },
+      {
+        "title": "Searching",
+        "type": "movie",
+        "year": 2018,
+        "imdb_id": "tt7668870",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interest is explicitly in ESCALATION: it keeps building suspense and mystery rather than holding everything back",
+          "a direct anchor for revelation_frequency and progressive_revelation being weighted highly",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Missing",
+        "type": "movie",
+        "year": 2023,
+        "imdb_id": "tt10855768",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "same positive structure as Searching: escalation, investigation, suspense and answers that keep arriving",
+          "the 2023 screenlife film in the Searching series",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Invisible Guest",
+        "type": "movie",
+        "year": 2016,
+        "imdb_id": "tt4857264",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "uncertain and leaning negative: the user is not sure about it and suspects it may be boring",
+          "Spanish title Contratiempo; the 2016 Oriol Paulo film",
+          "a useful borderline: heavy misdirection and reversals, but the user's own reaction is not enthusiasm"
+        ]
+      },
+      {
+        "title": "Mystic River",
+        "type": "movie",
+        "year": 2003,
+        "imdb_id": "tt0327056",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR for drama-dominant crime: reads as boring and slow",
+          "supports the drama_drift guardrail - a murder exists but the runtime belongs to grief and relationships"
+        ]
+      },
+      {
+        "title": "Memories of Murder",
+        "type": "movie",
+        "year": 2003,
+        "imdb_id": "tt0353969",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR combining both failure shapes: a slow straight procedural AND an older visual era",
+          "the profile must penalise the procedural-without-payoff shape, and separately dock retro style, without conflating the two"
+        ]
+      },
+      {
+        "title": "The Pale Blue Eye",
+        "type": "movie",
+        "year": 2022,
+        "imdb_id": "tt14138650",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interested and explicitly notes it looks visually pleasing",
+          "evidence that a period SETTING is not the same as a retro visual STYLE: a modern, well-graded film set in 1830 reads as contemporary craft",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "A Haunting in Venice",
+        "type": "movie",
+        "year": 2023,
+        "imdb_id": "tt22687790",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR: the prominent paranormal/horror aspect is disliked even though the whodunit frame is present",
+          "with The Others this is what forces paranormal_horror_focus to carry the negative weight rather than supernatural_cause",
+          "a recent, high-craft film - so the aversion is provably NOT about age"
+        ]
+      },
+      {
+        "title": "The Name of the Rose",
+        "type": "movie",
+        "year": 1986,
+        "imdb_id": "tt0091605",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR for retro presentation: the very old visual presentation is a major barrier",
+          "the mystery structure itself is not the objection, which is why retro_visual_style is a separate descriptive dimension"
+        ]
+      },
+      {
+        "title": "Dark",
+        "type": "series",
+        "year": 2017,
+        "imdb_id": "tt5753856",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "watched_confirmation": "The user stated outright: STATUS WATCHED, REACTION LOVE - 'twisted, dark, absurd mystery... I love the interconnected mystery and trying to understand what is happening'.",
+        "notes": [
+          "THE strongest positive anchor: interconnected time and causality mystery, sustained across the whole run",
+          "the primary shape behind the reality/time archetype and behind weighting time_anomaly, unknown_rules and progressive_revelation",
+          "also proves pace is not the preference: this is not a fast show and it is loved",
+          "excluded from recommendation because it is confirmed watched"
+        ]
+      },
+      {
+        "title": "Lost",
+        "type": "series",
+        "year": 2004,
+        "imdb_id": "tt0411008",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_like",
+        "reaction": "like",
+        "recommendable": false,
+        "watched_confirmation": "The user stated outright: STATUS WATCHED, REACTION LIKE - 'sometimes slow and boring, but the mystery of what happened, what the island is, and what is on the island kept me interested'.",
+        "notes": [
+          "THE pace anchor: explicitly slow and sometimes boring, yet still liked because the central phenomenon kept mattering",
+          "this is why pace_speed carries NO linear weight and is used only inside the slow-procedural guardrail",
+          "a sustained unexplained phenomenon can carry a slower show; silence cannot",
+          "excluded from recommendation because it is confirmed watched"
+        ]
+      },
+      {
+        "title": "From",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt9813792",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "BOUNDARY ANCHOR: the premise attracts strongly - a town nobody can leave, monsters at night - but the user fears it becomes repetitive",
+          "this is the premise-versus-density case: an excellent episode-one hook is NOT evidence of whole-runtime mystery density",
+          "drives the premise_without_density guardrail and the rule that archetypes must emphasise mystery_density",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Severance",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt11280740",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "watched_confirmation": "The user stated outright: STATUS WATCHED, REACTION LOVE - 'really interesting concept... I keep wondering whether he will manage to escape, how he will do it, what the company is doing and what happens next'.",
+        "notes": [
+          "THE hidden-world anchor: a secret organisation, restricted information, unknown rules and a contained system",
+          "the reaction is explicitly about ongoing forward questions, not about a single reveal - anchors revelation_frequency",
+          "excluded from recommendation because it is confirmed watched"
+        ]
+      },
+      {
+        "title": "Silo",
+        "type": "series",
+        "year": 2023,
+        "imdb_id": "tt14688458",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest: deception and mystery about the outside world, and it looks visually pleasing",
+          "a core anchor for combining containment, conspiracy_coverup and hidden_truth",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "1899",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt9319668",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest in the puzzle-box, unexplained-event shape",
+          "supports reality_uncertainty and unknown_rules being weighted well above investigation",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The OA",
+        "type": "series",
+        "year": 2016,
+        "imdb_id": "tt4635282",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "POSITIVE reaction from real viewing - the user liked the suspense and guessing what happens next - but completion is NOT confirmed",
+          "PARTIAL EXPOSURE, COMPLETION NOT CONFIRMED. Stremio carries ONE public identity per series, so marking this watched would also hide the episodes and seasons still unseen. Under the WTF partial-series rule it stays fully recommendable.",
+          "the schema has no watched-but-incomplete class, so this is recorded as unwatched with the exposure stated here rather than inferred as watched"
+        ]
+      },
+      {
+        "title": "Yellowjackets",
+        "type": "series",
+        "year": 2021,
+        "imdb_id": "tt11041332",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interested in the 'what actually happened?' mystery across two timelines",
+          "a case where drama content is substantial, so it tests whether drama_focus is measured descriptively rather than assumed absent",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "True Detective",
+        "type": "series",
+        "year": 2014,
+        "imdb_id": "tt2356777",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "MIXED, net negative: potentially interesting but reads as slow and boring at times, and the drama aspect is disliked",
+          "a boundary case for the slow-procedural guardrail: it must be dockable without being treated as worthless",
+          "anthology - season one is the identity most descriptions refer to, but Stremio carries one series identity"
+        ]
+      },
+      {
+        "title": "Mare of Easttown",
+        "type": "series",
+        "year": 2021,
+        "imdb_id": "tt10155688",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR for the slow straight procedural: reads as boring and too straightforward",
+          "with Broadchurch and The Night Of this is what the slow_procedural_without_payoff guardrail exists for",
+          "the objection is NOT that it is a procedural; it is procedure without revelation cadence"
+        ]
+      },
+      {
+        "title": "Broadchurch",
+        "type": "series",
+        "year": 2013,
+        "imdb_id": "tt2249364",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR: reads as boring and too straightforward, a conventional case-solving story",
+          "it does have a suspect field, so the discriminator cannot be culprit_hunt - it is revelation cadence and drama share"
+        ]
+      },
+      {
+        "title": "The Sinner",
+        "type": "series",
+        "year": 2017,
+        "imdb_id": "tt6048596",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "THE why-dunit anchor: the interest is working out WHY she did it when she apparently does not know herself",
+          "proves the known event is not always the mystery, and drives the hidden-cause archetype plus cause_uncertainty and memory_identity_uncertainty",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Sharp Objects",
+        "type": "series",
+        "year": 2018,
+        "imdb_id": "tt2649356",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR for drama drift: reads as boring and too drama-heavy, centred on an old town and personal baggage",
+          "drives the drama_drift guardrail and the negative weight on drama_focus"
+        ]
+      },
+      {
+        "title": "The Outsider",
+        "type": "series",
+        "year": 2020,
+        "imdb_id": "tt8550800",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "CRITICAL POSITIVE ANCHOR: interesting and suspenseful EVEN THOUGH it contains paranormal aspects",
+          "this is the proof that supernatural material must NOT be penalised for its kind - only paranormal-horror dominance without mystery development is",
+          "with Archive 81 it sets the boundary the paranormal_horror_first guardrail must not cross",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Archive 81",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt13365348",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "STRONG POSITIVE reaction from real viewing: suspenseful and constantly makes the user wonder what is going on. Completion is NOT confirmed",
+          "PARTIAL EXPOSURE, COMPLETION NOT CONFIRMED. Stremio carries ONE public identity per series, so marking this watched would also hide the episodes and seasons still unseen. Under the WTF partial-series rule it stays fully recommendable.",
+          "the strongest 'WTF is going on?' anchor, and a supernatural one - it must never be rejected for containing the impossible",
+          "drives the impossible-cause archetype and the impossible-supernatural catalog row"
+        ]
+      },
+      {
+        "title": "The Devil's Hour",
+        "type": "series",
+        "year": 2022,
+        "imdb_id": "tt14379784",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "strong unwatched interest: the user explicitly wants to watch it",
+          "a time/reality anomaly attached to a culprit hunt, which supports both archetypes overlapping",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Bodies",
+        "type": "series",
+        "year": 2023,
+        "imdb_id": "tt18347622",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "STRONG POSITIVE reaction from real viewing, specifically the time-travel aspect. Completion is NOT confirmed",
+          "PARTIAL EXPOSURE, COMPLETION NOT CONFIRMED. Stremio carries ONE public identity per series, so marking this watched would also hide the episodes and seasons still unseen. Under the WTF partial-series rule it stays fully recommendable.",
+          "a primary anchor for time_anomaly and for one body/one question threading four timelines"
+        ]
+      },
+      {
+        "title": "The Night Of",
+        "type": "series",
+        "year": 2016,
+        "imdb_id": "tt2401256",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "NEGATIVE ANCHOR: reads as boring",
+          "a heavily acclaimed procedural, which is exactly why critical praise must never substitute for taste fit"
+        ]
+      },
+      {
+        "title": "Only Murders in the Building",
+        "type": "series",
+        "year": 2021,
+        "imdb_id": "tt11691774",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interested: comedy mixed with a real murder mystery sounds appealing",
+          "PROVES COMEDY IS NOT INCOMPATIBLE with this profile, so no humour dimension and no comedy penalty exists",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "Sherlock",
+        "type": "series",
+        "year": 2010,
+        "imdb_id": "tt1475582",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "interested",
+        "recommendable": true,
+        "notes": [
+          "interested: a deduction-led clue/puzzle series",
+          "supports clue_puzzling carrying real weight even where the phenomenon is entirely mundane",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      },
+      {
+        "title": "The Killing",
+        "type": "series",
+        "year": 2011,
+        "imdb_id": "tt1637727",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "NEUTRAL/OKAY: reads as a standard case-solving mystery, interesting enough to be acceptable but not exciting",
+          "the AMC 2011 US series, not the Danish Forbrydelsen - resolved deliberately rather than assumed",
+          "a calibration midpoint: it should land near the threshold, neither excluded nor promoted"
+        ]
+      },
+      {
+        "title": "Twin Peaks",
+        "type": "series",
+        "year": 1990,
+        "imdb_id": "tt0098936",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "unappealing",
+        "recommendable": true,
+        "notes": [
+          "POSSIBLY STARTED, COULD NOT GET INTO IT. Starting a series is not watching it, and completion is certainly not confirmed",
+          "PARTIAL EXPOSURE, COMPLETION NOT CONFIRMED. Stremio carries ONE public identity per series, so marking this watched would also hide the episodes and seasons still unseen. Under the WTF partial-series rule it stays fully recommendable.",
+          "THE strongest retro-style evidence: famous for mystery, but the 80s/90s look and feel is a major barrier",
+          "it stays recommendable, and is docked through retro_visual_style's linear weight only - no guardrail may reference that dimension"
+        ]
+      },
+      {
+        "title": "Wayward Pines",
+        "type": "series",
+        "year": 2015,
+        "imdb_id": "tt2618986",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_aversion",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "MEH: the stuck-in-a-town premise is conceptually close to From and potentially interesting, but the overall impression is only lukewarm",
+          "shows the contained-world archetype cannot be satisfied by containment alone"
+        ]
+      },
+      {
+        "title": "Under the Dome",
+        "type": "series",
+        "year": 2013,
+        "imdb_id": "tt1553656",
+        "scope": "title",
+        "evidence_type": "watched",
+        "evidence_class": "watched_love",
+        "reaction": "love",
+        "recommendable": false,
+        "watched_confirmation": "The user stated outright: STATUS WATCHED, REACTION LOVE - 'I love the entire unexplained phenomenon: Where did the dome come from? How can they get out? What happens next? What is causing it?'.",
+        "notes": [
+          "THE unexplained-phenomenon anchor, and the reaction names the exact four questions the profile is built to find",
+          "combines unexplained_phenomenon, cause_uncertainty, containment and unknown_rules - the shape of the top archetype",
+          "excluded from recommendation because it is confirmed watched"
+        ]
+      },
+      {
+        "title": "The Leftovers",
+        "type": "series",
+        "year": 2014,
+        "imdb_id": "tt2699128",
+        "scope": "title",
+        "evidence_type": "unwatched",
+        "evidence_class": "trailer_interest",
+        "reaction": "uncertain",
+        "recommendable": true,
+        "notes": [
+          "THE decisive negative structural boundary: the vanishing premise sounds extremely interesting, but it appears to drift into drama and faction conflict",
+          "a fantastic phenomenon premise loses the user if the show stops paying attention to the mystery",
+          "this single reaction is why mystery_density exists as a dimension separate from central_mystery, and why premise_without_density is the heaviest guardrail",
+          "structural taste anchor: it shaped the weights, archetypes and guardrails, which is NOT evidence it was watched."
+        ]
+      }
+    ]
+  }
+}

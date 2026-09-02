@@ -1,0 +1,7 @@
+{
+  "repo": "wtf-mystery-stremio",
+  "package_name": "wtf-mystery-stremio-automation",
+  "user_agent": "WTF-Mystery-Stremio-Automation/1.0",
+  "created_at": "2026-09-02T00:00:00Z",
+  "note": "Generation input only. Once wtf-mystery-stremio exists, ITS genre-owned files are the canonical Mystery product state; this seed is not synchronised with them and nothing reads it at runtime."
+}
