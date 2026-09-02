@@ -9,19 +9,38 @@
   "site": {
     "title": "WTF Thriller Discovery",
     "emoji": "🔎",
+    "genre": "Thriller",
     "blurb": "Automated Stremio catalogs for thrillers that keep paying out - investigation and cat-and-mouse where revelations actually land and change what you thought you knew. A procedural that investigates constantly and tells you nothing is not a thriller here."
   },
   "catalogs": [
-    { "id": "full-watchlist", "name": "Full Watchlist", "filter": "watch", "sort": "score" },
-    { "id": "past-24h", "name": "🔥 Past 24h Findings", "filter": "past24", "sort": "newest" },
-    { "id": "best-matches", "name": "⭐ Best Matches", "filter": "best", "sort": "score" },
+    {
+      "id": "full-watchlist",
+      "name": "Full Watchlist",
+      "filter": "watch",
+      "sort": "score"
+    },
+    {
+      "id": "past-24h",
+      "name": "🔥 Past 24h Findings",
+      "filter": "past24",
+      "sort": "newest"
+    },
+    {
+      "id": "best-matches",
+      "name": "⭐ Best Matches",
+      "filter": "best",
+      "sort": "score"
+    },
     {
       "id": "dna-match",
       "name": "🧬 DNA Match",
       "filter": "dna",
       "sort": "dna_score",
       "min_score": 50,
-      "dna": { "mode": "baseline_profile", "archetype_bonus_max": 25 }
+      "dna": {
+        "mode": "baseline_profile",
+        "archetype_bonus_max": 25
+      }
     },
     {
       "id": "investigation-puzzles",
@@ -33,9 +52,18 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "investigation", "at_or_above": 5 },
-            { "dimension": "clue_puzzling", "at_or_above": 5 },
-            { "dimension": "revelation_frequency", "at_or_above": 5 }
+            {
+              "dimension": "investigation",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "clue_puzzling",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "revelation_frequency",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },
@@ -47,7 +75,10 @@
           "progressive_revelation": 10,
           "revelation_frequency": 10
         },
-        "penalties": { "drama_focus": 5, "military_focus": 5 }
+        "penalties": {
+          "drama_focus": 5,
+          "military_focus": 5
+        }
       }
     },
     {
@@ -59,7 +90,12 @@
       "dna": {
         "mode": "weighted",
         "gate": {
-          "all_of": [ { "dimension": "cat_and_mouse", "at_or_above": 6 } ],
+          "all_of": [
+            {
+              "dimension": "cat_and_mouse",
+              "at_or_above": 6
+            }
+          ],
           "any_of": []
         },
         "weights": {
@@ -70,7 +106,9 @@
           "suspense": 8,
           "revelation_frequency": 7
         },
-        "penalties": { "romance_focus": 5 }
+        "penalties": {
+          "romance_focus": 5
+        }
       }
     },
     {
@@ -84,8 +122,14 @@
         "gate": {
           "all_of": [],
           "any_of": [
-            { "dimension": "conspiracy", "at_or_above": 5 },
-            { "dimension": "mole_inside", "at_or_above": 5 }
+            {
+              "dimension": "conspiracy",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "mole_inside",
+              "at_or_above": 5
+            }
           ]
         },
         "weights": {
@@ -96,7 +140,9 @@
           "suspense": 8,
           "revelation_frequency": 8
         },
-        "penalties": { "military_focus": 6 }
+        "penalties": {
+          "military_focus": 6
+        }
       }
     },
     {
@@ -110,9 +156,18 @@
         "gate": {
           "all_of": [],
           "any_of": [
-            { "dimension": "evidence_manipulation", "at_or_above": 5 },
-            { "dimension": "surveillance", "at_or_above": 5 },
-            { "dimension": "unreliable_perspective", "at_or_above": 5 }
+            {
+              "dimension": "evidence_manipulation",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "surveillance",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "unreliable_perspective",
+              "at_or_above": 5
+            }
           ]
         },
         "weights": {
@@ -123,7 +178,9 @@
           "mystery": 8,
           "progressive_revelation": 8
         },
-        "penalties": { "drama_focus": 4 }
+        "penalties": {
+          "drama_focus": 4
+        }
       }
     },
     {
@@ -136,8 +193,14 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "suspense", "at_or_above": 7 },
-            { "dimension": "revelation_frequency", "at_or_above": 5 }
+            {
+              "dimension": "suspense",
+              "at_or_above": 7
+            },
+            {
+              "dimension": "revelation_frequency",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },
@@ -148,7 +211,10 @@
           "plot_twists": 8,
           "brutality": 6
         },
-        "penalties": { "romance_focus": 5, "drama_focus": 4 }
+        "penalties": {
+          "romance_focus": 5,
+          "drama_focus": 4
+        }
       }
     },
     {
@@ -161,8 +227,14 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "action_density", "at_or_above": 6 },
-            { "dimension": "mystery", "at_or_above": 5 }
+            {
+              "dimension": "action_density",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "mystery",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },
@@ -174,7 +246,10 @@
           "action_intensity": 7,
           "revelation_frequency": 7
         },
-        "penalties": { "military_focus": 6, "drama_focus": 4 }
+        "penalties": {
+          "military_focus": 6,
+          "drama_focus": 4
+        }
       }
     },
     {
@@ -186,7 +261,12 @@
       "dna": {
         "mode": "weighted",
         "gate": {
-          "all_of": [ { "dimension": "deadly_game", "at_or_above": 6 } ],
+          "all_of": [
+            {
+              "dimension": "deadly_game",
+              "at_or_above": 6
+            }
+          ],
           "any_of": []
         },
         "weights": {
@@ -197,7 +277,9 @@
           "mystery": 7,
           "revelation_frequency": 7
         },
-        "penalties": { "romance_focus": 5 }
+        "penalties": {
+          "romance_focus": 5
+        }
       }
     }
   ]

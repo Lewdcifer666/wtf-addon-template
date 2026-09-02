@@ -9,6 +9,7 @@
   "site": {
     "title": "WTF Fixture Discovery",
     "emoji": "🧪",
+    "genre": "Fixture",
     "blurb": "Scaffold fixture. This addon exists only to prove that a generated repository validates, builds and deploys on its own."
   },
   "catalogs": [

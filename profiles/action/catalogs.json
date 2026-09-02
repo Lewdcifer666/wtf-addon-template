@@ -9,6 +9,7 @@
   "site": {
     "title": "WTF Action Discovery",
     "emoji": "💥",
+    "genre": "Action",
     "blurb": "Automated Stremio catalogs for action that keeps happening: sustained density across the whole runtime, stunts, chases and combat, with high-concept, conspiracy, sci-fi and deadly-game hooks. Trailer-dense sleepers are excluded by design."
   },
   "catalogs": [

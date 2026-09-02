@@ -9,6 +9,7 @@
   "site": {
     "title": "WTF Mystery Discovery",
     "emoji": "🧩",
+    "genre": "Mystery",
     "blurb": "Automated Stremio catalogs for mysteries where something is wrong, unknown or impossible - and the story keeps working out what is happening, why, and what the rules are. Great premises that stop paying out, procedurals that investigate and reveal nothing, and paranormal horror with a mystery bolted on are all penalised on purpose."
   },
   "catalogs": [
@@ -51,9 +52,18 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "unexplained_phenomenon", "at_or_above": 6 },
-            { "dimension": "cause_uncertainty", "at_or_above": 5 },
-            { "dimension": "mystery_density", "at_or_above": 5 }
+            {
+              "dimension": "unexplained_phenomenon",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "cause_uncertainty",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "mystery_density",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },
@@ -80,11 +90,20 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "mystery_density", "at_or_above": 5 }
+            {
+              "dimension": "mystery_density",
+              "at_or_above": 5
+            }
           ],
           "any_of": [
-            { "dimension": "reality_uncertainty", "at_or_above": 6 },
-            { "dimension": "time_anomaly", "at_or_above": 6 }
+            {
+              "dimension": "reality_uncertainty",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "time_anomaly",
+              "at_or_above": 6
+            }
           ]
         },
         "weights": {
@@ -110,9 +129,18 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "containment", "at_or_above": 6 },
-            { "dimension": "central_mystery", "at_or_above": 5 },
-            { "dimension": "mystery_density", "at_or_above": 5 }
+            {
+              "dimension": "containment",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "central_mystery",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "mystery_density",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },
@@ -139,8 +167,14 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "culprit_hunt", "at_or_above": 6 },
-            { "dimension": "revelation_frequency", "at_or_above": 5 }
+            {
+              "dimension": "culprit_hunt",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "revelation_frequency",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },
@@ -167,9 +201,18 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "clue_puzzling", "at_or_above": 7 },
-            { "dimension": "misdirection", "at_or_above": 6 },
-            { "dimension": "revelation_frequency", "at_or_above": 6 }
+            {
+              "dimension": "clue_puzzling",
+              "at_or_above": 7
+            },
+            {
+              "dimension": "misdirection",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "revelation_frequency",
+              "at_or_above": 6
+            }
           ],
           "any_of": []
         },
@@ -196,11 +239,20 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "mystery_density", "at_or_above": 5 }
+            {
+              "dimension": "mystery_density",
+              "at_or_above": 5
+            }
           ],
           "any_of": [
-            { "dimension": "conspiracy_coverup", "at_or_above": 5 },
-            { "dimension": "hidden_truth", "at_or_above": 6 }
+            {
+              "dimension": "conspiracy_coverup",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "hidden_truth",
+              "at_or_above": 6
+            }
           ]
         },
         "weights": {
@@ -226,8 +278,14 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "suspense", "at_or_above": 8 },
-            { "dimension": "revelation_frequency", "at_or_above": 6 }
+            {
+              "dimension": "suspense",
+              "at_or_above": 8
+            },
+            {
+              "dimension": "revelation_frequency",
+              "at_or_above": 6
+            }
           ],
           "any_of": []
         },
@@ -254,10 +312,22 @@
         "mode": "weighted",
         "gate": {
           "all_of": [
-            { "dimension": "supernatural_cause", "at_or_above": 6 },
-            { "dimension": "central_mystery", "at_or_above": 6 },
-            { "dimension": "unknown_rules", "at_or_above": 5 },
-            { "dimension": "mystery_density", "at_or_above": 5 }
+            {
+              "dimension": "supernatural_cause",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "central_mystery",
+              "at_or_above": 6
+            },
+            {
+              "dimension": "unknown_rules",
+              "at_or_above": 5
+            },
+            {
+              "dimension": "mystery_density",
+              "at_or_above": 5
+            }
           ],
           "any_of": []
         },

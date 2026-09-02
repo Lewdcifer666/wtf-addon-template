@@ -9,6 +9,7 @@
   "site": {
     "title": "WTF Fantasy Discovery",
     "emoji": "🐉",
+    "genre": "Fantasy",
     "blurb": "Automated Stremio catalogs for dark and mature fantasy: deep worldbuilding, varied magic systems, creatures and non-human races, warring kingdoms, mythic strangeness and visually spectacular worlds."
   },
   "catalogs": [
