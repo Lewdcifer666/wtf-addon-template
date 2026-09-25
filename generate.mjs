@@ -36,7 +36,11 @@ export const ENGINE_FILES = [
   "validate.mjs",
   "build-site.mjs",
   "cinemeta.mjs",
-  "resolve-library.mjs"
+  "resolve-library.mjs",
+  "repair-push-duplicates.mjs",
+  "automation-preflight.mjs",
+  "export-automation-state.mjs",
+  "validate-run-logs.mjs"
 ];
 
 // Vendored verbatim into <repo>/test/.
@@ -46,7 +50,10 @@ export const ENGINE_TESTS = [
   "engine-checksum.test.mjs",
   "engine-invariants.test.mjs",
   "baseline-evidence.test.mjs",
-  "no-production-mutation.test.mjs"
+  "no-production-mutation.test.mjs",
+  "cinemeta-resolution.test.mjs",
+  "duplicate-repair-summary.test.mjs",
+  "personalization-state.test.mjs"
 ];
 
 // Written once at creation and NEVER touched by a regeneration. These belong to
