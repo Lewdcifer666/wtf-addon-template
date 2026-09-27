@@ -40,6 +40,7 @@ export const ENGINE_FILES = [
   "repair-push-duplicates.mjs",
   "automation-preflight.mjs",
   "export-automation-state.mjs",
+  "automation-state.mjs",
   "validate-run-logs.mjs"
 ];
 
@@ -53,7 +54,9 @@ export const ENGINE_TESTS = [
   "no-production-mutation.test.mjs",
   "cinemeta-resolution.test.mjs",
   "duplicate-repair-summary.test.mjs",
-  "personalization-state.test.mjs"
+  "personalization-state.test.mjs",
+  "automation-integrity.test.mjs",
+  "build-state.test.mjs"
 ];
 
 // Written once at creation and NEVER touched by a regeneration. These belong to
