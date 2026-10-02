@@ -41,7 +41,12 @@ export const ENGINE_FILES = [
   "automation-preflight.mjs",
   "export-automation-state.mjs",
   "automation-state.mjs",
-  "validate-run-logs.mjs"
+  "validate-run-logs.mjs",
+  "validate-research-packet.mjs",
+  "finalize-research.mjs",
+  "validate-publication.mjs",
+  "publish-research.mjs",
+  "verify-deployment.mjs"
 ];
 
 // Vendored verbatim into <repo>/test/.
@@ -56,7 +61,12 @@ export const ENGINE_TESTS = [
   "duplicate-repair-summary.test.mjs",
   "personalization-state.test.mjs",
   "automation-integrity.test.mjs",
-  "build-state.test.mjs"
+  "build-state.test.mjs",
+  "research-packet.test.mjs",
+  "research-finalizer.test.mjs",
+  "research-publication.test.mjs",
+  "deployment-verification.test.mjs",
+  "fixtures/research/helpers.mjs"
 ];
 
 // Written once at creation and NEVER touched by a regeneration. These belong to
@@ -147,6 +157,7 @@ function packageJson(addon) {
     private: true,
     type: "module",
     engines: { node: ">=20" },
+    dependencies: { ajv: "8.20.0" },
     scripts: {
       resolve: "node scripts/resolve-library.mjs",
       build: "node scripts/build-site.mjs",
@@ -202,7 +213,7 @@ npm run build         # build site/ (manifest + catalog JSON)
 // ---------------------------------------------------------------------------
 // generate
 // ---------------------------------------------------------------------------
-export function generate({ profileName, outDir, force = false, templateRevision }) {
+export function generate({ profileName, outDir, force = false, engineOnly = false, templateRevision }) {
   const profileDir = path.join(here, "profiles", profileName);
   if (!fs.existsSync(profileDir)) throw new Error(`no such profile: ${profileDir}`);
 
@@ -211,12 +222,13 @@ export function generate({ profileName, outDir, force = false, templateRevision 
   const profile = JSON.parse(readLF(path.join(profileDir, "taste-profile.json")));
 
   const existing = fs.existsSync(outDir);
-  if (existing && !force) {
+  if (existing && !force && !engineOnly) {
     throw new Error(`${outDir} already exists; pass --force to regenerate (genre-owned files are preserved)`);
   }
 
   const written = [];
   const preserved = [];
+  if (engineOnly && !fs.existsSync(path.join(outDir, "scripts/registry.mjs"))) throw new Error("--engine-only requires an existing addon checkout");
 
   // 1. vendored engine
   const checksums = {};
@@ -232,8 +244,15 @@ export function generate({ profileName, outDir, force = false, templateRevision 
   }
 
   // 2. per-repo generated modules (owned by the repo, NOT checksummed as engine)
-  written.push(writeFile(outDir, "scripts/registry.mjs", registryModule(profile)));
-  written.push(writeFile(outDir, "scripts/known-ids.mjs", knownIdsModule(addon)));
+  for (const [name, content] of [["scripts/registry.mjs", registryModule(profile)], ["scripts/known-ids.mjs", knownIdsModule(addon)]]) {
+    if (fs.existsSync(path.join(outDir, name))) preserved.push(name);
+    else written.push(writeFile(outDir, name, content));
+  }
+  for (const name of ["schemas/research-packet.schema.json", ".github/actions/validate/action.yml"]) {
+    const content = readLF(path.join(here, "skeleton", name));
+    written.push(writeFile(outDir, name, content));
+    checksums[name] = sha256(Buffer.from(content, "utf8"));
+  }
 
   // 3. drift manifest
   written.push(writeJson(outDir, "test/engine-checksums.json", {
@@ -243,6 +262,8 @@ export function generate({ profileName, outDir, force = false, templateRevision 
     files: checksums
   }));
 
+  if (engineOnly) return { outDir, written, preserved, checksums, manifestId: config.manifest.id, catalogs: config.catalogs.length };
+
   // 4. skeleton
   for (const relative of [".gitignore", ".gitattributes"]) {
     written.push(writeFile(outDir, relative, readLF(path.join(here, "skeleton", relative))));
@@ -251,10 +272,25 @@ export function generate({ profileName, outDir, force = false, templateRevision 
     written.push(writeFile(outDir, path.join(".github", "workflows", wf),
       readLF(path.join(here, "skeleton", ".github", "workflows", wf))));
   }
-  written.push(writeJson(outDir, "package.json", packageJson(addon)));
+  const packageFile = path.join(outDir, "package.json");
+  const previousPackage = fs.existsSync(packageFile) ? JSON.parse(readLF(packageFile)) : {};
+  const defaults = packageJson(addon);
+  written.push(writeJson(outDir, "package.json", { ...defaults, ...previousPackage,
+    scripts: { ...defaults.scripts, ...previousPackage.scripts },
+    dependencies: { ...previousPackage.dependencies, ...defaults.dependencies } }));
+  if (!fs.existsSync(path.join(outDir, "package-lock.json"))) {
+    const lock = JSON.parse(readLF(path.join(here, "package-lock.json")));
+    lock.name = addon.package_name;
+    lock.packages[""].name = addon.package_name;
+    written.push(writeJson(outDir, "package-lock.json", lock));
+  }
 
   // 5. genre-owned files: written once, never overwritten by a regeneration
   const genreFiles = [
+    ["config/research.json", () => JSON.stringify({ schema_version: 1, genre: profileName, run_prefix: profileName.slice(0, 1),
+      timezone: "Europe/Berlin", require_all_known: profileName === "thriller", minimum_sources: profileName === "thriller" ? 3 : 1,
+      require_non_metadata_source: profileName === "thriller", allow_external_ids: profileName === "anime",
+      pages_url: `https://example.invalid/${profileName}/` }, null, 2) + "\n"],
     ["config/catalogs.json", () => JSON.stringify(config, null, 2) + "\n"],
     ["data/taste-profile.json", () => JSON.stringify(profile, null, 2) + "\n"],
     ["data/library.json", () => JSON.stringify({ schema_version: 2, updated_at: addon.created_at, items: [] }, null, 2) + "\n"],
@@ -267,6 +303,8 @@ export function generate({ profileName, outDir, force = false, templateRevision 
     written.push(writeFile(outDir, relative, build()));
   }
   fs.mkdirSync(path.join(outDir, "data", "discoveries"), { recursive: true });
+  fs.mkdirSync(path.join(outDir, "research-inbox"), { recursive: true });
+  if (!fs.existsSync(path.join(outDir, "research-inbox/.gitkeep"))) writeFile(outDir, "research-inbox/.gitkeep", "");
 
   return { outDir, written, preserved, checksums, manifestId: config.manifest.id, catalogs: config.catalogs.length };
 }
@@ -297,6 +335,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToP
     profileName,
     outDir: path.resolve(outDir),
     force: process.argv.includes("--force"),
+    engineOnly: process.argv.includes("--engine-only"),
     templateRevision
   });
 

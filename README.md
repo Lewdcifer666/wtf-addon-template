@@ -1,5 +1,22 @@
 # wtf-addon-template
 
+## Reliability pilot
+
+`node generate.mjs --profile thriller --out <existing-addon> --engine-only`
+synchronizes shared scripts, tests, schema and validation action. It preserves
+the addon's registries, verified seed IDs, data, configuration, package scripts,
+workflows and schedules. Apply workflow/config/dependency migrations explicitly
+after reviewing the genre's existing research and DNA semantics. New scaffolds
+pin Ajv 8.20.0 and include a lockfile; run `npm ci --ignore-scripts` before tests.
+
+The publication implementation is piloted on Thriller only. `require_all_known`
+is a per-profile setting, never a shared assumption. Other genre cutovers need
+their own audited research configuration and preserved evidence requirements.
+Privileged research finalization uses pinned trusted main and packet data only.
+Hourly reconciliation is required; concurrency is not a durable queue. Live
+publication acceptance and the mandatory private feedback-learning phase are
+separate completion gates; neither is satisfied by fixture tests alone.
+
 Canonical engine + deterministic scaffold generator for the WTF Discovery addons
 (Sci-Fi, Fantasy, Action, Anime, Thriller).
 

@@ -9,5 +9,8 @@
   "scripts": {
     "test": "node test/generator.test.mjs",
     "generate": "node generate.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
   }
 }
