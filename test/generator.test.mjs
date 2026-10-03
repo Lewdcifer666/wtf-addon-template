@@ -77,7 +77,7 @@ try {
         if (!/\.(mjs|json|yml|md)$/.test(entry.name)) continue;
         const text = fs.readFileSync(full, "utf8");
         const relative = path.relative(out, full);
-        for (const bad of ["wtf-addon-template", "wtf-scifi-stremio", "wtf-scifi-feedback", "../../"]) {
+        for (const bad of ["wtf-addon-template", "wtf-scifi-stremio", "wtf-scifi-feedback"]) {
           if (!text.includes(bad)) continue;
           // README describes the template in prose, and engine-checksums.json
           // RECORDS its provenance on purpose - knowing which template a repo
@@ -87,6 +87,9 @@ try {
           if (relative.split(path.sep).join("/") === "test/engine-checksums.json" && bad === "wtf-addon-template") continue;
           offenders.push(`${relative} -> ${bad}`);
         }
+        for (const match of text.matchAll(/from ['"](\.\.?\/[^'"]+)['"]/g)) {
+          if (!path.resolve(path.dirname(full), match[1]).startsWith(out + path.sep)) offenders.push(`${relative} -> external import ${match[1]}`);
+        }
       }
     };
     walk(out);
@@ -94,9 +97,10 @@ try {
       offenders.length === 0, offenders.join("\n         "));
 
     const pkg = readJson("package.json");
-    check("G5", "package.json declares no dependencies at all",
-      !pkg.dependencies && !pkg.devDependencies,
-      "a generated addon must build with a bare node install");
+    check("G5", "schema validation has exactly the approved pinned Ajv dependency",
+      JSON.stringify(pkg.dependencies) === JSON.stringify({ ajv: "8.20.0" }) && !pkg.devDependencies,
+      "Ajv is pinned; generated addons remain independent of other repositories");
+    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci', '--ignore-scripts'], { cwd: out, stdio: 'pipe', shell: process.platform === 'win32' });
     check("G5b", "the test script DISCOVERS suites rather than listing them",
       pkg.scripts.test === "node test/run-all.mjs",
       "package.json is regenerated, so a hardcoded list would drop a genre repo's own tests");
@@ -480,6 +484,11 @@ try {
 
     check("G34", "regeneration still refreshes the vendored engine",
       read("scripts/dna-score.mjs") === fs.readFileSync(path.join(templateRoot, "engine", "dna-score.mjs"), "utf8"));
+    const owned = ["scripts/registry.mjs", "scripts/known-ids.mjs", "package.json", ".github/workflows/deploy-pages.yml", "config/catalogs.json"];
+    write("scripts/known-ids.mjs", read("scripts/known-ids.mjs") + "\n// preserved verified seeds\n");
+    const beforeEngineSync = Object.fromEntries(owned.map(name => [name, read(name)]));
+    execFileSync(process.execPath, [path.join(templateRoot, "generate.mjs"), "--profile", "fixture", "--out", out, "--engine-only"], { cwd: templateRoot, stdio: 'pipe' });
+    check("G34b", "engine-only synchronization preserves registries, seed IDs, packages, schedules and config", owned.every(name => read(name) === beforeEngineSync[name]));
     check("G35", "regeneration without --force refuses to touch an existing repo", (() => {
       try {
         execFileSync(process.execPath, [path.join(templateRoot, "generate.mjs"), "--profile", "fixture", "--out", out],
