@@ -215,11 +215,16 @@ npm run build         # build site/ (manifest + catalog JSON)
 // ---------------------------------------------------------------------------
 export function generate({ profileName, outDir, force = false, engineOnly = false, templateRevision }) {
   const profileDir = path.join(here, "profiles", profileName);
-  if (!fs.existsSync(profileDir)) throw new Error(`no such profile: ${profileDir}`);
+  if (!engineOnly && !fs.existsSync(profileDir)) throw new Error(`no such profile: ${profileDir}`);
 
-  const addon = JSON.parse(readLF(path.join(profileDir, "addon.json")));
-  const config = JSON.parse(readLF(path.join(profileDir, "catalogs.json")));
-  const profile = JSON.parse(readLF(path.join(profileDir, "taste-profile.json")));
+  // Existing addons own their live policy/configuration, including profiles
+  // that predate the template. An engine sync must never need a scaffold copy.
+  if (engineOnly) for (const name of ["scripts/registry.mjs", "scripts/known-ids.mjs", "config/catalogs.json", "data/taste-profile.json"]) {
+    if (!fs.existsSync(path.join(outDir, name))) throw new Error(`--engine-only requires an existing addon checkout with ${name}`);
+  }
+  const addon = engineOnly ? null : JSON.parse(readLF(path.join(profileDir, "addon.json")));
+  const config = JSON.parse(readLF(engineOnly ? path.join(outDir, "config/catalogs.json") : path.join(profileDir, "catalogs.json")));
+  const profile = engineOnly ? null : JSON.parse(readLF(path.join(profileDir, "taste-profile.json")));
 
   const existing = fs.existsSync(outDir);
   if (existing && !force && !engineOnly) {
@@ -228,7 +233,6 @@ export function generate({ profileName, outDir, force = false, engineOnly = fals
 
   const written = [];
   const preserved = [];
-  if (engineOnly && !fs.existsSync(path.join(outDir, "scripts/registry.mjs"))) throw new Error("--engine-only requires an existing addon checkout");
 
   // 1. vendored engine
   const checksums = {};
@@ -244,7 +248,8 @@ export function generate({ profileName, outDir, force = false, engineOnly = fals
   }
 
   // 2. per-repo generated modules (owned by the repo, NOT checksummed as engine)
-  for (const [name, content] of [["scripts/registry.mjs", registryModule(profile)], ["scripts/known-ids.mjs", knownIdsModule(addon)]]) {
+  if (engineOnly) preserved.push("scripts/registry.mjs", "scripts/known-ids.mjs");
+  else for (const [name, content] of [["scripts/registry.mjs", registryModule(profile)], ["scripts/known-ids.mjs", knownIdsModule(addon)]]) {
     if (fs.existsSync(path.join(outDir, name))) preserved.push(name);
     else written.push(writeFile(outDir, name, content));
   }
