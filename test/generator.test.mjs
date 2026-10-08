@@ -489,6 +489,15 @@ try {
     const beforeEngineSync = Object.fromEntries(owned.map(name => [name, read(name)]));
     execFileSync(process.execPath, [path.join(templateRoot, "generate.mjs"), "--profile", "fixture", "--out", out, "--engine-only"], { cwd: templateRoot, stdio: 'pipe' });
     check("G34b", "engine-only synchronization preserves registries, seed IDs, packages, schedules and config", owned.every(name => read(name) === beforeEngineSync[name]));
+    const liveConfig = readJson("config/catalogs.json");
+    liveConfig.manifest.id = 'com.example.repository.owned';
+    write("config/catalogs.json", liveConfig);
+    const ownedProfile = read("data/taste-profile.json");
+    const standaloneSync = execFileSync(process.execPath, [path.join(templateRoot, "generate.mjs"), "--profile", "not-a-template-profile", "--out", out, "--engine-only"], { cwd: templateRoot, encoding: 'utf8' });
+    check("G34c", "engine-only sync uses live addon configuration without requiring a template profile",
+      standaloneSync.includes(liveConfig.manifest.id) && read("data/taste-profile.json") === ownedProfile
+      && JSON.stringify(readJson("config/catalogs.json")) === JSON.stringify(liveConfig)
+      && owned.filter(name => name !== 'config/catalogs.json').every(name => read(name) === beforeEngineSync[name]));
     check("G35", "regeneration without --force refuses to touch an existing repo", (() => {
       try {
         execFileSync(process.execPath, [path.join(templateRoot, "generate.mjs"), "--profile", "fixture", "--out", out],

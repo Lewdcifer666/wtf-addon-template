@@ -9,6 +9,14 @@ workflows and schedules. Apply workflow/config/dependency migrations explicitly
 after reviewing the genre's existing research and DNA semantics. New scaffolds
 pin Ajv 8.20.0 and include a lockfile; run `npm ci --ignore-scripts` before tests.
 
+Engine-only synchronization reads the existing addon's catalog configuration;
+it does not require a matching scaffold profile in this template. The existing
+registry, seed IDs, catalog configuration and taste profile must be present.
+Audited genre evidence rules can use `blocked_source_hosts` and
+`required_source_hosts_by_type` in `config/research.json`. These optional rules
+match exact hostnames or their subdomains, never URL paths or lookalike hosts.
+Omitting them leaves the genre's source-count and purpose rules unchanged.
+
 The publication implementation is piloted on Thriller only. `require_all_known`
 is a per-profile setting, never a shared assumption. Other genre cutovers need
 their own audited research configuration and preserved evidence requirements.
