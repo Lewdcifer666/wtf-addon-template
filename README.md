@@ -205,6 +205,24 @@ no `imdb_id` for exactly this reason.
 Widening the namespace list is a deliberate decision, never a side effect of
 one item needing somewhere to put a value.
 
+## Publication runtime protection
+
+Before enabling a generated publisher, inspect classic main protection using an
+admin-capable identity and inspect repository/inherited rulesets independently.
+Preserve stronger existing requirements. In addition to classic PR protection,
+configure an active branch ruleset for `refs/heads/main`, with no bypass actors,
+requiring the `validate` status check from GitHub Actions (integration `15368`)
+and `strict_required_status_checks_policy: true`. Do not expand the publisher
+App's permissions: its existing Metadata read permission can inspect effective
+branch rules. The runtime refuses publication if that strict rule is absent or
+cannot be verified. Admin inspection remains necessary to verify bypass settings.
+
+Publication and metadata PR reuse checks the head repository, branch and exact
+validated commit, then binds auto-merge to that commit with `expectedHeadOid`.
+Metadata maintenance carries both the library and its regenerated automation
+state through validation and immutable branch recovery. Older incomplete frozen
+metadata attempts remain preserved for explicit review rather than overwritten.
+
 ### A repeated citation is not a second source
 
 Wherever a phase asks for "two sources" or "three sources", that always means

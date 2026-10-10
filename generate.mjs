@@ -46,6 +46,7 @@ export const ENGINE_FILES = [
   "finalize-research.mjs",
   "validate-publication.mjs",
   "publish-research.mjs",
+  "verify-publication-protection.mjs",
   "verify-deployment.mjs"
 ];
 
@@ -65,6 +66,7 @@ export const ENGINE_TESTS = [
   "research-packet.test.mjs",
   "research-finalizer.test.mjs",
   "research-publication.test.mjs",
+  "publication-protection.test.mjs",
   "deployment-verification.test.mjs",
   "fixtures/research/helpers.mjs"
 ];
