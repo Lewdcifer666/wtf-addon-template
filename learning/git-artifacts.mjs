@@ -55,10 +55,10 @@ export async function persistImmutable(api,{base,branch,files,assertCurrent=asyn
   return {branch,commit:ref.object.sha,reused:false};
 }
 
-export function failureArtifact({packetCommit,sourceRevision,engineFingerprint,code}){
+export function failureArtifact({packetCommit,sourceRevision,evaluatedBase=sourceRevision,engineFingerprint,code}){
   // Never copy an exception message or raw GitHub payload into a durable log.
   const allowed=['unauthorized_packet_changes','invalid_interpretation','stale_input','invalid_source','invalid_public_policy','immutable_artifact_mismatch','transport_failure'];
   if(!allowed.includes(code))code='transport_failure';
-  const state={schema_version:1,state:'finalization_failed',packet_commit:packetCommit,source_revision:sourceRevision,engine_fingerprint:engineFingerprint,code};
+  const state={schema_version:1,state:'finalization_failed',packet_commit:packetCommit,source_revision:sourceRevision,evaluated_base:evaluatedBase,engine_fingerprint:engineFingerprint,code};
   return {branch:`learning/failure-${digest(stableJson(state))}`,files:{'state.json':stableJson(state)}};
 }

@@ -40,6 +40,19 @@ test('AI inference is capped below chips even after score normalization; shortag
  assert(after.content_adjustment>0);assert(Math.abs(after.content_adjustment-before.content_adjustment*.3)<1e-12);
  assert(inferred.content.values.mystery<structured.content.values.mystery);
 });
+
+test('unrelated structured evidence cannot raise a mixed title inferred adjustment above its cap',()=>{
+ const e=event(1,{liked:['creature_threat','acting']}),a=adapter('scifi');
+ const item={imdb_id:e.imdb_id,dna:{creature_threat:0,experiments:10}};
+ const packet={interpretations:[{feedback_id:e.feedback_id,statements:[{category:'concept',aspect:'experiments',meaning:'worked',confidence:'high'},
+  {category:'execution',aspect:'dialogue',meaning:'worked',confidence:'high'}]}]};
+ const inferred=aggregateLearning({normalized:normalizedTips([e],packet),publicItems:[item],adapter:a});
+ const structured=aggregateLearning({normalized:normalize([{...e,liked:[...e.liked,'experiments','dialogue']}]),publicItems:[item],adapter:a});
+ const args={item,profile:profile('scifi'),adapter:a,executionEvidence:{[e.imdb_id]:{dialogue:1}}};
+ const x=learningAdjustments({...args,signals:inferred}),y=learningAdjustments({...args,signals:structured});
+ assert(x.content_adjustment>0);assert(Math.abs(x.content_adjustment-y.content_adjustment*.3)<1e-12);
+ assert(Math.abs(x.execution_adjustment-y.execution_adjustment*.3)<1e-12);
+});
 test('superseding and retracting recomputes rather than accumulating or resurrecting evidence',()=>{
  const original=event(1,{liked:['mystery']}),replacement=event(1,{feedback_id:'replacement',supersedes:original.feedback_id,liked:[],disliked:['mystery']});
  const tombstone={...replacement,feedback_id:'tombstone',supersedes:'replacement',status:'retracted',liked:[],disliked:[],rating:null};

@@ -40,3 +40,19 @@ test('partial six-profile state and AI score/activation fields cannot produce re
  const injected=inputs();injected.packet.score=99;assert.throws(()=>buildReceipt(injected),/schema/);
  const activation=inputs();activation.activation.public_catalog_personalization_enabled=true;assert.throws(()=>buildReceipt(activation),/activation/);
 });
+
+test('pinned title-specific execution evidence reaches learned diagnostics without fabricating unknown quality',()=>{
+ const input=inputs(),first=input.source.tips[0];first.liked=['acting'];
+ input.source.records[0].blob_oid=gitBlobOid(stableJson(first));input.packet.interpretations[0].raw_blob_oid=input.source.records[0].blob_oid;
+ const second={...first,feedback_id:'SECOND_SYNTHETIC',imdb_id:'tt999999992',feedback:''};
+ input.source.tips.push(second);input.source.records.push({event:second,blob_oid:gitBlobOid(stableJson(second))});input.source.event_count=2;
+ for(const inputProfile of Object.values(input.profiles))inputProfile.publicItems.push({...inputProfile.publicItems[0],imdb_id:second.imdb_id});
+ input.packet.request_id=interpretationRequest(input.source).request_id;
+ const before=JSON.parse(buildReceipt(input).files['scores/scifi.json']).items[first.imdb_id];
+ assert.equal(before.execution_adjustment,null);assert.equal(before.learned,null);
+ input.profiles.scifi.executionEvidence={[first.imdb_id]:{acting:1}};
+ const after=JSON.parse(buildReceipt(input).files['scores/scifi.json']).items[first.imdb_id];
+ assert(after.execution_adjustment>0);assert.notEqual(after.learned,null);assert.equal(after.baseline,before.baseline);
+ input.profiles.scifi.executionEvidence[first.imdb_id].acting=0;
+ assert.throws(()=>buildReceipt(input),/Invalid candidate execution evidence/);
+});

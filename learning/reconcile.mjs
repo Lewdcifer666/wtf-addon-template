@@ -6,6 +6,7 @@ import {GitHub} from './github.mjs';
 import {inventoryFeedback} from './inventory.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from './interpretation.mjs';
 import {buildReceipt,GENRES} from './receipt.mjs';
+import {validateExecutionEvidence} from './aggregate.mjs';
 import {LearningError,requirePacketDiff,persistImmutable,failureArtifact} from './git-artifacts.mjs';
 
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
@@ -36,7 +37,7 @@ async function readEntries(api,entries){
 export async function loadPublicProfile(api,genre,adapter){
   const commit=await api.pinMain(),tree=await treeAt(api,commit);
   const required=['data/taste-profile.json','data/library.json','data/rejections.json','config/catalogs.json','config/research.json','scripts/registry.mjs'];
-  const entries=tree.tree.filter(e=>required.includes(e.path)||/^data\/discoveries\/[^/]+\.json$/.test(e.path));
+  const entries=tree.tree.filter(e=>required.includes(e.path)||e.path==='data/execution-evidence.json'||/^data\/discoveries\/[^/]+\.json$/.test(e.path));
   if(required.some(p=>!entries.some(e=>e.path===p)))fail('invalid_public_policy');
   const blobs=await readEntries(api,entries);
   const json=name=>JSON.parse(blobs.get(entries.find(e=>e.path===name).sha).toString('utf8'));
@@ -47,8 +48,11 @@ export async function loadPublicProfile(api,genre,adapter){
   for(const item of publicItems)for(const [dimension,value] of Object.entries(item.dna||{})){
     if(!dimensions.has(dimension)||(value!==null&&(!Number.isInteger(value)||value<0||value>10)))fail('invalid_public_policy');
   }
+  let executionEvidence;
+  try{executionEvidence=validateExecutionEvidence(entries.some(e=>e.path==='data/execution-evidence.json')?json('data/execution-evidence.json'):{});}
+  catch{fail('invalid_public_policy');}
   return {revision:commit.sha,inventory_hash:digest(stableJson(entries.map(({path,sha})=>({path,sha})).sort((a,b)=>a.path.localeCompare(b.path,'en')))),
-    profile,catalogs:json('config/catalogs.json'),publicItems,adapter};
+    profile,catalogs:json('config/catalogs.json'),publicItems,adapter,executionEvidence};
 }
 
 export async function reconcile({api,publicApis,trustedRevision,dryRun=false}){
@@ -91,7 +95,7 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false}){
   // An obsolete packet remains intact and receives a durable stale marker.
   // This is not an invitation to replay a rejected write through another tool.
   for(const ref of refs.filter(ref=>/^refs\/heads\/interpretation\/[a-f0-9]{40}$/.test(ref.ref)&&ref.ref!==`refs/heads/interpretation/${base.sha}`)){
-    if(!dryRun){const artifact=failureArtifact({packetCommit:ref.object.sha,sourceRevision:ref.ref.split('/').at(-1),engineFingerprint,code:'stale_input'});await persistImmutable(api,{base,...artifact,assertCurrent});}
+    if(!dryRun){const artifact=failureArtifact({packetCommit:ref.object.sha,sourceRevision:ref.ref.split('/').at(-1),evaluatedBase:base.sha,engineFingerprint,code:'stale_input'});await persistImmutable(api,{base,...artifact,assertCurrent});}
   }
   if(!current.length)return {state:'awaiting_interpretation',request_id:request.request_id,events:source.event_count,required_interpretations:request.required.length,dry_run:dryRun};
   const packetCommit=current[0].object.sha,packetPath=`learning-inbox/${base.sha}/${request.request_id}.json`;

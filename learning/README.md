@@ -49,6 +49,13 @@ Each recomputation starts from the complete resolved graph. No incremental
 opinion counter can double-count a correction or resurrect a retracted parent.
 Scores are private counterfactual diagnostics through the existing scorer; they
 never replace published `match_score` or enable dormant catalog personalization.
+Structured and inferred adjustment terms retain separate normalization magnitudes;
+each inferred term is capped after normalization, even when the same title has
+unrelated structured aspects. Optional candidate-specific execution assessments
+are read from pinned public `data/execution-evidence.json` and included in the
+public inventory hash. Its shape is IMDb ID to execution aspect to `1` or `-1`.
+Missing assessments remain unknown; a user's preference never supplies candidate
+quality. No production assessments are introduced by the engine.
 
 Every receipt includes the pinned feedback inventory, original interpretation
 commit/hash, trusted engine fingerprint, six public source revisions/inventories,
@@ -57,6 +64,8 @@ adapter hashes, activation policy and all output hashes. Its branch is
 has no clock input. An unchanged retry validates and reuses identical bytes.
 Conflicts are refused, never force-updated. A successful rebuild of unchanged
 input cannot renew the old personalized snapshot's timestamp.
+Stale failure identities also bind the evaluated current base so retained old
+interpretation refs cannot block subsequent feedback revisions.
 
 `research-context/<genre>.json` omits watched titles, IDs, ratings, quotes and
 raw text. It is still personal derived evidence and **remains private** alongside
