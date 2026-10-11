@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {reconcile} from '../reconcile.mjs';
+import {reconcile,loadPublicProfile} from '../reconcile.mjs';
 import {GitHub} from '../github.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretation.mjs';
 import {inventoryFeedback} from '../inventory.mjs';
@@ -46,7 +46,8 @@ function memoryRepo(name,initial){
   }
  };
  return {api,refs,trees,blobs,writes,filesAt,initialSha,branch(name,additions){
-  const sha=addCommit(addTree({...filesAt(initialSha),...additions}),[initialSha]);refs.set(`refs/heads/${name}`,{ref:`refs/heads/${name}`,object:{sha}});return sha;
+  const parent=refs.get('refs/heads/main').object.sha;
+  const sha=addCommit(addTree({...filesAt(parent),...additions}),[parent]);refs.set(`refs/heads/${name}`,{ref:`refs/heads/${name}`,object:{sha}});return sha;
  }};
 }
 function scenario(){
@@ -93,12 +94,35 @@ test('old-source packets are preserved with durable stale markers, not silently 
  assert.equal(s.privateRepo.refs.get(`refs/heads/interpretation/${'d'.repeat(40)}`).object.sha,old);
  assert([...s.privateRepo.refs.keys()].some(r=>r.includes('/failure-')));
 });
+
+test('retained stale refs remain reconcilable across three feedback revisions with unchanged engine',async()=>{
+ const s=scenario();await stage(s);
+ const original=s.privateRepo.refs.get(`refs/heads/interpretation/${s.privateRepo.initialSha}`).object.sha;
+ await reconcile(s.args);
+ for(const rating of [3,2,1]){
+  const head=s.privateRepo.branch('main',{'data/feedback/2026-10-01/synthetic.json':stableJson({...s.event,rating})});
+  const args={...s.args,trustedRevision:head};await reconcile(args);await stage(s);
+  const next=await reconcile(args);assert.equal(next.state,'computed_inactive');
+  const writes=s.privateRepo.writes.length;assert.deepEqual(await reconcile(args),next);assert.equal(s.privateRepo.writes.length,writes);
+ }
+ assert.equal(s.privateRepo.refs.get(`refs/heads/interpretation/${s.privateRepo.initialSha}`).object.sha,original);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/receipt-')).length,4);
+});
 test('changed public base recomputes a new pinned receipt and preserves the old immutable result',async()=>{
  const s=scenario();await stage(s);const old=await reconcile(s.args),ref=s.privateRepo.refs.get(`refs/heads/${old.receipt}`).object.sha;
  s.publicRepos.anime.branch('main',{'config/research.json':'{"synthetic_policy_revision":2}'});
  const next=await reconcile(s.args);assert.notEqual(next.receipt,old.receipt);
  assert.equal(s.privateRepo.refs.get(`refs/heads/${old.receipt}`).object.sha,ref);
  assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/receipt-')).length,2);
+});
+
+test('optional candidate execution evidence is loaded from pinned public blobs and included in inventory',async()=>{
+ const s=scenario(),a=JSON.parse(fs.readFileSync(new URL('../config/scifi.json',import.meta.url),'utf8'));
+ const before=await loadPublicProfile(s.publicApis.scifi,'scifi',a);assert.deepEqual(before.executionEvidence,{});
+ const evidence={[s.event.imdb_id]:{acting:1}};
+ const head=s.publicRepos.scifi.branch('main',{'data/execution-evidence.json':stableJson(evidence)});
+ const after=await loadPublicProfile(s.publicApis.scifi,'scifi',a);
+ assert.equal(after.revision,head);assert.deepEqual(after.executionEvidence,evidence);assert.notEqual(before.inventory_hash,after.inventory_hash);
 });
 test('invalid complete raw input persists a closed failure and cannot produce a fresh receipt',async()=>{
  const s=scenario(),head=s.privateRepo.branch('main',{'data/feedback/2026-10-01/synthetic.json':stableJson({...s.event,schema_version:99})});

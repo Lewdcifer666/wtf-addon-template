@@ -1,4 +1,4 @@
-import {digest,stableJson,interpretationRequest,validateInterpretation,normalizedTips} from './interpretation.mjs';
+import {ASPECTS,digest,stableJson,interpretationRequest,validateInterpretation,normalizedTips} from './interpretation.mjs';
 import {validateAdapter,aggregateLearning,researchContext,learningAdjustments} from './aggregate.mjs';
 import {makePolicy,scoreItem,baselineContentPre} from '../engine/dna-score.mjs';
 
@@ -25,9 +25,17 @@ export function buildReceipt({source,packet,packetCommit,trustedRevision,engineF
     liked:e.liked||[],disliked:e.disliked||[],interpreted_aspects:lineage
   })));
   for(const genre of GENRES){
-    const input=profiles[genre],{profile,catalogs,publicItems,adapter}=input;
+    const input=profiles[genre],{profile,catalogs,publicItems,adapter,executionEvidence={}}=input;
     if(!sha(input.revision)||!hash(input.inventory_hash)||adapter.genre!==genre)throw Error('Unpinned or mismatched profile input');
     validateAdapter(adapter,profile);
+    // Optional title-specific assessments are repository-owned public facts,
+    // never inferred from a user's rating or execution preference. Absence
+    // remains unknown; do not fabricate candidate quality to enable a score.
+    if(!executionEvidence||typeof executionEvidence!=='object'||Array.isArray(executionEvidence))throw Error('Invalid candidate execution evidence');
+    for(const [imdb,aspects] of Object.entries(executionEvidence)){
+      if(!/^tt\d+$/.test(imdb)||!aspects||typeof aspects!=='object'||Array.isArray(aspects)
+        ||Object.entries(aspects).some(([aspect,value])=>!ASPECTS.execution.includes(aspect)||![1,-1].includes(value)))throw Error('Invalid candidate execution evidence');
+    }
     const signals=aggregateLearning({normalized,publicItems,adapter}),context=researchContext(signals,adapter);
     files[`signals/${genre}.json`]=stableJson(signals);
     files[`research-context/${genre}.json`]=stableJson(context);
@@ -38,7 +46,7 @@ export function buildReceipt({source,packet,packetCommit,trustedRevision,engineF
       if(item.status!=='watch'||!/^tt\d+$/.test(item.imdb_id))continue;
       const baseline=scoreItem(policy,definition,item,new Map()).score;
       if(baseline===null||baseline<profile.automation_rules.minimum_match_score)continue;
-      const adjustments=learningAdjustments({item,signals,profile,adapter});
+      const adjustments=learningAdjustments({item,signals,profile,adapter,executionEvidence});
       let personalized=null;
       if(signals.ratings.length>=2&&signals.content_evidence_titles>=1&&adjustments.content_adjustment!==null&&adjustments.execution_adjustment!==null){
         const content=baselineContentPre(policy,item,definition.dna.archetype_bonus_max).contentPre;

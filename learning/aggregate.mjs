@@ -32,15 +32,17 @@ export function aggregateLearning({normalized,publicItems,adapter}){
     byImdb.set(item.imdb_id,item);
   }
   const stores={content:new Map(),execution:new Map(),tone:new Map()},lineage=[],ratings=[],contentTitles=new Set(),executionTitles=new Set();
-  const strengths={content:new Map(),execution:new Map()};
+  const components=Object.fromEntries(['structured','inferred'].map(source=>[source,{content:new Map(),execution:new Map(),tone:new Map()}]));
   const add=(kind,key,event,value,source)=>{
     if(!value)return;
     const store=stores[kind];if(!store.has(key))store.set(key,new Map());
     const values=store.get(key),title=event.imdb_id;
     values.set(title,clamp((values.get(title)||0)+value,-1,1));
     (kind==='content'?contentTitles:executionTitles).add(title);
-    const group=kind==='content'?'content':'execution',strength=source==='interpreted_free_text'?.3:1;
-    strengths[group].set(title,Math.max(strengths[group].get(title)||0,strength));
+    const inferred=source==='interpreted_free_text',component=components[inferred?'inferred':'structured'][kind];
+    if(!component.has(key))component.set(key,new Map());
+    const full=component.get(key);
+    full.set(title,clamp((full.get(title)||0)+value/(inferred?.3:1),-1,1));
     lineage.push({feedback_id:event.feedback_id,imdb_id:title,category:kind,aspect:key,contribution:value,source});
   };
   for(const {event:e,lineage:inferred=[]} of normalized){
@@ -97,7 +99,7 @@ export function aggregateLearning({normalized,publicItems,adapter}){
   };
   return {schema_version:1,genre:adapter.genre,content:summarize(stores.content),execution:summarize(stores.execution),tone:summarize(stores.tone),
     ratings:[...ratings].sort((a,b)=>a-b),content_evidence_titles:contentTitles.size,execution_evidence_titles:executionTitles.size,
-    adjustment_strength:Object.fromEntries(Object.entries(strengths).map(([kind,m])=>[kind,m.size?[...m.values()].reduce((a,b)=>a+b,0)/m.size:0])),
+    adjustment_components:Object.fromEntries(Object.entries(components).map(([source,kinds])=>[source,Object.fromEntries(Object.entries(kinds).map(([kind,store])=>[kind,summarize(store).values]))])),
     lineage:lineage.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b),'en'))};
 }
 
@@ -105,21 +107,25 @@ export function aggregateLearning({normalized,publicItems,adapter}){
 // override. Unknown DNA contributes nothing, and is never replaced with zero.
 export function learningAdjustments({item,signals,profile,adapter,executionEvidence={}}){
   let raw=0,norm=0,applied=0;
-  for(const [d,p] of Object.entries(signals.content.values)){
+  // Normalize using full-strength magnitudes, then cap each inferred term.
+  // An unrelated structured aspect cannot promote inferred evidence. Keeping
+  // the components separate also prevents cancellation from shrinking the cap.
+  const terms=kind=>['structured','inferred'].flatMap(source=>Object.entries(signals.adjustment_components[source][kind]).map(([aspect,p])=>[aspect,p,source==='inferred'?.3:1]));
+  for(const [d,p,strength] of terms('content')){
     const w=profile.dna_baseline.weights[d],v=item.dna?.[d];
     if(typeof w!=='number'||!p||!Number.isInteger(v))continue;
-    const importance=w===0?5:Math.abs(w);raw+=p*importance*v/10;norm+=Math.abs(p)*importance;if(v)applied++;
+    const importance=w===0?5:Math.abs(w);raw+=strength*p*importance*v/10;norm+=Math.abs(p)*importance;if(v)applied++;
   }
-  const content=norm&&applied?shift(signals.content_evidence_titles)*signals.adjustment_strength.content*raw/norm:null;
+  const content=norm&&applied?shift(signals.content_evidence_titles)*raw/norm:null;
   raw=0;norm=0;
-  for(const [aspect,p] of Object.entries(signals.execution.values)){
-    const value=executionEvidence[item.imdb_id]?.[aspect];if((value===1||value===-1)&&p){raw+=p*value;norm+=Math.abs(p);}
+  for(const [aspect,p,strength] of terms('execution')){
+    const value=executionEvidence[item.imdb_id]?.[aspect];if((value===1||value===-1)&&p){raw+=strength*p*value;norm+=Math.abs(p);}
   }
-  for(const [aspect,p] of Object.entries(signals.tone.values)){
+  for(const [aspect,p,strength] of terms('tone')){
     const value=item.dna?.[adapter.tone_dimensions[aspect]];
-    if(p&&Number.isInteger(value)&&value){raw+=p*value/10;norm+=Math.abs(p);}
+    if(p&&Number.isInteger(value)&&value){raw+=strength*p*value/10;norm+=Math.abs(p);}
   }
-  return {content_adjustment:content,execution_adjustment:norm?shift(signals.execution_evidence_titles)*signals.adjustment_strength.execution*raw/norm:null};
+  return {content_adjustment:content,execution_adjustment:norm?shift(signals.execution_evidence_titles)*raw/norm:null};
 }
 
 export function researchContext(signals,adapter){
