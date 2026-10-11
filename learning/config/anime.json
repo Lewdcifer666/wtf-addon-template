@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "genre": "anime",
+  "owned_imdb_required": true,
+  "universal_v3_execution": false,
+  "universal_v3_concepts": [],
+  "blocked_projection": [],
+  "source_dna_required_concepts": [
+    "reality_time_anomaly"
+  ],
+  "projectable": [
+    "mystery",
+    "psychological_strategy",
+    "cat_and_mouse",
+    "deception",
+    "plot_twists",
+    "rule_discovery",
+    "power_progression",
+    "power_escalation",
+    "training_growth",
+    "ability_variety",
+    "power_system_depth",
+    "overpowered_protagonist",
+    "supernatural",
+    "creature_threat",
+    "sci_fi_elements",
+    "reality_anomaly",
+    "weirdness",
+    "strange_world",
+    "worldbuilding",
+    "magic_presence",
+    "adventure"
+  ],
+  "concept_dimensions": {
+    "mystery": [
+      "mystery"
+    ],
+    "world_rules": [
+      "rule_discovery"
+    ],
+    "weirdness": [
+      "weirdness"
+    ],
+    "creature_threat": [
+      "creature_threat"
+    ],
+    "reality_time_anomaly": [
+      "reality_anomaly"
+    ]
+  },
+  "tone_dimensions": {
+    "suspense": "suspense",
+    "horror": "horror",
+    "action": "action_intensity",
+    "humor": "comedy",
+    "military_focus": "military_focus"
+  },
+  "notes": "Owned titles only. Foreign-context tone is inert. Combined reality/time chip projects only with known owned reality-anomaly evidence, never guessed time semantics."
+}

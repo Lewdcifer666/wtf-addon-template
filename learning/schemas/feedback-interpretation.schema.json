@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_revision",
+    "request_id",
+    "interpretations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "interpretations": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "feedback_id",
+          "raw_blob_oid",
+          "status",
+          "statements"
+        ],
+        "properties": {
+          "feedback_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "raw_blob_oid": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+          },
+          "status": {
+            "enum": [
+              "interpreted",
+              "ambiguous",
+              "no_signal"
+            ]
+          },
+          "statements": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "category",
+                "aspect",
+                "meaning",
+                "scope",
+                "quote",
+                "confidence"
+              ],
+              "properties": {
+                "category": {
+                  "enum": [
+                    "execution",
+                    "concept",
+                    "tone"
+                  ]
+                },
+                "aspect": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "meaning": {
+                  "enum": [
+                    "worked",
+                    "did_not_work",
+                    "wanted_more",
+                    "wanted_less",
+                    "uncertain"
+                  ]
+                },
+                "scope": {
+                  "enum": [
+                    "title_execution",
+                    "content_preference",
+                    "tone_preference"
+                  ]
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 2000
+                },
+                "confidence": {
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

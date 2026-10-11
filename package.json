@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node test/generator.test.mjs",
+    "test": "node test/generator.test.mjs && node --test learning/test/*.test.mjs",
     "generate": "node generate.mjs"
   },
   "dependencies": {

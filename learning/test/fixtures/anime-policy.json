@@ -1,0 +1,187 @@
+{
+  "dna_dimensions": {
+    "dimensions": [
+      {
+        "id": "mystery"
+      },
+      {
+        "id": "psychological_strategy"
+      },
+      {
+        "id": "cat_and_mouse"
+      },
+      {
+        "id": "deception"
+      },
+      {
+        "id": "plot_twists"
+      },
+      {
+        "id": "suspense"
+      },
+      {
+        "id": "progressive_revelation"
+      },
+      {
+        "id": "rule_discovery"
+      },
+      {
+        "id": "power_progression"
+      },
+      {
+        "id": "power_escalation"
+      },
+      {
+        "id": "training_growth"
+      },
+      {
+        "id": "ability_variety"
+      },
+      {
+        "id": "power_system_depth"
+      },
+      {
+        "id": "overpowered_protagonist"
+      },
+      {
+        "id": "supernatural"
+      },
+      {
+        "id": "horror"
+      },
+      {
+        "id": "gore"
+      },
+      {
+        "id": "brutality"
+      },
+      {
+        "id": "dark_tone"
+      },
+      {
+        "id": "creature_threat"
+      },
+      {
+        "id": "sci_fi_elements"
+      },
+      {
+        "id": "reality_anomaly"
+      },
+      {
+        "id": "weirdness"
+      },
+      {
+        "id": "strange_world"
+      },
+      {
+        "id": "worldbuilding"
+      },
+      {
+        "id": "magic_presence"
+      },
+      {
+        "id": "adventure"
+      },
+      {
+        "id": "action_density"
+      },
+      {
+        "id": "action_intensity"
+      },
+      {
+        "id": "visual_quality"
+      },
+      {
+        "id": "visual_uniqueness"
+      },
+      {
+        "id": "retro_visual_style"
+      },
+      {
+        "id": "wtf_comedy"
+      },
+      {
+        "id": "comedy"
+      },
+      {
+        "id": "drama_focus"
+      },
+      {
+        "id": "romance_focus"
+      },
+      {
+        "id": "sports_focus"
+      },
+      {
+        "id": "mecha_focus"
+      },
+      {
+        "id": "military_focus"
+      },
+      {
+        "id": "slice_of_life"
+      },
+      {
+        "id": "superhero"
+      },
+      {
+        "id": "pace_speed"
+      }
+    ]
+  },
+  "dna_baseline": {
+    "weights": {
+      "psychological_strategy": 20,
+      "mystery": 18,
+      "power_progression": 18,
+      "ability_variety": 17,
+      "suspense": 16,
+      "power_system_depth": 16,
+      "cat_and_mouse": 15,
+      "progressive_revelation": 15,
+      "supernatural": 15,
+      "plot_twists": 14,
+      "magic_presence": 14,
+      "dark_tone": 13,
+      "overpowered_protagonist": 13,
+      "power_escalation": 13,
+      "gore": 12,
+      "horror": 12,
+      "deception": 12,
+      "sci_fi_elements": 12,
+      "strange_world": 12,
+      "rule_discovery": 12,
+      "brutality": 11,
+      "weirdness": 11,
+      "worldbuilding": 11,
+      "adventure": 11,
+      "reality_anomaly": 10,
+      "visual_quality": 10,
+      "visual_uniqueness": 9,
+      "training_growth": 9,
+      "action_density": 9,
+      "wtf_comedy": 7,
+      "action_intensity": 6,
+      "creature_threat": 6,
+      "comedy": 0,
+      "slice_of_life": -4,
+      "retro_visual_style": -8,
+      "drama_focus": -12,
+      "romance_focus": -14,
+      "military_focus": -14,
+      "sports_focus": -16,
+      "mecha_focus": -16
+    }
+  },
+  "execution_preferences": {
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    }
+  }
+}

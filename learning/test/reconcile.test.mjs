@@ -1,0 +1,120 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {reconcile} from '../reconcile.mjs';
+import {GitHub} from '../github.mjs';
+import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretation.mjs';
+import {inventoryFeedback} from '../inventory.mjs';
+import {GENRES} from '../receipt.mjs';
+
+function memoryRepo(name,initial){
+ let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
+ const oid=()=>digest(`${name}:${++serial}`).slice(0,40);
+ const blob=content=>{const bytes=Buffer.from(content),sha=gitBlobOid(bytes);blobs.set(sha,bytes);return {sha,size:bytes.length};};
+ const addTree=files=>{const sha=oid(),tree=Object.entries(files).map(([path,content])=>({path,type:'blob',mode:'100644',...blob(content)}));trees.set(sha,{sha,truncated:false,tree});return sha;};
+ const addCommit=(tree,parents=[])=>{const sha=oid();commits.set(sha,{sha,tree:{sha:tree},parents:parents.map(sha=>({sha}))});return sha;};
+ const initialSha=addCommit(addTree(initial));refs.set('refs/heads/main',{ref:'refs/heads/main',object:{sha:initialSha}});
+ const filesAt=sha=>Object.fromEntries(trees.get(commits.get(sha).tree.sha).tree.map(e=>[e.path,blobs.get(e.sha).toString('utf8')]));
+ const api={
+  async pinMain(){return commits.get(refs.get('refs/heads/main').object.sha);},
+  async optional(route){return refs.get(`refs/${route.replace('/git/ref/','')}`)||null;},
+  async get(route){
+   if(route==='/')return {full_name:name,private:name.endsWith('-feedback'),default_branch:'main'};
+   if(route.startsWith('/git/trees/'))return trees.get(route.slice('/git/trees/'.length).split('?')[0]);
+   if(route.startsWith('/git/commits/'))return commits.get(route.split('/').at(-1));
+   if(route.startsWith('/git/blobs/')){const sha=route.split('/').at(-1),bytes=blobs.get(sha);return {sha,size:bytes.length,encoding:'base64',content:bytes.toString('base64')};}
+   if(route.startsWith('/git/matching-refs/'))return [...refs.values()].filter(r=>r.ref.startsWith(`refs/${route.slice('/git/matching-refs/'.length)}`));
+   if(route.startsWith('/compare/')){
+    const [base,head]=route.slice('/compare/'.length).split('...'),before=filesAt(base),after=filesAt(head);
+    return {merge_base_commit:{sha:base},status:'ahead',files:[...new Set([...Object.keys(before),...Object.keys(after)])].filter(p=>before[p]!==after[p]).map(filename=>({filename,status:before[filename]===undefined?'added':after[filename]===undefined?'removed':'modified'}))};
+   }
+   throw Error('unexpected mock read');
+  },
+  async post(route,body){
+   writes.push({route,body});
+   if(route==='/git/blobs')return blob(body.content);
+   if(route==='/git/trees'){
+    const files=Object.fromEntries(trees.get(body.base_tree).tree.map(e=>[e.path,blobs.get(e.sha).toString('utf8')]));
+    for(const e of body.tree)files[e.path]=blobs.get(e.sha).toString('utf8');return {sha:addTree(files)};
+   }
+   if(route==='/git/commits')return {sha:addCommit(body.tree,body.parents)};
+   if(route==='/git/refs'){
+    if(refs.has(body.ref)){const error=Error('ref exists');error.status=422;throw error;}
+    const ref={ref:body.ref,object:{sha:body.sha}};refs.set(body.ref,ref);return ref;
+   }
+   throw Error('unexpected mock write');
+  }
+ };
+ return {api,refs,trees,blobs,writes,filesAt,initialSha,branch(name,additions){
+  const sha=addCommit(addTree({...filesAt(initialSha),...additions}),[initialSha]);refs.set(`refs/heads/${name}`,{ref:`refs/heads/${name}`,object:{sha}});return sha;
+ }};
+}
+function scenario(){
+ const event={schema_version:3,feedback_id:'synthetic',supersedes:null,imdb_id:'tt999999991',source_id:null,rated_at:'2026-10-01T10:00:00Z',profile_context:null,status:'seen',rating:4,premise_interest:null,liked:[],disliked:[],feedback:'PRIVATE_SENTINEL I want more mystery.'};
+ const privateRepo=memoryRepo('Lewdcifer666/wtf-scifi-feedback',{'data/feedback/2026-10-01/synthetic.json':stableJson(event),'learning/reconcile.mjs':'// trusted fixture, never imported from API\n'}),publicApis={},publicRepos={};
+ for(const genre of GENRES){
+  const policy=JSON.parse(fs.readFileSync(new URL(`./fixtures/${genre}-policy.json`,import.meta.url),'utf8')),dimension=genre==='mystery'?'central_mystery':'mystery';
+  policy.automation_rules={minimum_match_score:0};policy.dna_baseline={weights:{[dimension]:1},completeness_defaults:{min_known_dimensions:1,min_confidence:0,required_known_dimensions:[dimension]},archetypes:[]};policy.dna_guardrails={hard_exclusion:[],combination:[]};
+  const files={'data/taste-profile.json':stableJson(policy),'data/library.json':stableJson({items:[{imdb_id:event.imdb_id,status:'watch',type:'movie',dna:{[dimension]:8},dna_confidence:1}]}),
+   'data/rejections.json':'{"items":[]}','config/catalogs.json':stableJson({catalogs:[{id:'dna-match',min_score:0,dna:{mode:'baseline_profile',archetype_bonus_max:0}}]}),'config/research.json':'{}','scripts/registry.mjs':'// data hash only; never executed'};
+  publicRepos[genre]=memoryRepo(`Lewdcifer666/wtf-${genre}-stremio`,files);publicApis[genre]=publicRepos[genre].api;
+ }
+ return {privateRepo,publicApis,publicRepos,event,args:{api:privateRepo.api,publicApis,trustedRevision:privateRepo.initialSha}};
+}
+async function stage(s,extra={}){
+ const commit=await s.privateRepo.api.pinMain(),tree=s.privateRepo.trees.get(commit.tree.sha),source=inventoryFeedback({commit,tree,blobs:s.privateRepo.blobs}),request=interpretationRequest(source);
+ const packet={schema_version:1,source_revision:source.source_revision,request_id:request.request_id,interpretations:[{feedback_id:s.event.feedback_id,raw_blob_oid:source.records[0].blob_oid,status:'interpreted',statements:[{category:'concept',aspect:'mystery',meaning:'wanted_more',scope:'content_preference',quote:'I want more mystery',confidence:'high'}]}]};
+ s.privateRepo.branch(`interpretation/${commit.sha}`,{[`learning-inbox/${commit.sha}/${request.request_id}.json`]:stableJson(packet),...extra});
+}
+test('persisted queue resumes from a staged packet, creates inactive receipt, and reuses unchanged retry',async()=>{
+ const s=scenario(),before=stableJson(s.privateRepo.filesAt(s.privateRepo.initialSha));
+ const pending=await reconcile(s.args);assert.equal(pending.state,'awaiting_interpretation');assert.equal(pending.required_interpretations,1);
+ assert.equal(s.privateRepo.refs.size,2);await stage(s);
+ const finished=await reconcile(s.args);assert.equal(finished.state,'computed_inactive');const writes=s.privateRepo.writes.length;
+ const retry=await reconcile(s.args);assert.equal(retry.receipt,finished.receipt);assert.equal(s.privateRepo.writes.length,writes);
+ assert.equal(stableJson(s.privateRepo.filesAt(s.privateRepo.initialSha)),before);
+ assert.equal(s.privateRepo.refs.get('refs/heads/main').object.sha,s.privateRepo.initialSha);
+ assert(!JSON.stringify([pending,finished,retry]).includes('PRIVATE_SENTINEL'));
+});
+test('malicious branch code/cache changes persist failure, never execute, and never produce a receipt',async()=>{
+ const s=scenario();await stage(s,{'learning/reconcile.mjs':'throw Error("EXECUTED_UNTRUSTED")','node_modules/cache':'malicious'});
+ await assert.rejects(reconcile(s.args),/unauthorized_packet_changes/);
+ assert([...s.privateRepo.refs.keys()].some(r=>r.includes('/failure-')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/receipt-')));
+});
+test('dry run has no writes; stale source and missing credentials fail closed',async()=>{
+ const s=scenario();await stage(s);assert.equal((await reconcile({...s.args,dryRun:true})).state,'computed_inactive');assert.equal(s.privateRepo.writes.length,0);
+ await assert.rejects(reconcile({...s.args,trustedRevision:'a'.repeat(40)}),/stale_input/);
+ assert.throws(()=>new GitHub('Lewdcifer666/wtf-scifi-feedback',''),/missing_credentials/);
+});
+test('old-source packets are preserved with durable stale markers, not silently discarded',async()=>{
+ const s=scenario();const old=s.privateRepo.branch(`interpretation/${'d'.repeat(40)}`,{'learning-inbox/old.json':'{}'});
+ const result=await reconcile(s.args);assert.equal(result.state,'awaiting_interpretation');
+ assert.equal(s.privateRepo.refs.get(`refs/heads/interpretation/${'d'.repeat(40)}`).object.sha,old);
+ assert([...s.privateRepo.refs.keys()].some(r=>r.includes('/failure-')));
+});
+test('changed public base recomputes a new pinned receipt and preserves the old immutable result',async()=>{
+ const s=scenario();await stage(s);const old=await reconcile(s.args),ref=s.privateRepo.refs.get(`refs/heads/${old.receipt}`).object.sha;
+ s.publicRepos.anime.branch('main',{'config/research.json':'{"synthetic_policy_revision":2}'});
+ const next=await reconcile(s.args);assert.notEqual(next.receipt,old.receipt);
+ assert.equal(s.privateRepo.refs.get(`refs/heads/${old.receipt}`).object.sha,ref);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/receipt-')).length,2);
+});
+test('invalid complete raw input persists a closed failure and cannot produce a fresh receipt',async()=>{
+ const s=scenario(),head=s.privateRepo.branch('main',{'data/feedback/2026-10-01/synthetic.json':stableJson({...s.event,schema_version:99})});
+ await assert.rejects(reconcile({...s.args,trustedRevision:head}),/invalid_source/);
+ assert([...s.privateRepo.refs.keys()].some(r=>r.includes('/failure-')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/receipt-')));
+});
+test('public repositories cannot receive private learning writes',async()=>{
+ const s=scenario(),api={...s.privateRepo.api,get:async route=>route==='/'?{private:false,full_name:'Lewdcifer666/wtf-scifi-feedback',default_branch:'main'}:s.privateRepo.api.get(route)};
+ await assert.rejects(reconcile({...s.args,api}),/private_repository_required/);assert.equal(s.privateRepo.writes.length,0);
+ const publicClient=new GitHub('Lewdcifer666/wtf-scifi-stremio','synthetic-token',{writable:true});
+ await assert.rejects(publicClient.post('/git/refs',{ref:'refs/heads/example'}),/unauthorized_write/);
+});
+test('privileged workflow pins main, has no cache, and read-only intake never checks out the packet branch',()=>{
+ const read=name=>fs.readFileSync(new URL(`../workflows/${name}`,import.meta.url),'utf8'),final=read('learning-finalize.yml'),intake=read('learning-intake.yml');
+ assert(final.includes('ref: ${{ steps.trusted.outputs.sha }}'));assert(final.includes('git/ref/heads/main'));assert(final.includes('cancel-in-progress: false'));
+ assert(!final.includes('workflow_run.head_sha'));assert(!final.includes('actions/cache'));assert(final.includes('npm ci --ignore-scripts'));
+ assert(intake.includes('contents: read'));assert(!intake.includes('actions/checkout'));assert(!intake.includes('npm '));
+});

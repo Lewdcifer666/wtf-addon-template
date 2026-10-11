@@ -1,0 +1,131 @@
+{
+  "dna_dimensions": {
+    "dimensions": [
+      {
+        "id": "magic_presence"
+      },
+      {
+        "id": "magic_system_depth"
+      },
+      {
+        "id": "fantasy_creatures"
+      },
+      {
+        "id": "nonhuman_races"
+      },
+      {
+        "id": "dark_fantasy"
+      },
+      {
+        "id": "mythology"
+      },
+      {
+        "id": "epic_scale"
+      },
+      {
+        "id": "kingdom_politics"
+      },
+      {
+        "id": "faction_conflict"
+      },
+      {
+        "id": "other_realms"
+      },
+      {
+        "id": "adventure"
+      },
+      {
+        "id": "family_tone"
+      },
+      {
+        "id": "worldbuilding"
+      },
+      {
+        "id": "ability_variety"
+      },
+      {
+        "id": "mystery"
+      },
+      {
+        "id": "suspense"
+      },
+      {
+        "id": "action_density"
+      },
+      {
+        "id": "action_intensity"
+      },
+      {
+        "id": "creature_threat"
+      },
+      {
+        "id": "horror"
+      },
+      {
+        "id": "visual_quality"
+      },
+      {
+        "id": "retro_visual_style"
+      },
+      {
+        "id": "visual_spectacle"
+      },
+      {
+        "id": "comedy"
+      },
+      {
+        "id": "romance_focus"
+      },
+      {
+        "id": "drama_focus"
+      },
+      {
+        "id": "superhero"
+      },
+      {
+        "id": "pace_speed"
+      }
+    ]
+  },
+  "dna_baseline": {
+    "weights": {
+      "dark_fantasy": 20,
+      "magic_presence": 18,
+      "worldbuilding": 18,
+      "fantasy_creatures": 16,
+      "magic_system_depth": 15,
+      "nonhuman_races": 14,
+      "epic_scale": 14,
+      "visual_spectacle": 13,
+      "faction_conflict": 12,
+      "kingdom_politics": 11,
+      "mythology": 11,
+      "action_density": 10,
+      "visual_quality": 10,
+      "adventure": 9,
+      "mystery": 9,
+      "other_realms": 8,
+      "ability_variety": 8,
+      "action_intensity": 6,
+      "suspense": 6,
+      "creature_threat": 5,
+      "horror": 0,
+      "comedy": 0,
+      "drama_focus": -6,
+      "retro_visual_style": -10,
+      "romance_focus": -10,
+      "family_tone": -14
+    }
+  },
+  "execution_preferences": {
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    }
+  }
+}

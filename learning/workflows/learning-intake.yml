@@ -1,0 +1,12 @@
+name: Stage private interpretation
+on:
+  push:
+    branches: ['interpretation/**']
+permissions:
+  contents: read
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake trusted-main reconciliation
+        run: echo 'A private data branch changed; validation runs separately from trusted main.'

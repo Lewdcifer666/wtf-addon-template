@@ -1,0 +1,127 @@
+{
+  "dna_dimensions": {
+    "dimensions": [
+      {
+        "id": "scientific_investigation"
+      },
+      {
+        "id": "biology_genetics"
+      },
+      {
+        "id": "alien_unknown_life"
+      },
+      {
+        "id": "unknown_phenomenon"
+      },
+      {
+        "id": "mystery"
+      },
+      {
+        "id": "suspense"
+      },
+      {
+        "id": "rule_discovery"
+      },
+      {
+        "id": "concept_escalation"
+      },
+      {
+        "id": "weirdness"
+      },
+      {
+        "id": "reality_anomaly"
+      },
+      {
+        "id": "time_anomaly"
+      },
+      {
+        "id": "mind_consciousness"
+      },
+      {
+        "id": "experiments"
+      },
+      {
+        "id": "conspiracy"
+      },
+      {
+        "id": "scientist_presence"
+      },
+      {
+        "id": "research_setting"
+      },
+      {
+        "id": "isolation"
+      },
+      {
+        "id": "creature_threat"
+      },
+      {
+        "id": "survival_chase"
+      },
+      {
+        "id": "horror"
+      },
+      {
+        "id": "action_density"
+      },
+      {
+        "id": "action_intensity"
+      },
+      {
+        "id": "military_focus"
+      },
+      {
+        "id": "space_opera"
+      },
+      {
+        "id": "superhero"
+      },
+      {
+        "id": "comic_book_universe"
+      },
+      {
+        "id": "comedy"
+      },
+      {
+        "id": "pace_speed"
+      }
+    ]
+  },
+  "dna_baseline": {
+    "weights": {
+      "scientific_investigation": 20,
+      "biology_genetics": 20,
+      "unknown_phenomenon": 18,
+      "rule_discovery": 18,
+      "concept_escalation": 18,
+      "experiments": 16,
+      "reality_anomaly": 15,
+      "time_anomaly": 15,
+      "mind_consciousness": 15,
+      "mystery": 14,
+      "suspense": 14,
+      "alien_unknown_life": 14,
+      "weirdness": 12,
+      "scientist_presence": 12,
+      "research_setting": 10,
+      "conspiracy": 10,
+      "creature_threat": 0,
+      "isolation": 0,
+      "comedy": -4,
+      "horror": -6,
+      "survival_chase": -10,
+      "military_focus": -12
+    }
+  },
+  "execution_preferences": {
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    }
+  }
+}

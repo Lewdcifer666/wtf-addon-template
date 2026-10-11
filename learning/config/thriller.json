@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "genre": "thriller",
+  "owned_imdb_required": true,
+  "universal_v3_execution": false,
+  "universal_v3_concepts": [],
+  "blocked_projection": [],
+  "source_dna_required_concepts": [],
+  "projectable": [
+    "mystery",
+    "investigation",
+    "clue_puzzling",
+    "culprit_hunt",
+    "plot_twists",
+    "psychological_strategy",
+    "cat_and_mouse",
+    "deception",
+    "hidden_identity",
+    "unreliable_perspective",
+    "conspiracy",
+    "mole_inside",
+    "corruption",
+    "surveillance",
+    "evidence_manipulation",
+    "technology_threat",
+    "deadly_game",
+    "weirdness"
+  ],
+  "concept_dimensions": {
+    "mystery": [
+      "mystery"
+    ],
+    "conspiracy": [
+      "conspiracy"
+    ],
+    "weirdness": [
+      "weirdness"
+    ]
+  },
+  "tone_dimensions": {
+    "suspense": "suspense",
+    "action": "action_intensity",
+    "military_focus": "military_focus"
+  },
+  "notes": "Owned titles only. Execution pacing never projects onto pace_speed or revelation frequency."
+}
