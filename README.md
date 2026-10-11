@@ -248,3 +248,15 @@ the verified private feedback repository on a review branch. Activation defaults
 to false and remains owned by that private deployment. Public scoring and profile
 policy are unchanged; automatic learned research still requires an observed
 private interpretation, intentional cutover and verified subsequent effects.
+# Acknowledged research staging holds
+
+An optional genre-owned `config/research-holds.json` records reviewed safety-denied
+empty branches using schema version 1 and `holds` entries containing `daily_key`,
+the exact `research_commit`, and `reason: "safety_denied"`. It never authorizes a
+retry. Reconciliation verifies the ref, an empty behind/identical comparison,
+absence of the packet and absence of publication attempts on every run. These
+entries remain `finalization_failed` with `requires_user_action` in the persisted
+bundle and job summary, but unchanged acknowledged holds do not repeatedly fail
+the workflow. Changed or missing branches, new packets, attempts, malformed
+holds and all unrelated errors still fail. Removing a hold requires a reviewed
+change. No logs, branches or discoveries are deleted or relabelled as successful.
