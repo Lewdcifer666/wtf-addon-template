@@ -6,6 +6,7 @@ import {GitHub} from './github.mjs';
 import {inventoryFeedback} from './inventory.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from './interpretation.mjs';
 import {buildReceipt,GENRES} from './receipt.mjs';
+import {validateExecutionEvidence} from './aggregate.mjs';
 import {LearningError,requirePacketDiff,persistImmutable,failureArtifact} from './git-artifacts.mjs';
 
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
@@ -47,9 +48,11 @@ export async function loadPublicProfile(api,genre,adapter){
   for(const item of publicItems)for(const [dimension,value] of Object.entries(item.dna||{})){
     if(!dimensions.has(dimension)||(value!==null&&(!Number.isInteger(value)||value<0||value>10)))fail('invalid_public_policy');
   }
+  let executionEvidence;
+  try{executionEvidence=validateExecutionEvidence(entries.some(e=>e.path==='data/execution-evidence.json')?json('data/execution-evidence.json'):{});}
+  catch{fail('invalid_public_policy');}
   return {revision:commit.sha,inventory_hash:digest(stableJson(entries.map(({path,sha})=>({path,sha})).sort((a,b)=>a.path.localeCompare(b.path,'en')))),
-    profile,catalogs:json('config/catalogs.json'),publicItems,adapter,
-    executionEvidence:entries.some(e=>e.path==='data/execution-evidence.json')?json('data/execution-evidence.json'):{}};
+    profile,catalogs:json('config/catalogs.json'),publicItems,adapter,executionEvidence};
 }
 
 export async function reconcile({api,publicApis,trustedRevision,dryRun=false}){

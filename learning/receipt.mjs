@@ -1,5 +1,5 @@
-import {ASPECTS,digest,stableJson,interpretationRequest,validateInterpretation,normalizedTips} from './interpretation.mjs';
-import {validateAdapter,aggregateLearning,researchContext,learningAdjustments} from './aggregate.mjs';
+import {digest,stableJson,interpretationRequest,validateInterpretation,normalizedTips} from './interpretation.mjs';
+import {validateAdapter,validateExecutionEvidence,aggregateLearning,researchContext,learningAdjustments} from './aggregate.mjs';
 import {makePolicy,scoreItem,baselineContentPre} from '../engine/dna-score.mjs';
 
 export const GENRES=['action','anime','fantasy','mystery','scifi','thriller'];
@@ -31,11 +31,7 @@ export function buildReceipt({source,packet,packetCommit,trustedRevision,engineF
     // Optional title-specific assessments are repository-owned public facts,
     // never inferred from a user's rating or execution preference. Absence
     // remains unknown; do not fabricate candidate quality to enable a score.
-    if(!executionEvidence||typeof executionEvidence!=='object'||Array.isArray(executionEvidence))throw Error('Invalid candidate execution evidence');
-    for(const [imdb,aspects] of Object.entries(executionEvidence)){
-      if(!/^tt\d+$/.test(imdb)||!aspects||typeof aspects!=='object'||Array.isArray(aspects)
-        ||Object.entries(aspects).some(([aspect,value])=>!ASPECTS.execution.includes(aspect)||![1,-1].includes(value)))throw Error('Invalid candidate execution evidence');
-    }
+    validateExecutionEvidence(executionEvidence);
     const signals=aggregateLearning({normalized,publicItems,adapter}),context=researchContext(signals,adapter);
     files[`signals/${genre}.json`]=stableJson(signals);
     files[`research-context/${genre}.json`]=stableJson(context);

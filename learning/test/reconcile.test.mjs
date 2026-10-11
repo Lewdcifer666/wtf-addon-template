@@ -124,6 +124,14 @@ test('optional candidate execution evidence is loaded from pinned public blobs a
  const after=await loadPublicProfile(s.publicApis.scifi,'scifi',a);
  assert.equal(after.revision,head);assert.deepEqual(after.executionEvidence,evidence);assert.notEqual(before.inventory_hash,after.inventory_hash);
 });
+
+test('invalid public execution evidence fails before request staging and never blames interpretation',async()=>{
+ const s=scenario();s.publicRepos.scifi.branch('main',{'data/execution-evidence.json':'{"tt123":{"acting":0}}'});
+ await assert.rejects(reconcile(s.args),/invalid_public_policy/);
+ assert(![...s.privateRepo.refs.keys()].some(ref=>/\/(request|receipt)-/.test(ref)));
+ const ref=[...s.privateRepo.refs.values()].find(ref=>ref.ref.includes('/failure-'));
+ assert.equal(JSON.parse(s.privateRepo.filesAt(ref.object.sha)['learning-output/state.json']).code,'invalid_public_policy');
+});
 test('invalid complete raw input persists a closed failure and cannot produce a fresh receipt',async()=>{
  const s=scenario(),head=s.privateRepo.branch('main',{'data/feedback/2026-10-01/synthetic.json':stableJson({...s.event,schema_version:99})});
  await assert.rejects(reconcile({...s.args,trustedRevision:head}),/invalid_source/);

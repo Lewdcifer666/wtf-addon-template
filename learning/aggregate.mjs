@@ -6,6 +6,15 @@ const shift=n=>n<1?0:n===1?6:n===2?12:20;
 const id=value=>typeof value==='string'&&/^tt\d+$/.test(value);
 const sorted=map=>Object.fromEntries([...map].sort(([a],[b])=>a<b?-1:a>b?1:0));
 
+export function validateExecutionEvidence(evidence){
+  if(!evidence||typeof evidence!=='object'||Array.isArray(evidence))throw Error('Invalid candidate execution evidence');
+  for(const [imdb,aspects] of Object.entries(evidence)){
+    if(!/^tt\d+$/.test(imdb)||!aspects||typeof aspects!=='object'||Array.isArray(aspects)
+      ||Object.entries(aspects).some(([aspect,value])=>!ASPECTS.execution.includes(aspect)||![1,-1].includes(value)))throw Error('Invalid candidate execution evidence');
+  }
+  return evidence;
+}
+
 export function validateAdapter(adapter,profile){
   if(adapter.schema_version!==1||!['scifi','fantasy','action','anime','thriller','mystery'].includes(adapter.genre))throw Error('Unsupported learning adapter');
   const dimensions=new Set(profile.dna_dimensions.dimensions.map(d=>d.id));
