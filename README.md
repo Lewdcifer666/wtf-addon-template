@@ -237,3 +237,14 @@ article and its episode list, for instance.
 This is deliberately shallow and must not grow into a URL-equivalence engine.
 Its job is the obvious duplicate. Whether two genuinely different pages say
 anything genuinely different stays a research responsibility.
+
+### Private feedback learning
+
+The separate [learning engine](learning/README.md) validates complete pinned
+feedback, resolves corrections/retractions, and aggregates six explicit adapters.
+It is not copied by public addon generation or engine sync. Only
+`node generate-learning.mjs --target PRIVATE_FEEDBACK_CHECKOUT` installs it into
+the verified private feedback repository on a review branch. Activation defaults
+to false and remains owned by that private deployment. Public scoring and profile
+policy are unchanged; automatic learned research still requires an observed
+private interpretation, intentional cutover and verified subsequent effects.

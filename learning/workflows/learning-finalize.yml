@@ -1,0 +1,61 @@
+name: Reconcile private learning
+on:
+  workflow_run:
+    workflows: ['Stage private interpretation']
+    types: [completed]
+  push:
+    branches: [main]
+    paths: ['data/feedback/**', 'learning/**', 'engine/**', 'package*.json', '.github/workflows/learning-*.yml']
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: private-learning-reconciliation
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Pin trusted main
+        id: trusted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$REPOSITORY" --jq .private)" = true
+          revision=$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.trusted.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Test only trusted code and synthetic fixtures
+        run: npm test
+      - name: Reconcile pinned private evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" = true ]; then
+            node learning/reconcile.mjs --dry-run
+          else
+            node learning/reconcile.mjs
+          fi

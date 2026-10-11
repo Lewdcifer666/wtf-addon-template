@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "genre": "fantasy",
+  "owned_imdb_required": true,
+  "universal_v3_execution": false,
+  "universal_v3_concepts": [],
+  "blocked_projection": [],
+  "source_dna_required_concepts": [],
+  "projectable": [
+    "magic_presence",
+    "magic_system_depth",
+    "fantasy_creatures",
+    "nonhuman_races",
+    "mythology",
+    "other_realms",
+    "worldbuilding",
+    "ability_variety",
+    "mystery",
+    "adventure",
+    "creature_threat"
+  ],
+  "concept_dimensions": {
+    "mystery": [
+      "mystery"
+    ],
+    "creature_threat": [
+      "creature_threat"
+    ]
+  },
+  "tone_dimensions": {
+    "suspense": "suspense",
+    "horror": "horror",
+    "action": "action_intensity",
+    "humor": "comedy"
+  },
+  "notes": "Owned titles only. Generic world-rules text is not automatically a magic-system claim. Full-premise answers can project known, measured fantasy properties."
+}

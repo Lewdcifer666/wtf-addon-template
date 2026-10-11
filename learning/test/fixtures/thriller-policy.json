@@ -1,0 +1,140 @@
+{
+  "dna_dimensions": {
+    "dimensions": [
+      {
+        "id": "mystery"
+      },
+      {
+        "id": "investigation"
+      },
+      {
+        "id": "clue_puzzling"
+      },
+      {
+        "id": "culprit_hunt"
+      },
+      {
+        "id": "progressive_revelation"
+      },
+      {
+        "id": "revelation_frequency"
+      },
+      {
+        "id": "plot_twists"
+      },
+      {
+        "id": "psychological_strategy"
+      },
+      {
+        "id": "cat_and_mouse"
+      },
+      {
+        "id": "deception"
+      },
+      {
+        "id": "hidden_identity"
+      },
+      {
+        "id": "unreliable_perspective"
+      },
+      {
+        "id": "conspiracy"
+      },
+      {
+        "id": "mole_inside"
+      },
+      {
+        "id": "corruption"
+      },
+      {
+        "id": "surveillance"
+      },
+      {
+        "id": "evidence_manipulation"
+      },
+      {
+        "id": "technology_threat"
+      },
+      {
+        "id": "suspense"
+      },
+      {
+        "id": "action_density"
+      },
+      {
+        "id": "action_intensity"
+      },
+      {
+        "id": "brutality"
+      },
+      {
+        "id": "deadly_game"
+      },
+      {
+        "id": "weirdness"
+      },
+      {
+        "id": "military_focus"
+      },
+      {
+        "id": "romance_focus"
+      },
+      {
+        "id": "drama_focus"
+      },
+      {
+        "id": "visual_quality"
+      },
+      {
+        "id": "retro_visual_style"
+      },
+      {
+        "id": "pace_speed"
+      }
+    ]
+  },
+  "dna_baseline": {
+    "weights": {
+      "mystery": 20,
+      "investigation": 18,
+      "progressive_revelation": 18,
+      "revelation_frequency": 17,
+      "suspense": 17,
+      "clue_puzzling": 16,
+      "cat_and_mouse": 15,
+      "psychological_strategy": 15,
+      "culprit_hunt": 14,
+      "plot_twists": 14,
+      "deception": 14,
+      "conspiracy": 14,
+      "evidence_manipulation": 13,
+      "mole_inside": 12,
+      "unreliable_perspective": 12,
+      "hidden_identity": 11,
+      "deadly_game": 11,
+      "surveillance": 10,
+      "visual_quality": 10,
+      "weirdness": 9,
+      "action_density": 9,
+      "corruption": 8,
+      "technology_threat": 8,
+      "brutality": 7,
+      "action_intensity": 6,
+      "drama_focus": -8,
+      "retro_visual_style": -10,
+      "romance_focus": -10,
+      "military_focus": -14
+    }
+  },
+  "execution_preferences": {
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "genre": "action",
+  "owned_imdb_required": true,
+  "universal_v3_execution": false,
+  "universal_v3_concepts": [],
+  "blocked_projection": [],
+  "source_dna_required_concepts": [],
+  "projectable": [
+    "action_variety",
+    "gunplay",
+    "vehicle_action",
+    "stunt_work",
+    "chase_pursuit",
+    "melee_combat",
+    "destruction_spectacle",
+    "mystery",
+    "investigation",
+    "conspiracy",
+    "undercover_mole",
+    "high_concept",
+    "sci_fi_elements",
+    "fantasy_elements",
+    "deadly_game",
+    "rule_discovery",
+    "setting_variety"
+  ],
+  "concept_dimensions": {
+    "mystery": [
+      "mystery"
+    ],
+    "world_rules": [
+      "rule_discovery"
+    ],
+    "conspiracy": [
+      "conspiracy"
+    ]
+  },
+  "tone_dimensions": {
+    "suspense": "suspense",
+    "action": "action_intensity",
+    "military_focus": "military_focus"
+  },
+  "notes": "Owned titles only. Density, intensity, pace and craft stay distinct; generic humor does not imply WTF comedy."
+}

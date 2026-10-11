@@ -1,0 +1,140 @@
+{
+  "dna_dimensions": {
+    "dimensions": [
+      {
+        "id": "central_mystery"
+      },
+      {
+        "id": "mystery_density"
+      },
+      {
+        "id": "unexplained_phenomenon"
+      },
+      {
+        "id": "cause_uncertainty"
+      },
+      {
+        "id": "investigation"
+      },
+      {
+        "id": "clue_puzzling"
+      },
+      {
+        "id": "culprit_hunt"
+      },
+      {
+        "id": "progressive_revelation"
+      },
+      {
+        "id": "revelation_frequency"
+      },
+      {
+        "id": "plot_twists"
+      },
+      {
+        "id": "misdirection"
+      },
+      {
+        "id": "suspense"
+      },
+      {
+        "id": "hidden_truth"
+      },
+      {
+        "id": "conspiracy_coverup"
+      },
+      {
+        "id": "containment"
+      },
+      {
+        "id": "unknown_rules"
+      },
+      {
+        "id": "time_anomaly"
+      },
+      {
+        "id": "reality_uncertainty"
+      },
+      {
+        "id": "memory_identity_uncertainty"
+      },
+      {
+        "id": "scientific_cause"
+      },
+      {
+        "id": "supernatural_cause"
+      },
+      {
+        "id": "paranormal_horror_focus"
+      },
+      {
+        "id": "horror_focus"
+      },
+      {
+        "id": "survival_pressure"
+      },
+      {
+        "id": "weirdness"
+      },
+      {
+        "id": "drama_focus"
+      },
+      {
+        "id": "romance_focus"
+      },
+      {
+        "id": "visual_quality"
+      },
+      {
+        "id": "retro_visual_style"
+      },
+      {
+        "id": "pace_speed"
+      }
+    ]
+  },
+  "dna_baseline": {
+    "weights": {
+      "central_mystery": 20,
+      "mystery_density": 20,
+      "progressive_revelation": 18,
+      "revelation_frequency": 18,
+      "unexplained_phenomenon": 17,
+      "cause_uncertainty": 16,
+      "suspense": 15,
+      "unknown_rules": 14,
+      "clue_puzzling": 14,
+      "plot_twists": 13,
+      "reality_uncertainty": 13,
+      "investigation": 12,
+      "hidden_truth": 12,
+      "conspiracy_coverup": 12,
+      "containment": 12,
+      "culprit_hunt": 11,
+      "time_anomaly": 11,
+      "misdirection": 11,
+      "memory_identity_uncertainty": 10,
+      "weirdness": 10,
+      "visual_quality": 10,
+      "scientific_cause": 8,
+      "supernatural_cause": 6,
+      "survival_pressure": 5,
+      "horror_focus": -4,
+      "drama_focus": -10,
+      "romance_focus": -10,
+      "retro_visual_style": -12,
+      "paranormal_horror_focus": -14
+    }
+  },
+  "execution_preferences": {
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    }
+  }
+}

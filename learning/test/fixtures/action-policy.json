@@ -1,0 +1,151 @@
+{
+  "dna_dimensions": {
+    "dimensions": [
+      {
+        "id": "action_density"
+      },
+      {
+        "id": "action_intensity"
+      },
+      {
+        "id": "action_variety"
+      },
+      {
+        "id": "gunplay"
+      },
+      {
+        "id": "vehicle_action"
+      },
+      {
+        "id": "stunt_work"
+      },
+      {
+        "id": "chase_pursuit"
+      },
+      {
+        "id": "melee_combat"
+      },
+      {
+        "id": "destruction_spectacle"
+      },
+      {
+        "id": "mystery"
+      },
+      {
+        "id": "investigation"
+      },
+      {
+        "id": "conspiracy"
+      },
+      {
+        "id": "undercover_mole"
+      },
+      {
+        "id": "high_concept"
+      },
+      {
+        "id": "sci_fi_elements"
+      },
+      {
+        "id": "fantasy_elements"
+      },
+      {
+        "id": "deadly_game"
+      },
+      {
+        "id": "rule_discovery"
+      },
+      {
+        "id": "visual_quality"
+      },
+      {
+        "id": "retro_visual_style"
+      },
+      {
+        "id": "visual_spectacle"
+      },
+      {
+        "id": "pace_speed"
+      },
+      {
+        "id": "wtf_comedy"
+      },
+      {
+        "id": "badass_protagonist"
+      },
+      {
+        "id": "ensemble_charisma"
+      },
+      {
+        "id": "setting_variety"
+      },
+      {
+        "id": "suspense"
+      },
+      {
+        "id": "action_repetition"
+      },
+      {
+        "id": "military_focus"
+      },
+      {
+        "id": "superhero"
+      },
+      {
+        "id": "sports_fighting"
+      },
+      {
+        "id": "romance_focus"
+      },
+      {
+        "id": "drama_focus"
+      }
+    ]
+  },
+  "dna_baseline": {
+    "weights": {
+      "action_density": 30,
+      "action_intensity": 18,
+      "action_variety": 16,
+      "high_concept": 14,
+      "badass_protagonist": 12,
+      "stunt_work": 12,
+      "mystery": 11,
+      "vehicle_action": 10,
+      "chase_pursuit": 10,
+      "conspiracy": 10,
+      "sci_fi_elements": 10,
+      "deadly_game": 10,
+      "visual_spectacle": 10,
+      "visual_quality": 10,
+      "melee_combat": 9,
+      "gunplay": 9,
+      "destruction_spectacle": 9,
+      "undercover_mole": 9,
+      "investigation": 8,
+      "fantasy_elements": 8,
+      "rule_discovery": 8,
+      "ensemble_charisma": 8,
+      "suspense": 8,
+      "wtf_comedy": 6,
+      "setting_variety": 6,
+      "drama_focus": -8,
+      "romance_focus": -10,
+      "action_repetition": -12,
+      "sports_fighting": -12,
+      "retro_visual_style": -12,
+      "military_focus": -14
+    }
+  },
+  "execution_preferences": {
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    }
+  }
+}

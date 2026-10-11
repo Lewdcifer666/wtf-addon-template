@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "genre": "mystery",
+  "owned_imdb_required": true,
+  "universal_v3_execution": false,
+  "universal_v3_concepts": [],
+  "blocked_projection": [
+    "mystery_density",
+    "revelation_frequency",
+    "progressive_revelation"
+  ],
+  "source_dna_required_concepts": [],
+  "projectable": [
+    "central_mystery",
+    "unexplained_phenomenon",
+    "cause_uncertainty",
+    "investigation",
+    "clue_puzzling",
+    "culprit_hunt",
+    "plot_twists",
+    "misdirection",
+    "hidden_truth",
+    "conspiracy_coverup",
+    "containment",
+    "unknown_rules",
+    "time_anomaly",
+    "reality_uncertainty",
+    "memory_identity_uncertainty",
+    "scientific_cause",
+    "supernatural_cause",
+    "weirdness"
+  ],
+  "concept_dimensions": {
+    "mystery": [
+      "central_mystery"
+    ],
+    "world_rules": [
+      "unknown_rules"
+    ],
+    "conspiracy": [
+      "conspiracy_coverup"
+    ],
+    "weirdness": [
+      "weirdness"
+    ],
+    "reality_time_anomaly": [
+      "time_anomaly",
+      "reality_uncertainty"
+    ]
+  },
+  "tone_dimensions": {
+    "suspense": "suspense",
+    "horror": "horror_focus",
+    "survival_chase": "survival_pressure"
+  },
+  "notes": "Owned titles only; schema-3 Mystery capture context is not invented. Density/payoff safeguards cannot be projected. Generic mystery means central mystery, never density."
+}

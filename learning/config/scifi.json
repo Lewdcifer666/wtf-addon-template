@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "genre": "scifi",
+  "owned_imdb_required": false,
+  "universal_v3_execution": true,
+  "universal_v3_concepts": [
+    "mystery",
+    "world_rules",
+    "conspiracy",
+    "creature_threat",
+    "concept_escalation",
+    "weirdness"
+  ],
+  "blocked_projection": [],
+  "source_dna_required_concepts": [],
+  "projectable": [
+    "scientific_investigation",
+    "biology_genetics",
+    "alien_unknown_life",
+    "unknown_phenomenon",
+    "mystery",
+    "rule_discovery",
+    "concept_escalation",
+    "weirdness",
+    "reality_anomaly",
+    "time_anomaly",
+    "mind_consciousness",
+    "experiments",
+    "conspiracy",
+    "scientist_presence",
+    "research_setting",
+    "isolation",
+    "creature_threat"
+  ],
+  "concept_dimensions": {
+    "mystery": [
+      "mystery"
+    ],
+    "science_biology": [
+      "biology_genetics"
+    ],
+    "alien_unknown": [
+      "alien_unknown_life",
+      "unknown_phenomenon"
+    ],
+    "scientific_investigation": [
+      "scientific_investigation"
+    ],
+    "world_rules": [
+      "rule_discovery"
+    ],
+    "concept_escalation": [
+      "concept_escalation"
+    ],
+    "weirdness": [
+      "weirdness"
+    ],
+    "reality_time_anomaly": [
+      "reality_anomaly",
+      "time_anomaly"
+    ],
+    "mind_consciousness": [
+      "mind_consciousness"
+    ],
+    "experiments": [
+      "experiments"
+    ],
+    "conspiracy": [
+      "conspiracy"
+    ],
+    "creature_threat": [
+      "creature_threat"
+    ]
+  },
+  "tone_dimensions": {
+    "suspense": "suspense",
+    "horror": "horror",
+    "action": "action_intensity",
+    "humor": "comedy",
+    "survival_chase": "survival_chase",
+    "military_focus": "military_focus"
+  },
+  "notes": "Exact existing Sci-Fi structured projection table. Schema-3 execution is universal; only the existing six named concepts cross ownership."
+}
