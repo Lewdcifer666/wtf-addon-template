@@ -5,6 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
+import {canonicalEngineBytes,matchesOwnedEngineHash} from './learning/integrity.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url));
 const argv=process.argv.slice(2);
 if(argv.length!==2||argv[0]!=='--target')throw Error('Usage: node generate-learning.mjs --target PRIVATE_FEEDBACK_CHECKOUT');
@@ -31,10 +32,11 @@ const lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8'
 files['package-lock.json']=Buffer.from(JSON.stringify(lock,null,2)+'\n');
 const manifestName='.learning-engine-manifest.json',manifestPath=path.join(target,manifestName);
 const previous=fs.existsSync(manifestPath)?JSON.parse(fs.readFileSync(manifestPath,'utf8')):{};
+for(const name of Object.keys(files))files[name]=canonicalEngineBytes(files[name]);
 for(const name of Object.keys(files)){
  const destination=path.join(target,name);
- if(fs.existsSync(destination)&&!previous[name]&&!fs.readFileSync(destination).equals(files[name]))throw Error(`Unowned target file: ${name}`);
- if(previous[name]&&fs.existsSync(destination)&&createHash('sha256').update(fs.readFileSync(destination)).digest('hex')!==previous[name])throw Error(`Local learning customization requires review: ${name}`);
+ if(fs.existsSync(destination)&&!previous[name]&&!canonicalEngineBytes(fs.readFileSync(destination)).equals(files[name]))throw Error(`Unowned target file: ${name}`);
+ if(previous[name]&&fs.existsSync(destination)&&!matchesOwnedEngineHash(fs.readFileSync(destination),previous[name]))throw Error(`Local learning customization requires review: ${name}`);
 }
 for(const [name,bytes] of Object.entries(files)){const destination=path.join(target,name);fs.mkdirSync(path.dirname(destination),{recursive:true});fs.writeFileSync(destination,bytes);}
 fs.writeFileSync(manifestPath,JSON.stringify(Object.fromEntries(Object.entries(files).filter(([name])=>name!=='learning/config/activation.json').map(([name,bytes])=>[name,createHash('sha256').update(bytes).digest('hex')])),null,2)+'\n');
