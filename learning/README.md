@@ -5,6 +5,10 @@ It is separate from the public addon generator. `generate-learning.mjs --target`
 vendors it only into a verified private `wtf-scifi-feedback` checkout on a review
 branch. Raw capture files are neither rewritten nor copied to public addons.
 Activation is private-deployment-owned and survives subsequent engine syncs.
+The generator canonicalizes owned UTF-8 engine files to LF before hashing and
+writing. CI verifies the entire integrity manifest. Legacy CRLF/LF-only hash
+differences can migrate without permitting substantive local customizations to
+be overwritten; this normalization never touches raw feedback or activation.
 
 The initial policy is **inactive**. Public catalog scores, baseline weights,
 eligibility, guardrails, profile nullability, schedules and old snapshots remain
