@@ -29,22 +29,29 @@ test('manifest verification rejects stale content hashes and passes canonical ch
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('private deployment verifies every vendored engine file during ordinary CI',()=>{
- // CI owns GITHUB_REPOSITORY; mutable package metadata cannot opt out. Outside
- // CI, source archives need no Git remote. Only the template generator tree
- // omits the private manifest; generated private trees must still verify it.
- const repository=process.env.GITHUB_REPOSITORY;
+ // CI identity takes precedence over the template test runner's explicit local
+ // context. Missing manifests never opt out through mutable marker filenames.
+ const repository=process.env.GITHUB_REPOSITORY||process.env.LEARNING_SOURCE_REPOSITORY;
  if(repository==='Lewdcifer666/wtf-addon-template')return;
  if(repository)assert.equal(repository,'Lewdcifer666/wtf-scifi-feedback','Unexpected learning repository');
- else if(!fs.existsSync('.learning-engine-manifest.json')&&fs.existsSync('generate-learning.mjs')&&fs.existsSync('generate.mjs'))return;
  assert(verifyEngineManifest(process.cwd())>0);
 });
 test('template source archives can run integrity tests without a Git remote',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'learning-template-archive-'));
  try{
   for(const file of ['generate-learning.mjs','generate.mjs'])fs.writeFileSync(path.join(root,file),'// synthetic template source marker\n');
-  const env={...process.env};delete env.NODE_TEST_CONTEXT;delete env.GITHUB_REPOSITORY;
+  const env={...process.env,LEARNING_SOURCE_REPOSITORY:'Lewdcifer666/wtf-addon-template'};delete env.NODE_TEST_CONTEXT;delete env.GITHUB_REPOSITORY;
   const result=spawnSync(process.execPath,['--test','--test-name-pattern=^private deployment verifies',fileURLToPath(import.meta.url)],{cwd:root,encoding:'utf8',windowsHide:true,env});
   assert.equal(result.status,0,result.stdout+result.stderr);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+test('local private trees cannot bypass a missing manifest through template marker files',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'learning-local-spoof-'));
+ try{
+  for(const file of ['generate-learning.mjs','generate.mjs'])fs.writeFileSync(path.join(root,file),'// arbitrary marker\n');
+  const env={...process.env};delete env.NODE_TEST_CONTEXT;delete env.GITHUB_REPOSITORY;delete env.LEARNING_SOURCE_REPOSITORY;
+  const result=spawnSync(process.execPath,['--test','--test-name-pattern=^private deployment verifies',fileURLToPath(import.meta.url)],{cwd:root,encoding:'utf8',windowsHide:true,env});
+  assert.notEqual(result.status,0);assert.match(result.stdout+result.stderr,/ENOENT/);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('private CI cannot opt out by deleting its manifest and renaming its package',()=>{

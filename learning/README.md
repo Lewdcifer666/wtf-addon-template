@@ -9,6 +9,10 @@ The generator canonicalizes owned UTF-8 engine files to LF before hashing and
 writing. CI verifies the entire integrity manifest. Legacy CRLF/LF-only hash
 differences can migrate without permitting substantive local customizations to
 be overwritten; this normalization never touches raw feedback or activation.
+The template's `npm test` runner declares its local source context explicitly,
+so source archives need no Git remote. Private checks require the manifest even
+when arbitrary template filenames or package names are added. GitHub's CI-owned
+repository identity takes precedence over local runner context.
 
 The initial policy is **inactive**. Public catalog scores, baseline weights,
 eligibility, guardrails, profile nullability, schedules and old snapshots remain
