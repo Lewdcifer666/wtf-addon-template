@@ -95,6 +95,24 @@ is unchanged. Logs contain structural state/counts and closed error codes only.
 
 ## Cutover still required
 
+`research-use.mjs` implements a read-only consumption boundary. Given freshly
+pinned complete inputs from the trusted loader, it recomputes the full receipt,
+compares every immutable output byte, requires explicit active policy, and
+returns only the selected sanitized private brief and its provenance binding.
+Rechecking before use rejects changed feedback, supersession/retraction,
+any of the six policy revisions, altered brief bytes or disabled activation.
+It neither writes private packets nor renews timestamps or changes activation.
+The handoff and its hashes remain private personal metadata.
+
+This library is not yet a scheduled-task transport or evidence that a brief was
+actually read or affected research. The remaining integration must persist an
+issued handoff before research, recheck fresh inputs at consumption/staging,
+bind it to the actual permitted research commit, and retain private deterministic
+candidate diagnostics plus an appropriately qualified AI account of search
+choices. A matching handoff alone must never count as an observed learning effect.
+Keep the recorded private staging safety hold until independently resolved;
+this module does not provide an alternate writer for a denied operation.
+
 Review/merge and observe the private processor first. Then add the private
 interpretation/read-receipt prelude to the six existing ChatGPT Plus discovery
 tasks without changing their times, enabled states or rotator. Verify a complete
