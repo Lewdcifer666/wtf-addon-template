@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {canonicalEngineBytes,engineHash,matchesOwnedEngineHash,verifyEngineManifest} from '../integrity.mjs';
 test('engine ownership accepts only LF/CRLF variation; substantive edits remain protected',()=>{
  const lf=Buffer.from('const name="synthetic";\n'),crlf=Buffer.from('const name="synthetic";\r\n');
@@ -27,8 +29,22 @@ test('manifest verification rejects stale content hashes and passes canonical ch
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('private deployment verifies every vendored engine file during ordinary CI',()=>{
- const packageName=JSON.parse(fs.readFileSync('package.json','utf8')).name;
- if(packageName==='wtf-addon-template')return;
- assert.equal(packageName,'wtf-private-feedback-learning','Unexpected learning package');
+ // CI owns GITHUB_REPOSITORY; mutable package metadata cannot opt out. Local
+ // checks use the checkout's configured remote, outside the committed tree.
+ const repository=process.env.GITHUB_REPOSITORY||execFileSync('git',['remote','get-url','origin'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim()
+  .replace(/^(?:https:\/\/github\.com\/|git@github\.com:)/,'').replace(/\.git$/,'');
+ if(repository==='Lewdcifer666/wtf-addon-template')return;
+ assert.equal(repository,'Lewdcifer666/wtf-scifi-feedback','Unexpected learning repository');
  assert(verifyEngineManifest(process.cwd())>0);
+});
+test('private CI cannot opt out by deleting its manifest and renaming its package',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'learning-identity-'));
+ try{
+  fs.writeFileSync(path.join(root,'package.json'),JSON.stringify({name:'wtf-addon-template'}));
+  const env={...process.env,GITHUB_REPOSITORY:'Lewdcifer666/wtf-scifi-feedback'};
+  delete env.NODE_TEST_CONTEXT;
+  const result=spawnSync(process.execPath,['--test','--test-name-pattern=^private deployment verifies',fileURLToPath(import.meta.url)],{
+   cwd:root,encoding:'utf8',windowsHide:true,env});
+  assert.notEqual(result.status,0);assert.match(result.stdout+result.stderr,/ENOENT/);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
