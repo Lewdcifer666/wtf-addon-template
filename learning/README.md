@@ -142,6 +142,15 @@ count as an observed learning effect.
 Keep the recorded private staging safety hold until independently resolved;
 this module does not provide an alternate writer for a denied operation.
 
+`research-commit.mjs` adds the read-only post-staging boundary. It authenticates
+the public repository and dated research ref, exactly one packet addition and
+one parent based on the handoff's policy revision, the complete Git tree and
+actual packet bytes. The trusted caller must run its genre-owned packet validator
+and currentness checks. The result binds private candidate diagnostics to the
+receipt, handoff and real research commit. Diagnostics retain baseline scoring
+and unknown-value semantics and explicitly cannot prove a behavioral effect.
+This library has no writer and is not yet wired into saved-task execution.
+
 Review/merge and observe the private processor first. Then add the private
 interpretation/read-receipt prelude to the six existing ChatGPT Plus discovery
 tasks without changing their times, enabled states or rotator. Verify a complete
