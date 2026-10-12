@@ -14,6 +14,7 @@ test('engine ownership accepts only LF/CRLF variation; substantive edits remain 
 test('manifest verification rejects stale content hashes and passes canonical checkout line endings',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'learning-integrity-'));
  try{
+  assert.throws(()=>verifyEngineManifest(root),/ENOENT/);
   fs.mkdirSync(path.join(root,'learning'));
   fs.writeFileSync(path.join(root,'learning/a.mjs'),'export const value=1;\r\n');
   fs.writeFileSync(path.join(root,'.learning-engine-manifest.json'),JSON.stringify({'learning/a.mjs':engineHash(Buffer.from('export const value=1;\n'))}));
@@ -26,5 +27,8 @@ test('manifest verification rejects stale content hashes and passes canonical ch
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('private deployment verifies every vendored engine file during ordinary CI',()=>{
- if(fs.existsSync('.learning-engine-manifest.json'))assert(verifyEngineManifest(process.cwd())>0);
+ const packageName=JSON.parse(fs.readFileSync('package.json','utf8')).name;
+ if(packageName==='wtf-addon-template')return;
+ assert.equal(packageName,'wtf-private-feedback-learning','Unexpected learning package');
+ assert(verifyEngineManifest(process.cwd())>0);
 });
