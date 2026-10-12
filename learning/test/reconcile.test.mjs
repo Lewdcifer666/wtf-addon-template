@@ -16,6 +16,7 @@ function memoryRepo(name,initial){
  const initialSha=addCommit(addTree(initial));refs.set('refs/heads/main',{ref:'refs/heads/main',object:{sha:initialSha}});
  const filesAt=sha=>Object.fromEntries(trees.get(commits.get(sha).tree.sha).tree.map(e=>[e.path,blobs.get(e.sha).toString('utf8')]));
  const api={
+  repository:name,
   async pinMain(){return commits.get(refs.get('refs/heads/main').object.sha);},
   async optional(route){return refs.get(`refs/${route.replace('/git/ref/','')}`)||null;},
   async get(route){
@@ -52,7 +53,7 @@ function memoryRepo(name,initial){
 }
 function scenario(){
  const event={schema_version:3,feedback_id:'synthetic',supersedes:null,imdb_id:'tt999999991',source_id:null,rated_at:'2026-10-01T10:00:00Z',profile_context:null,status:'seen',rating:4,premise_interest:null,liked:[],disliked:[],feedback:'PRIVATE_SENTINEL I want more mystery.'};
- const privateRepo=memoryRepo('Lewdcifer666/wtf-scifi-feedback',{'data/feedback/2026-10-01/synthetic.json':stableJson(event),'learning/reconcile.mjs':'// trusted fixture, never imported from API\n'}),publicApis={},publicRepos={};
+ const privateRepo=memoryRepo('Lewdcifer666/wtf-scifi-feedback',{'data/feedback/2026-10-01/synthetic.json':stableJson(event),'learning/reconcile.mjs':'// trusted fixture, never imported from API\n','learning/config/activation.json':stableJson({schema_version:1,research_learning_enabled:false,public_catalog_personalization_enabled:false})}),publicApis={},publicRepos={};
  for(const genre of GENRES){
   const policy=JSON.parse(fs.readFileSync(new URL(`./fixtures/${genre}-policy.json`,import.meta.url),'utf8')),dimension=genre==='mystery'?'central_mystery':'mystery';
   policy.automation_rules={minimum_match_score:0};policy.dna_baseline={weights:{[dimension]:1},completeness_defaults:{min_known_dimensions:1,min_confidence:0,required_known_dimensions:[dimension]},archetypes:[]};policy.dna_guardrails={hard_exclusion:[],combination:[]};
@@ -149,4 +150,63 @@ test('privileged workflow pins main, has no cache, and read-only intake never ch
  assert(final.includes('ref: ${{ steps.trusted.outputs.sha }}'));assert(final.includes('git/ref/heads/main'));assert(final.includes('cancel-in-progress: false'));
  assert(!final.includes('workflow_run.head_sha'));assert(!final.includes('actions/cache'));assert(final.includes('npm ci --ignore-scripts'));
  assert(intake.includes('contents: read'));assert(!intake.includes('actions/checkout'));assert(!intake.includes('npm '));
+});
+
+async function activeScenario(){
+ const s=scenario();
+ const head=s.privateRepo.branch('main',{'learning/config/activation.json':stableJson({schema_version:1,research_learning_enabled:true,public_catalog_personalization_enabled:false})});
+ s.args={...s.args,trustedRevision:head,clock:()=>new Date('2026-10-11T22:30:00Z')};
+ await stage(s);return s;
+}
+test('activated reconciliation issues six immutable Berlin-day handoffs; read-only use verifies their full Git provenance',async()=>{
+ const s=await activeScenario(),before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision));
+ const result=await reconcile(s.args);assert.equal(result.state,'computed_active');assert.equal(result.handoffs.length,6);
+ const writes=s.privateRepo.writes.length;assert.deepEqual(await reconcile(s.args),result);assert.equal(s.privateRepo.writes.length,writes);
+ const use=await reconcile({...s.args,dryRun:true,consumeGenre:'scifi'});
+ assert.equal(use.state,'research_ready');assert.equal(use.handoff.issued.research_date,'2026-10-12');
+ assert.equal(use.handoff.issued.source_heads.private,s.args.trustedRevision);
+ assert.equal(use.handoff.branch,result.handoffs.find(h=>h.genre==='scifi').branch);
+ assert.equal(s.privateRepo.writes.length,writes);assert.equal(stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),before);
+ assert(!JSON.stringify(result).includes('PRIVATE_SENTINEL'));assert(!JSON.stringify(use).includes('PRIVATE_SENTINEL'));
+ assert(!JSON.stringify(use).includes('tt999999991'));
+ const tomorrow=await reconcile({...s.args,clock:()=>new Date('2026-10-12T22:30:00Z')});
+ assert.equal(tomorrow.receipt,result.receipt);assert.notEqual(tomorrow.handoffs[0].branch,result.handoffs[0].branch);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/handoff-')).length,12);
+});
+test('inactive, unstaged, tampered and stale handoffs cannot be consumed or trigger fallback writes',async()=>{
+ const inactive=scenario();await stage(inactive);await reconcile(inactive.args);const before=inactive.privateRepo.writes.length;
+ await assert.rejects(reconcile({...inactive.args,dryRun:true,consumeGenre:'scifi'}),/learning_inactive/);assert.equal(inactive.privateRepo.writes.length,before);
+ const missing=await activeScenario();await assert.rejects(reconcile({...missing.args,dryRun:true,consumeGenre:'scifi'}),/invalid_handoff/);assert.equal(missing.privateRepo.writes.length,0);
+ const s=await activeScenario(),issued=await reconcile(s.args),writes=s.privateRepo.writes.length;
+ const handoff=issued.handoffs.find(h=>h.genre==='scifi'),ref=s.privateRepo.refs.get(`refs/heads/${handoff.branch}`),files=s.privateRepo.filesAt(ref.object.sha);
+ const body=JSON.parse(files['learning-output/handoff.json']);body.context.preferences=[];
+ s.privateRepo.branch(handoff.branch,{'learning-output/handoff.json':stableJson(body)});
+ await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi'}),/immutable_artifact_mismatch/);assert.equal(s.privateRepo.writes.length,writes);
+ s.publicRepos.anime.branch('main',{'config/research.json':'{"changed":true}'});
+ await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'action'}),/invalid_handoff/);assert.equal(s.privateRepo.writes.length,writes);
+ await assert.rejects(reconcile({...s.args,consumeGenre:'action'}),/invalid_consumer_request/);
+});
+test('interrupted handoff fanout resumes without overwriting its existing private briefs',async()=>{
+ const s=await activeScenario(),original=s.privateRepo.api.post;let held=0;
+ s.privateRepo.api.post=async(route,body)=>{
+  if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/handoff-')&&++held===3)throw Error('synthetic interruption');
+  return original(route,body);
+ };
+ await assert.rejects(reconcile(s.args),/invalid_handoff/);
+ const old=new Map([...s.privateRepo.refs].filter(([ref])=>ref.includes('/handoff-')).map(([name,ref])=>[name,ref.object.sha]));assert.equal(old.size,2);
+ s.privateRepo.api.post=original;const resumed=await reconcile(s.args);assert.equal(resumed.handoffs.length,6);
+ for(const [name,sha] of old)assert.equal(s.privateRepo.refs.get(name).object.sha,sha);
+ const writes=s.privateRepo.writes.length;await reconcile(s.args);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('a policy head moving during authenticated consumption invalidates the handoff without writes',async()=>{
+ const s=await activeScenario(),result=await reconcile(s.args),receiptRef=s.privateRepo.refs.get(`refs/heads/${result.receipt}`),get=s.privateRepo.api.get;
+ const writes=s.privateRepo.writes.length;let moved=false;
+ s.privateRepo.api.get=async route=>{
+  const value=await get(route);
+  if(!moved&&route===`/git/commits/${receiptRef.object.sha}`){moved=true;s.publicRepos.thriller.branch('main',{'config/research.json':'{"changed_during_read":true}'});}
+  return value;
+ };
+ await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi'}),/stale_input/);
+ assert(moved);assert.equal(s.privateRepo.writes.length,writes);
 });

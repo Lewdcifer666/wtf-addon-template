@@ -12,26 +12,40 @@ export function requirePacketDiff(comparison,sourceRevision,packetPath){
 
 // The API capability is scoped by its caller to the verified PRIVATE repository.
 // Creation is atomic and never updates an existing ref, commit or artifact.
-export async function persistImmutable(api,{base,branch,files,assertCurrent=async()=>{}}){
-  if(!/^learning\/(?:request|receipt|failure)-[a-f0-9]{64}$/.test(branch))throw new LearningError('unsafe_artifact_branch');
-  const prefix='learning-output/';
+function artifactNames(branch,files){
+  if(!/^learning\/(?:request|receipt|failure|handoff)-[a-f0-9]{64}$/.test(branch))throw new LearningError('unsafe_artifact_branch');
   const names=Object.keys(files).sort();
   if(!names.length||names.some(name=>!name.endsWith('.json')||!/^[a-z0-9/-]+\.json$/.test(name)||name.includes('..')))throw new LearningError('unsafe_artifact_path');
-  const verify=async(ref)=>{
-    const commit=await api.get(`/git/commits/${ref.object.sha}`),tree=await api.get(`/git/trees/${commit.tree.sha}?recursive=1`);
-    if(commit.parents?.length!==1||commit.parents[0].sha!==base.sha)throw new LearningError('immutable_artifact_mismatch');
-    if(tree.truncated!==false)throw new LearningError('truncated_artifact_tree');
-    const entries=tree.tree.filter(e=>e.path.startsWith(prefix)&&e.type!=='tree');
-    if(entries.length!==names.length)throw new LearningError('immutable_artifact_mismatch');
-    for(const name of names){
-      const entry=entries.find(e=>e.path===prefix+name);
-      if(!entry||entry.mode!=='100644'||entry.type!=='blob'||entry.sha!==gitBlobOid(files[name]))throw new LearningError('immutable_artifact_mismatch');
-    }
-    const comparison=await api.get(`/compare/${base.sha}...${ref.object.sha}`);
-    if(comparison.merge_base_commit?.sha!==base.sha||comparison.files?.length!==names.length
-      ||comparison.files.some(file=>file.status!=='added'||!names.some(name=>prefix+name===file.filename)))throw new LearningError('immutable_artifact_mismatch');
-    return {branch,commit:ref.object.sha,reused:true};
-  };
+  return names;
+}
+async function verifyImmutableRef(api,{base,branch,files},ref){
+  const prefix='learning-output/';
+  const names=artifactNames(branch,files);
+  if(ref.ref!==`refs/heads/${branch}`||!/^[a-f0-9]{40}$/.test(ref.object?.sha||''))throw new LearningError('immutable_artifact_mismatch');
+  const commit=await api.get(`/git/commits/${ref.object.sha}`),tree=await api.get(`/git/trees/${commit.tree.sha}?recursive=1`);
+  if(commit.sha!==ref.object.sha||commit.parents?.length!==1||commit.parents[0].sha!==base.sha)throw new LearningError('immutable_artifact_mismatch');
+  if(tree.truncated!==false||tree.sha!==commit.tree.sha||!Array.isArray(tree.tree))throw new LearningError('truncated_artifact_tree');
+  const entries=tree.tree.filter(e=>e.path.startsWith(prefix)&&e.type!=='tree');
+  if(entries.length!==names.length)throw new LearningError('immutable_artifact_mismatch');
+  for(const name of names){
+    const entry=entries.find(e=>e.path===prefix+name);
+    if(!entry||entry.mode!=='100644'||entry.type!=='blob'||entry.sha!==gitBlobOid(files[name]))throw new LearningError('immutable_artifact_mismatch');
+  }
+  const comparison=await api.get(`/compare/${base.sha}...${ref.object.sha}`);
+  if(comparison.status!=='ahead'||comparison.merge_base_commit?.sha!==base.sha||comparison.files?.length!==names.length
+    ||comparison.files.some(file=>file.status!=='added'||!names.some(name=>prefix+name===file.filename)))throw new LearningError('immutable_artifact_mismatch');
+  return {branch,commit:ref.object.sha,reused:true};
+}
+// Authenticated read only: verify ref -> commit -> parent -> complete tree and
+// expected blob OIDs, plus the full changed-path set. Never creates a fallback.
+export async function readImmutable(api,{base,branch,files}){
+  artifactNames(branch,files);
+  const ref=await api.optional(`/git/ref/heads/${branch}`);
+  return ref?verifyImmutableRef(api,{base,branch,files},ref):null;
+}
+export async function persistImmutable(api,{base,branch,files,assertCurrent=async()=>{}}){
+  const names=artifactNames(branch,files),prefix='learning-output/';
+  const verify=ref=>verifyImmutableRef(api,{base,branch,files},ref);
   const existing=await api.optional(`/git/ref/heads/${branch}`);
   if(existing)return verify(existing);
   await assertCurrent();
@@ -57,7 +71,7 @@ export async function persistImmutable(api,{base,branch,files,assertCurrent=asyn
 
 export function failureArtifact({packetCommit,sourceRevision,evaluatedBase=sourceRevision,engineFingerprint,code}){
   // Never copy an exception message or raw GitHub payload into a durable log.
-  const allowed=['unauthorized_packet_changes','invalid_interpretation','stale_input','invalid_source','invalid_public_policy','immutable_artifact_mismatch','transport_failure'];
+  const allowed=['unauthorized_packet_changes','invalid_interpretation','invalid_handoff','stale_input','invalid_source','invalid_public_policy','immutable_artifact_mismatch','transport_failure'];
   if(!allowed.includes(code))code='transport_failure';
   const state={schema_version:1,state:'finalization_failed',packet_commit:packetCommit,source_revision:sourceRevision,evaluated_base:evaluatedBase,engine_fingerprint:engineFingerprint,code};
   return {branch:`learning/failure-${digest(stableJson(state))}`,files:{'state.json':stableJson(state)}};

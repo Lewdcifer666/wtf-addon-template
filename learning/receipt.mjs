@@ -6,14 +6,18 @@ export const GENRES=['action','anime','fantasy','mystery','scifi','thriller'];
 const sha=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
 const hash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const clamp=value=>Math.min(Math.max(value,0),100);
+export function validateActivation(activation){
+  if(!activation||activation.schema_version!==1||typeof activation.research_learning_enabled!=='boolean'
+    ||activation.public_catalog_personalization_enabled!==false||Object.keys(activation).sort().join()!=='public_catalog_personalization_enabled,research_learning_enabled,schema_version')throw Error('Unsupported learning activation policy');
+  return activation;
+}
 
 // The caller supplies data loaded from pinned Git blobs, never imported code
 // from the six addon repositories or from an interpretation branch.
 export function buildReceipt({source,packet,packetCommit,trustedRevision,engineFingerprint,profiles,activation}){
   if(!sha(packetCommit)||!sha(trustedRevision)||!hash(engineFingerprint))throw Error('Unpinned learning engine or interpretation');
   if(Object.keys(profiles).sort().join('|')!==GENRES.join('|'))throw Error('All six pinned profile inputs are required');
-  if(activation.schema_version!==1||typeof activation.research_learning_enabled!=='boolean'
-    ||activation.public_catalog_personalization_enabled!==false||Object.keys(activation).length!==3)throw Error('Unsupported learning activation policy');
+  validateActivation(activation);
   const request=interpretationRequest(source);
   validateInterpretation(packet,{sourceRevision:source.source_revision,eventRecords:source.records,tips:source.tips,requestId:request.request_id});
   const normalized=normalizedTips(source.tips,packet),files={},profileSources={};

@@ -104,12 +104,33 @@ any of the six policy revisions, altered brief bytes or disabled activation.
 It neither writes private packets nor renews timestamps or changes activation.
 The handoff and its hashes remain private personal metadata.
 
-This library is not yet a scheduled-task transport or evidence that a brief was
-actually read or affected research. The remaining integration must persist an
-issued handoff before research, recheck fresh inputs at consumption/staging,
-bind it to the actual permitted research commit, and retain private deterministic
-candidate diagnostics plus an appropriately qualified AI account of search
-choices. A matching handoff alone must never count as an observed learning effect.
+`receipt-loader.mjs` authenticates the private repository and follows the actual
+receipt ref to its commit, parent, complete tree, blob OIDs and permitted diff.
+Only this loader issues the in-process attestation accepted by the consumer;
+plain JSON, copied objects and plausible but unrelated commit SHAs are refused.
+
+When explicitly activated, normal scheduled reconciliation now issues six
+immutable `learning/handoff-<use_id>` refs for the current Europe/Berlin date.
+Each contains only `learning-output/handoff.json`, a sanitized private brief,
+the exact source heads and receipt binding. Unchanged retries reuse it, a new
+day does not refresh the underlying receipt, and partial fanout resumes without
+overwriting completed briefs. Activation is read and validated from pinned
+private main. Inactive processing creates no handoffs.
+
+`node learning/reconcile.mjs --consume scifi` runs the trusted-checkout checks,
+uses a read-only API client, reloads the complete current inputs and recomputes
+the receipt, then authenticates both receipt and daily handoff Git graphs.
+Its log contains only structural identifiers, never the private brief or raw
+opinions. Programmatic consumers use `reconcile` with `dryRun: true` and an
+explicit `consumeGenre`; the returned brief remains private. Reading cannot
+stage a missing receipt/handoff or fall back to an older one.
+
+Saved tasks are not yet connected to this consumer, and no brief has actually
+affected research. Remaining integration must invoke currentness verification
+at consumption/staging, bind the handoff to the actual permitted research commit,
+and retain private deterministic candidate diagnostics plus an appropriately
+qualified AI account of search choices. A matching handoff alone must never
+count as an observed learning effect.
 Keep the recorded private staging safety hold until independently resolved;
 this module does not provide an alternate writer for a denied operation.
 
