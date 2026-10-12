@@ -12,7 +12,7 @@ function fake(){
   async get(route){
    if(route.startsWith('/git/commits/'))return commits.get(route.split('/').at(-1));
    if(route.startsWith('/git/trees/'))return trees.get(route.split('/').at(-1).split('?')[0]);
-   if(route.startsWith('/compare/'))return {merge_base_commit:{sha:base.sha},files:Object.keys(files).map(p=>({filename:`learning-output/${p}`,status:'added'}))};
+   if(route.startsWith('/compare/'))return {status:'ahead',merge_base_commit:{sha:base.sha},files:Object.keys(files).map(p=>({filename:`learning-output/${p}`,status:'added'}))};
    throw Error('unexpected test read');
   },
   async post(route,body){

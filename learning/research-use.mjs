@@ -1,5 +1,6 @@
 import {buildReceipt,verifyReceipt,GENRES} from './receipt.mjs';
 import {digest,stableJson} from './interpretation.mjs';
+import {isVerifiedReceipt} from './receipt-loader.mjs';
 
 const sha=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
 const validDate=value=>typeof value==='string'&&/^20\d\d-\d\d-\d\d$/.test(value)
@@ -13,7 +14,7 @@ const validDate=value=>typeof value==='string'&&/^20\d\d-\d\d-\d\d$/.test(value)
 export function prepareResearchUse({inputs,artifact,genre,researchDate}) {
   if(!GENRES.includes(genre)||!validDate(researchDate))throw Error('Invalid research use identity');
   if(!inputs?.activation?.research_learning_enabled)throw Error('Private research learning is inactive');
-  if(!artifact||!sha(artifact.commit))throw Error('Unpinned private receipt');
+  if(!isVerifiedReceipt(artifact)||!sha(artifact.commit))throw Error('Private receipt requires authenticated Git verification');
   const expected=buildReceipt(inputs);
   if(artifact.branch!==expected.branch)throw Error('Private learning receipt is stale');
   verifyReceipt(artifact.files,expected);
@@ -22,6 +23,7 @@ export function prepareResearchUse({inputs,artifact,genre,researchDate}) {
   const contextBytes=expected.files[`research-context/${genre}.json`];
   const binding={schema_version:1,kind:'private_research_consumption',genre,research_date:researchDate,
     receipt_branch:expected.branch,receipt_commit:artifact.commit,state_digest:expected.state_digest,
+    source_heads:{private:inputs.source.source_revision,public:Object.fromEntries(GENRES.map(g=>[g,inputs.profiles[g].revision]))},
     source_tuple_hash:digest(stableJson(receipt.sources)),context_hash:digest(contextBytes),
     context:JSON.parse(contextBytes)};
   return {...binding,use_id:digest(stableJson(binding))};
@@ -30,9 +32,10 @@ export function prepareResearchUse({inputs,artifact,genre,researchDate}) {
 // Recheck immediately before use/staging with newly read trusted inputs.
 // Supersession, retraction, policy, activation or receipt changes invalidate
 // the old handoff. A matching receipt name or AI claim alone cannot pass.
-export function verifyResearchUse({issued,inputs,artifact}) {
+export function verifyResearchUse({issued,inputs,artifact,researchDate}) {
   if(!issued||typeof issued!=='object')throw Error('Missing private research handoff');
-  const current=prepareResearchUse({inputs,artifact,genre:issued.genre,researchDate:issued.research_date});
+  if(issued.research_date!==researchDate)throw Error('Private research handoff is for a different daily key');
+  const current=prepareResearchUse({inputs,artifact,genre:issued.genre,researchDate});
   if(stableJson(issued)!==stableJson(current))throw Error('Private research handoff changed or is stale');
   return current;
 }
