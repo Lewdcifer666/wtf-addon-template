@@ -111,7 +111,7 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
   const tree=await treeAt(api,base);
   if(tree.tree.some(e=>e.path.startsWith('learning-output/')))fail('unexpected_derived_state_on_main');
   const engineFingerprint=engineFingerprintAt(tree);
-  const proofProvider=proof??githubObservationProof({clock});
+  const proofProvider=proof??githubObservationProof({clock,assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
   let source,request,activation,sourceStage='invalid_source';const profiles={};
   try{
     const rawBlobs=await readEntries(api,tree.tree.filter(e=>e.type==='blob'&&e.path.toLowerCase().endsWith('.json')));
@@ -198,20 +198,32 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
 }
 
 async function main(){
-  const args=process.argv.slice(2),verify=[3,4].includes(args.length)&&args[0]==='--verify-research'&&GENRES.includes(args[1])&&/^[a-f0-9]{40}$/.test(args[2])&&(args.length===3||validResearchDate(args[3]));
+  const args=process.argv.slice(2),probe=args.length===1&&args[0]==='--probe-proof',verify=[3,4].includes(args.length)&&args[0]==='--verify-research'&&GENRES.includes(args[1])&&/^[a-f0-9]{40}$/.test(args[2])&&(args.length===3||validResearchDate(args[3]));
   const consumeGenre=(args.length===2&&args[0]==='--consume'&&GENRES.includes(args[1]))||verify?args[1]:null;
-  if(consumeGenre===null&&(args.some(arg=>arg!=='--dry-run')||args.length>1))fail('unsupported_argument');
-  const dryRun=consumeGenre!==null||args.includes('--dry-run');
+  if(!probe&&consumeGenre===null&&(args.some(arg=>arg!=='--dry-run')||args.length>1))fail('unsupported_argument');
+  const dryRun=probe||consumeGenre!==null||args.includes('--dry-run');
   if(process.env.GITHUB_REPOSITORY!==PRIVATE)fail('private_repository_required');
   const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
   if(head!==process.env.LEARNING_TRUSTED_SHA||!/^[a-f0-9]{40}$/.test(head))fail('trusted_checkout_required');
   if(execFileSync('git',['status','--porcelain','--untracked-files=no'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim())fail('trusted_checkout_modified');
   const token=process.env.GH_TOKEN,api=new GitHub(PRIVATE,token,{writable:!dryRun});
+  if(probe){
+    // Explicit metadata-only probe: no feedback/profile reads, Git writes,
+    // interpretation or activation. The ephemeral statement is not persisted.
+    const readonly=new GitHub(PRIVATE,token),metadata=await readonly.get('/');
+    if(metadata.private!==true||metadata.full_name!==PRIVATE)fail('private_repository_required');
+    if((await readonly.pinMain()).sha!==head)fail('stale_input');
+    const provider=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(readonly,trigger,executed)});
+    const body={schema_version:1,kind:'private_synthetic_provenance_probe'},statement=await provider.sign(body,head),claims=await provider.verify(statement,body,head);
+    if((await readonly.pinMain()).sha!==head)fail('stale_input');
+    console.log(JSON.stringify({state:'provenance_probe_verified',executed_revision:head,trigger_revision:claims.sha,feedback_read:false,git_writes:false}));return;
+  }
   const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,token)]));
   const result=await reconcile({api,publicApis,trustedRevision:head,dryRun,consumeGenre,researchCommit:verify?args[2]:null,researchDate:verify&&args.length===4?args[3]:null});
   // Only structural state reaches workflow logs. All personal evidence stays
   // in this private repository's immutable branches, never workflow artifacts.
+  const summary=result.observations?{...result,observations:{state:result.observations.state,deferred:result.observations.deferred,counts:Object.fromEntries([...new Set(result.observations.observations.map(o=>o.state))].map(state=>[state,result.observations.observations.filter(o=>o.state===state).length]))}}:result;
   console.log(JSON.stringify(['research_ready','research_verified'].includes(result.state)?{state:result.state,branch:result.handoff.branch,commit:result.handoff.commit,use_id:result.handoff.issued.use_id,
-    ...(result.trace?{trace_id:result.trace.trace_id,research_commit:result.trace.research_commit,research_date:result.trace.research_date,effect_status:result.trace.effect_status}:{})}:result));
+    ...(result.trace?{trace_id:result.trace.trace_id,research_commit:result.trace.research_commit,research_date:result.trace.research_date,effect_status:result.trace.effect_status}:{})}:summary));
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error(`private-learning: ${error instanceof LearningError?error.code:'validation_failed'}`);process.exitCode=1;});

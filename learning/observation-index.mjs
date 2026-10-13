@@ -8,9 +8,9 @@ const validEntry=e=>e&&Object.keys(e).sort().join()==='branch,commit,genre,hando
  &&GENRES.includes(e.genre)&&/^20\d\d-\d\d-\d\d$/.test(e.research_date)&&sha(e.handoff_commit)&&sha(e.research_commit)
  &&((e.state==='diagnostics_recorded'&&/^learning\/observation-[a-f0-9]{64}$/.test(e.branch)&&sha(e.commit))||(e.state==='ordering_unproven'&&e.branch===null&&e.commit===null));
 const id=e=>e.handoff_commit+':'+e.research_commit;
-export const emptyObservationIndex=()=>({schema_version:1,kind:'private_historical_observation_index',sequence:0,cursor:null,known_handoffs:[],completed:[]});
+export const emptyObservationIndex=(period='legacy')=>({schema_version:1,kind:'private_historical_observation_index',period,sequence:0,cursor:null,known_handoffs:[],completed:[]});
 function validateIndex(index){
- if(!index||Object.keys(index).sort().join()!=='completed,cursor,kind,known_handoffs,schema_version,sequence'||index.schema_version!==1||index.kind!=='private_historical_observation_index'
+ if(!index||Object.keys(index).sort().join()!=='completed,cursor,kind,known_handoffs,period,schema_version,sequence'||index.schema_version!==1||index.kind!=='private_historical_observation_index'||!/^20\d\d-(0[1-9]|1[0-2])$|^legacy$/.test(index.period)
    ||!Number.isSafeInteger(index.sequence)||index.sequence<1||index.sequence>9999999999||(index.cursor!==null&&!sha(index.cursor))
    ||!Array.isArray(index.known_handoffs)||index.known_handoffs.length>10000||!index.known_handoffs.every(sha)||new Set(index.known_handoffs).size!==index.known_handoffs.length
    ||!Array.isArray(index.completed)||index.completed.length>20000||!index.completed.every(validEntry)||new Set(index.completed.map(id)).size!==index.completed.length)fail();
@@ -18,23 +18,24 @@ function validateIndex(index){
 
 // A self-declared checksum/AI marker cannot suppress pending work. Only a
 // signed statement by the trusted PRIVATE main workflow can seal this index.
-export async function loadObservationIndex({api,base,proof,assertCurrent}){
- const refs=await api.get('/git/matching-refs/heads/learning/observation-index-');
- if(!Array.isArray(refs)||refs.length>10000)fail();
- const sorted=refs.map(ref=>{const m=/^refs\/heads\/learning\/observation-index-(\d{10})-([a-f0-9]{64})$/.exec(ref.ref);if(!m)fail();return {ref,sequence:Number(m[1]),hash:m[2]};}).sort((a,b)=>b.sequence-a.sequence||a.ref.ref.localeCompare(b.ref.ref,'en'));
+export async function loadObservationIndex({api,base,proof,assertCurrent,period='legacy'}){
+ if(!/^20\d\d-(0[1-9]|1[0-2])$|^legacy$/.test(period))fail();
+ const refs=await api.get(`/git/matching-refs/heads/learning/observation-index-${period}-`);
+ if(!Array.isArray(refs))fail();
+ const sorted=refs.map(ref=>{const m=new RegExp(`^refs/heads/learning/observation-index-${period}-(\\d{10})-([a-f0-9]{64})$`).exec(ref.ref);if(!m)fail();return {ref,sequence:Number(m[1]),hash:m[2]};}).sort((a,b)=>b.sequence-a.sequence||a.ref.ref.localeCompare(b.ref.ref,'en'));
  // Bounded lookup. Rotated-away issuer keys do NOT authenticate an index;
  // restart bounded data verification, retaining every old ref and artifact.
  const candidates=sorted.slice(0,4);let unavailable=0;
  for(const {ref,sequence,hash} of candidates){
   const raw=await readArtifactJson(api,ref,'index.json'),record=raw.value,index=record.body;
   validateIndex(index);
-  if(Object.keys(record).sort().join()!=='body,proof'||index.sequence!==sequence||digest(stableJson(index))!==hash)fail();
+  if(Object.keys(record).sort().join()!=='body,proof'||index.period!==period||index.sequence!==sequence||digest(stableJson(index))!==hash)fail();
   await requireTrustedAncestor(api,raw.parent,base.sha);
   try{await proof.verify(record.proof,index,raw.parent);}catch(error){if(error.code==='proof_key_unavailable'){unavailable++;continue;}throw error;}
   await readImmutable(api,{base:await api.get(`/git/commits/${raw.parent}`),branch:ref.ref.slice('refs/heads/'.length),files:{'index.json':stableJson(record)}});
   await assertCurrent();return {index,largest_sequence:sorted[0]?.sequence||0,key_reverification_required:false};
  }
- return {index:emptyObservationIndex(),largest_sequence:sorted[0]?.sequence||0,key_reverification_required:unavailable>0};
+ return {index:emptyObservationIndex(period),largest_sequence:sorted[0]?.sequence||0,key_reverification_required:unavailable>0};
 }
 
 export async function saveObservationIndex({api,base,proof,previous,index,assertCurrent}){
@@ -43,7 +44,7 @@ export async function saveObservationIndex({api,base,proof,previous,index,assert
  if(stableJson(withoutSequence(normalized))===stableJson(withoutSequence(previous.index)))return;
  const body={...normalized,sequence:previous.largest_sequence+1};validateIndex(body);
  await assertCurrent();
- const branch=`learning/observation-index-${String(body.sequence).padStart(10,'0')}-${digest(stableJson(body))}`;
+ const branch=`learning/observation-index-${body.period}-${String(body.sequence).padStart(10,'0')}-${digest(stableJson(body))}`;
  await persistSealedState({api,base,branch,name:'index.json',body,proof,assertCurrent});
 }
 

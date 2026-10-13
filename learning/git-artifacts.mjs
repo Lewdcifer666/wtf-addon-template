@@ -13,7 +13,7 @@ export function requirePacketDiff(comparison,sourceRevision,packetPath){
 // The API capability is scoped by its caller to the verified PRIVATE repository.
 // Creation is atomic and never updates an existing ref, commit or artifact.
 function artifactNames(branch,files){
-  if(!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance)-[a-f0-9]{64}|observation-index-\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
+  if(!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance)-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
   const names=Object.keys(files).sort();
   if(!names.length||names.some(name=>!name.endsWith('.json')||!/^[a-z0-9/-]+\.json$/.test(name)||name.includes('..')))throw new LearningError('unsafe_artifact_path');
   return names;
@@ -121,4 +121,18 @@ export async function persistSealedState({api,base,branch,name,body,proof,assert
   if(error.code!=='immutable_artifact_mismatch')throw error;
   const raced=await api.optional(`/git/ref/heads/${branch}`);if(!raced)throw error;return reuse(raced);
  }
+}
+
+export async function persistArtifactAlias(api,{base,original,branch,files,assertCurrent}){
+ artifactNames(branch,files);const source=await readImmutable(api,{base,branch:original.branch,files});
+ if(source?.commit!==original.commit)throw new LearningError('immutable_artifact_mismatch');
+ const existing=await api.optional(`/git/ref/heads/${branch}`);
+ if(!existing){
+  await assertCurrent();
+  try{await api.post('/git/refs',{ref:`refs/heads/${branch}`,sha:original.commit});}
+  catch(error){if(![409,422].includes(error.status))throw error;}
+ }
+ const result=await readImmutable(api,{base,branch,files});
+ if(result?.commit!==original.commit)throw new LearningError('immutable_artifact_mismatch');
+ await assertCurrent();return result;
 }

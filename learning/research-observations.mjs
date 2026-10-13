@@ -24,19 +24,28 @@ export async function collectResearchObservations({api,publicApis,proof,base,act
  const metadata=await api.get('/');
  if(api.repository!=='Lewdcifer666/wtf-scifi-feedback'||metadata.full_name!==api.repository||metadata.private!==true||metadata.default_branch!=='main')fail();
  const refs=await api.get('/git/matching-refs/heads/learning/handoff-');
- if(!Array.isArray(refs)||refs.length>10000||new Set(refs.map(r=>r.ref)).size!==refs.length)fail();
- const previous=await loadObservationIndex({api,base,proof,assertCurrent}),index=previous.index;
+ if(!Array.isArray(refs)||new Set(refs.map(r=>r.ref)).size!==refs.length||!refs.every(r=>sha(r.object?.sha)))fail();
+ const aliases=await api.get('/git/matching-refs/heads/learning/queue-');if(!Array.isArray(aliases))fail();
+ const periods=new Map();
+ for(const ref of aliases){const m=/^refs\/heads\/learning\/queue-(20\d\d-(?:0[1-9]|1[0-2]))-([a-f0-9]{64})$/.exec(ref.ref);if(!m||!sha(ref.object?.sha))fail();if(periods.has(ref.object.sha)&&periods.get(ref.object.sha)!==m[1])fail();periods.set(ref.object.sha,m[1]);}
+ const groups=new Map();for(const ref of refs){const period=periods.get(ref.object.sha)||'legacy';if(!groups.has(period))groups.set(period,[]);groups.get(period).push(ref);}
+ const currentPeriod=researchDate.slice(0,7),older=[...groups.keys()].filter(p=>p!==currentPeriod&&p!=='legacy').sort();
+ const selected=[...(groups.has(currentPeriod)?[currentPeriod]:[]),...(older.length?[older[Math.floor(+clock()/3600000)%older.length]]:[]),...(groups.has('legacy')?['legacy']:[])];
  const publicRefs=new Map();
- for(const genre of GENRES){const result=await publicApis[genre].get('/git/matching-refs/heads/research/');if(!Array.isArray(result)||result.length>10000)fail();for(const ref of result){if(!sha(ref.object?.sha))fail();publicRefs.set(genre+':'+ref.ref,ref.object.sha);}}
- const outputRefs=await api.get('/git/matching-refs/heads/learning/observation-');if(!Array.isArray(outputRefs)||outputRefs.length>20000)fail();
+ for(const genre of GENRES){const result=await publicApis[genre].get('/git/matching-refs/heads/research/');if(!Array.isArray(result))fail();for(const ref of result){if(!sha(ref.object?.sha))fail();publicRefs.set(genre+':'+ref.ref,ref.object.sha);}}
+ const outputRefs=await api.get('/git/matching-refs/heads/learning/observation-');if(!Array.isArray(outputRefs))fail();
  const observationHeads=new Map(outputRefs.map(r=>[r.ref.slice('refs/heads/'.length),r.object?.sha]));
+ const allObservations=[];let inspected=0,deferred=0;
+ for(const [position,period] of selected.entries()){
+ const periodBudget=Math.floor(budget/selected.length)+(position<budget%selected.length?1:0);if(periodBudget===0)continue;
+ const scopedRefs=groups.get(period),previous=await loadObservationIndex({api,base,proof,assertCurrent,period}),index=previous.index;
  const completed=new Map(index.completed.map(e=>[e.handoff_commit+':'+e.research_commit,e]));
  const reusable=index.completed.filter(e=>publicRefs.get(e.genre+':refs/heads/research/'+e.research_date+'-'+e.genre)===e.research_commit
    &&(e.state==='ordering_unproven'||observationHeads.get(e.branch)===e.commit));
  const done=new Set(reusable.map(e=>e.handoff_commit));
- const observations=reusable.filter(e=>refs.some(r=>r.object.sha===e.handoff_commit)).map(({genre,research_date,research_commit,...entry})=>entry);
- const pending=refs.filter(r=>!done.has(r.object.sha));
- const batch=selectObservationBatch(pending,index,{clock,budget,rebuilding:previous.key_reverification_required});
+ const observations=reusable.filter(e=>scopedRefs.some(r=>r.object.sha===e.handoff_commit)).map(({genre,research_date,research_commit,...entry})=>entry);
+ const pending=scopedRefs.filter(r=>!done.has(r.object.sha));
+ const batch=selectObservationBatch(pending,index,{clock,budget:periodBudget,rebuilding:previous.key_reverification_required});
  let cursor=index.cursor;
  for(const ref of batch){
   if(!/^refs\/heads\/learning\/handoff-[a-f0-9]{64}$/.test(ref.ref))fail();
@@ -45,6 +54,7 @@ export async function collectResearchObservations({api,publicApis,proof,base,act
    await assertCurrent();
    const raw=await artifactJson(api,ref,'handoff.json'),issued=raw.value;
    if(!GENRES.includes(issued.genre)||!validDate(issued.research_date)||issued.research_date>researchDate||!hash(issued.use_id)||ref.ref!==`refs/heads/learning/handoff-${issued.use_id}`||!sha(issued.receipt_commit)||!sha(issued.source_heads?.private)||issued.source_heads.private!==raw.parent)fail();
+   if(period!=='legacy'&&(issued.research_date.slice(0,7)!==period||!aliases.some(a=>a.ref===`refs/heads/learning/queue-${period}-${issued.use_id}`&&a.object.sha===raw.commit.sha)))fail();
    sourceRevision=raw.parent;
    await requireTrustedAncestor(api,sourceRevision,base.sha);
    const historicalBase=await api.get(`/git/commits/${sourceRevision}`);
@@ -103,8 +113,10 @@ export async function collectResearchObservations({api,publicApis,proof,base,act
  await assertCurrent();
  const terminal=new Set([...completed.values()].filter(e=>publicRefs.get(e.genre+':refs/heads/research/'+e.research_date+'-'+e.genre)===e.research_commit
    &&(e.state==='ordering_unproven'||observationHeads.get(e.branch)===e.commit)).map(e=>e.handoff_commit));
- if(refs.filter(r=>!terminal.has(r.object.sha)).length<=budget)cursor=null;
- await saveObservationIndex({api,base,proof,previous,index:{...index,cursor,known_handoffs:refs.map(r=>r.object.sha),completed:[...completed.values()]},assertCurrent});
+ if(scopedRefs.filter(r=>!terminal.has(r.object.sha)).length<=periodBudget)cursor=null;
+ await saveObservationIndex({api,base,proof,previous,index:{...index,cursor,known_handoffs:scopedRefs.map(r=>r.object.sha),completed:[...completed.values()]},assertCurrent});
  if(observations.some(o=>o.state==='verification_failed'))throw new LearningError('invalid_research_observation');
- return {state:'collected',observations:observations.sort((a,b)=>a.handoff_commit.localeCompare(b.handoff_commit,'en')),deferred:Math.max(0,pending.length-batch.length)};
+ allObservations.push(...observations);inspected+=scopedRefs.length;deferred+=Math.max(0,pending.length-batch.length);
+ }
+ return {state:'collected',observations:allObservations.sort((a,b)=>a.handoff_commit.localeCompare(b.handoff_commit,'en')),deferred:deferred+refs.length-inspected};
 }

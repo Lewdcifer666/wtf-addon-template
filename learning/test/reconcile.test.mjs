@@ -11,6 +11,7 @@ import {buildReceipt} from '../receipt.mjs';
 import {loadVerifiedReceipt} from '../receipt-loader.mjs';
 import {prepareResearchUse} from '../research-use.mjs';
 import {persistImmutable,persistSealedState} from '../git-artifacts.mjs';
+import {loadObservationIndex} from '../observation-index.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -216,13 +217,13 @@ test('a policy head moving during authenticated consumption invalidates the hand
  await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi'}),/stale_input/);
  assert(moved);assert.equal(s.privateRepo.writes.length,writes);
 });
-async function verificationScenario(){
+async function verificationScenario({issueBeforePacket=true}={}){
  const s=await activeScenario(),profile=JSON.parse(fs.readFileSync(new URL('./fixtures/contracts/scifi-profile.json',import.meta.url))),dimensions=profile.dna_dimensions.dimensions.map(d=>d.id);
  const registry=`export const CANONICAL_DIMENSIONS = ${JSON.stringify(dimensions)};\nexport const CANONICAL_DNA_TAGS = ${JSON.stringify(profile.dna_dimensions.tag_registry)};\nexport const SLOW_TO_FAST_DIMENSION = "pace_speed";\n`;
  s.publicRepos.scifi.branch('main',{'data/taste-profile.json':stableJson(profile),'scripts/registry.mjs':registry,
   'schemas/research-packet.schema.json':fs.readFileSync(new URL('../schemas/research-packet.schema.json',import.meta.url),'utf8'),
   'config/research.json':stableJson({schema_version:1,genre:'scifi',run_prefix:'s',timezone:'Europe/Berlin',minimum_sources:1,require_all_known:false})});
- await reconcile(s.args);
+ if(issueBeforePacket)await reconcile(s.args);
  const candidate={imdb_id:'tt11111111',type:'movie',title:'Synthetic verified candidate',year:2020,reason:'Public-source fixture.',
   dna:Object.fromEntries(dimensions.map(d=>[d,5])),dna_confidence:1,dna_tags:[],sources:[{url:'https://example.org/review',purpose:'review'}]};
  const packet={schema_version:1,genre:'scifi',research_date:'2026-10-12',candidates:[candidate,{...candidate}],research_rejections:[]};
@@ -359,10 +360,7 @@ test('untrusted historical public ancestry is rejected, not accepted from a clai
 });
 
 test('a packet staged before an uncertified handoff with the SAME parent is never attributed to the later context',async()=>{
- const {s,researchCommit}=await verificationScenario();
- const oldHandoffs=[...s.privateRepo.refs.keys()].filter(r=>r.includes('/handoff-'));
- for(const name of oldHandoffs)s.privateRepo.refs.delete(name);
- for(const name of [...s.privateRepo.refs.keys()].filter(r=>r.includes('/issuance-')))s.privateRepo.refs.delete(name);
+ const {s,researchCommit}=await verificationScenario({issueBeforePacket:false});
  // Re-issuing the same day after packet staging cannot manufacture ordering.
  const result=await reconcile(s.args);
  assert.equal(result.observations.observations.filter(o=>o.state==='ordering_unproven').length,1);
@@ -425,4 +423,34 @@ test('sealed-state creation races reuse a verified statement despite different J
  const writes=s.privateRepo.writes.length;assert.equal((await persistSealedState(options)).commit,first.commit);assert.equal(s.privateRepo.writes.length,writes);
  await assert.rejects(persistSealedState({...options,body:{...body,forged:true}}),/immutable_artifact_mismatch/);
  assert.equal(s.privateRepo.refs.get('refs/heads/'+branch).object.sha,first.commit);
+});
+
+test('monthly index lookup tolerates more than 10000 archived cursor refs while reading bounded payloads',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const base=await s.privateRepo.api.pinMain();
+ const existing=[...s.privateRepo.refs.values()].find(r=>r.ref.includes('/observation-index-2026-10-'));
+ const old=JSON.parse(s.privateRepo.filesAt(existing.object.sha)['learning-output/index.json']),body={...old.body,sequence:20000};
+ const branch=`learning/observation-index-2026-10-0000020000-${digest(stableJson(body))}`;
+ const stored=await persistSealedState({api:s.privateRepo.api,base,branch,name:'index.json',body,proof:s.args.proof,assertCurrent:async()=>{}});
+ const get=s.privateRepo.api.get;let reads=0;
+ s.privateRepo.api.get=async route=>{reads++;const result=await get(route);if(route==='/git/matching-refs/heads/learning/observation-index-2026-10-')return [...result,...Array.from({length:10001},(_,i)=>({ref:`refs/heads/learning/observation-index-2026-10-${String(i).padStart(10,'0')}-${'f'.repeat(64)}`,object:{sha:existing.object.sha}}))];return result;};
+ const loaded=await loadObservationIndex({api:s.privateRepo.api,base,proof:s.args.proof,period:'2026-10',assertCurrent:async()=>{}});
+ assert.equal(loaded.index.sequence,20000);assert(reads<20,`Archive lookup fetched ${reads} payloads`);assert.equal(s.privateRepo.refs.get('refs/heads/'+branch).object.sha,stored.commit);
+});
+
+test('calendar-period recovery retains older pending work while bounding the total handoff batch',async()=>{
+ const s=await activeScenario();for(const date of ['2026-10-12','2026-11-12','2026-12-12'])await reconcile({...s.args,observationBudget:6,clock:()=>new Date(date+'T08:00:00Z')});
+ const before=[...s.privateRepo.refs].map(([name,ref])=>[name,ref.object.sha]);
+ const result=await reconcile({...s.args,observationBudget:6,clock:()=>new Date('2026-12-12T09:00:00Z')});
+ assert(result.observations.observations.length<=6);assert(result.observations.deferred>=12);
+ assert([...s.privateRepo.refs.keys()].some(name=>name.includes('/observation-index-2026-10-')));assert([...s.privateRepo.refs.keys()].some(name=>name.includes('/observation-index-2026-12-')));
+ for(const [name,sha] of before)assert.equal(s.privateRepo.refs.get(name).object.sha,sha);
+});
+
+test('explicit provenance probe is metadata-only and the ordinary consumer cannot mint statements',()=>{
+ const workflow=fs.readFileSync(new URL('../workflows/learning-finalize.yml',import.meta.url),'utf8');
+ const consumer=workflow.slice(workflow.indexOf('  consume:'),workflow.indexOf('  provenance-probe:'));
+ assert(!consumer.includes('id-token: write'));assert(workflow.includes("inputs.consume_genre == 'none' && !inputs.provenance_probe"));
+ const probe=workflow.slice(workflow.indexOf('  provenance-probe:'));assert(probe.includes('contents: read'));assert(!probe.includes('contents: write'));assert(probe.includes('id-token: write'));assert(probe.includes('node learning/reconcile.mjs --probe-proof'));
+ const cli=fs.readFileSync(new URL('../reconcile.mjs',import.meta.url),'utf8'),body=cli.slice(cli.indexOf('  if(probe){'),cli.indexOf('  const publicApis=',cli.indexOf('  if(probe){')));
+ assert(!body.includes('inventoryFeedback'));assert(!body.includes('.post('));assert(body.includes('feedback_read:false,git_writes:false'));
 });

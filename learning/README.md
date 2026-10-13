@@ -216,6 +216,29 @@ requests no statement while learning is inactive. Read-only consumption has no
 OIDC mint permission. Statements and their payloads remain private and never
 appear in workflow logs.
 
+The index is partitioned by research calendar month, located through immutable
+`learning/queue-<YYYY-MM>-<use_id>` aliases to the original handoff commit.
+Current-month work is prioritized and older months rotate fairly; at most six
+handoffs total are verified per run. Archived index refs have no lifetime count
+cutoff, and only four candidate index payloads per selected period are inspected.
+Old handoffs without aliases remain recoverable in a bounded legacy cohort.
+All aliases, indices and original artifacts are retained without rewriting refs.
+
+GitHub's OIDC `sha` belongs to the triggering event and can precede the newer
+main selected after a concurrency wait. The signed audience separately binds
+the actual pinned execution revision. A differing trigger must authenticate as
+an ancestor of that revision through GitHub's commit graph; a research-branch
+or diverged SHA fails. Historical index verification applies the same rule.
+
+An explicit manual `provenance_probe` is the sole inactive exception to token
+minting. Its separate job has Contents read and ID-token write permissions,
+executes pinned main and verifies a synthetic statement entirely in memory.
+The program reads no feedback/profile data and makes no Git writes; it logs
+only result/revision identifiers. It cannot create a receipt, handoff, index,
+interpretation or learning effect. Default scheduled processing and ordinary
+read-only consumption do not run this probe. It is a provenance integration
+check, never a genuine feedback or discovery cycle.
+
 Index lookup is bounded; signing-key rotation that makes an old statement
 unverifiable triggers bounded re-verification without deleting any old artifact.
 An unavailable issuance key keeps ordering verification pending. Expired JWTs

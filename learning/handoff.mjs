@@ -1,7 +1,7 @@
 import {buildReceipt,GENRES} from './receipt.mjs';
 import {loadVerifiedReceipt} from './receipt-loader.mjs';
 import {prepareResearchUse} from './research-use.mjs';
-import {LearningError,persistImmutable,readImmutable} from './git-artifacts.mjs';
+import {LearningError,persistImmutable,readImmutable,persistArtifactAlias} from './git-artifacts.mjs';
 import {stableJson} from './interpretation.mjs';
 import {certifyHandoff,readHandoffIssuance} from './handoff-issuance.mjs';
 
@@ -19,6 +19,7 @@ export async function issueDailyHandoffs({api,publicApis,proof,base,inputs,resea
   for(const genre of GENRES){
     const issued=prepareResearchUse({inputs,artifact,genre,researchDate});
     const result=await persistImmutable(api,{base,...handoffArtifact(issued),assertCurrent});
+    await persistArtifactAlias(api,{base,original:result,branch:`learning/queue-${researchDate.slice(0,7)}-${issued.use_id}`,files:handoffArtifact(issued).files,assertCurrent});
     await certifyHandoff({api,publicApi:publicApis[genre],proof,base,issued,handoff:result,assertCurrent});
     await assertCurrent();
     // Brief contents and personal signals never enter workflow logs.

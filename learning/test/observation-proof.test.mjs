@@ -4,6 +4,7 @@ import {fixtureObservationProof} from './fixtures/observation-proof.mjs';
 import {verifyObservationProof,githubObservationProof} from '../observation-proof.mjs';
 import {engineFingerprintAt,recoverEngineFingerprint} from '../reconcile.mjs';
 import {selectObservationBatch,emptyObservationIndex} from '../observation-index.mjs';
+import {proofAudience} from '../observation-proof.mjs';
 const body={schema_version:1,kind:'synthetic_private_index',completed:[]},revision='a'.repeat(40),proof=fixtureObservationProof();
 
 test('only GitHub-signed private main workflow proofs bind the exact immutable body and revision',async()=>{
@@ -43,4 +44,15 @@ test('bounded pending selection prioritizes new refs, rotates old work, and surv
  const batch=selectObservationBatch(refs,index,{budget:6});assert.equal(batch.length,6);assert.equal(batch[0],refs[99]);assert.equal(batch[1],refs[51]);
  const reached=new Set();for(let hour=0;hour<100;hour++)for(const ref of selectObservationBatch(refs,emptyObservationIndex(),{budget:6,rebuilding:true,clock:()=>new Date(hour*3600000)}))reached.add(ref.object.sha);
  assert.equal(reached.size,refs.length);assert.equal(refs.length,100);
+});
+
+test('queued main triggers authenticate separately from the fresh pinned execution revision',async()=>{
+ const trigger='b'.repeat(40),token=await proof.sign(body,revision,{sha:trigger}),checked=[];
+ const provider=githubObservationProof({clock:()=>new Date('2026-10-12T08:00:00Z'),env:{ACTIONS_ID_TOKEN_REQUEST_URL:'https://pipelines.actions.githubusercontent.com/synthetic',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'SYNTHETIC'},
+  fetcher:async url=>({ok:true,text:async()=>JSON.stringify(String(url).includes('/.well-known/jwks')?{keys:[proof.key]}:{value:token})}),
+  assertTriggerAncestor:async(event,executed)=>{checked.push([event,executed]);assert.equal(event,trigger);assert.equal(executed,revision);}});
+ assert.equal(await provider.sign(body,revision),token);assert.equal((await provider.verify(token,body,revision)).sha,trigger);assert.equal(checked.length,2);
+ assert.notEqual(proofAudience(body,revision),proofAudience(body,trigger),'Execution revision must be cryptographically bound to the payload');
+ const refusing=fixtureObservationProof({assertTriggerAncestor:async()=>{throw Error('untrusted main ancestry');}});
+ await assert.rejects(refusing.verify(token,body,revision),/untrusted main ancestry/);
 });
