@@ -16,6 +16,7 @@ import {createResearchValidator} from './research-contract.mjs';
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
 const readLocal=name=>JSON.parse(fs.readFileSync(new URL(name,import.meta.url),'utf8'));
 const fail=code=>{throw new LearningError(code);};
+const validResearchDate=value=>typeof value==='string'&&/^20\d\d-\d\d-\d\d$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
 async function treeAt(api,commit){
   const tree=await api.get(`/git/trees/${commit.tree.sha}?recursive=1`);
   if(tree.truncated!==false||tree.sha!==commit.tree.sha||!Array.isArray(tree.tree))fail('invalid_source');
@@ -61,9 +62,10 @@ export async function loadPublicProfile(api,genre,adapter){
     packetSchema:entries.some(e=>e.path==='schemas/research-packet.schema.json')?json('schemas/research-packet.schema.json'):null};
 }
 
-export async function reconcile({api,publicApis,trustedRevision,dryRun=false,consumeGenre=null,researchCommit=null,clock=()=>new Date()}){
+export async function reconcile({api,publicApis,trustedRevision,dryRun=false,consumeGenre=null,researchCommit=null,researchDate=null,clock=()=>new Date()}){
   if(consumeGenre!==null&&(!dryRun||!GENRES.includes(consumeGenre)))fail('invalid_consumer_request');
   if(researchCommit!==null&&(consumeGenre===null||!/^[a-f0-9]{40}$/.test(researchCommit)))fail('invalid_consumer_request');
+  if(researchDate!==null&&(researchCommit===null||!validResearchDate(researchDate)))fail('invalid_consumer_request');
   const metadata=await api.get('/');
   if(metadata.full_name!==PRIVATE||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
   const base=await api.pinMain();if(base.sha!==trustedRevision)fail('stale_input');
@@ -123,11 +125,13 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
     await assertCurrent();
     if(consumeGenre!==null){
       stage='invalid_handoff';
-      const researchDate=berlinResearchDate(clock()),handoff=await readDailyHandoff({api,base,inputs,genre:consumeGenre,researchDate,assertCurrent});
+      const today=berlinResearchDate(clock()),date=researchDate??today;
+      if(date>today)fail('invalid_consumer_request');
+      const handoff=await readDailyHandoff({api,base,inputs,genre:consumeGenre,researchDate:date,assertCurrent});
       if(researchCommit===null)return {state:'research_ready',handoff};
       const artifact=await loadVerifiedReceipt({api,base,expected:receipt,assertCurrent});
       const validatePacket=createResearchValidator(profiles[consumeGenre],{now:+clock()});
-      const trace=await authenticateResearchCommit({api:publicApis[consumeGenre],issued:handoff.issued,inputs,artifact,researchDate,commit:researchCommit,validatePacket,assertCurrent});
+      const trace=await authenticateResearchCommit({api:publicApis[consumeGenre],issued:handoff.issued,inputs,artifact,researchDate:date,commit:researchCommit,validatePacket,assertCurrent});
       return {state:'research_verified',handoff,trace};
     }
     if(!dryRun)await persistImmutable(api,{base,...receipt,assertCurrent});
@@ -142,7 +146,7 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
 }
 
 async function main(){
-  const args=process.argv.slice(2),verify=args.length===3&&args[0]==='--verify-research'&&GENRES.includes(args[1])&&/^[a-f0-9]{40}$/.test(args[2]);
+  const args=process.argv.slice(2),verify=[3,4].includes(args.length)&&args[0]==='--verify-research'&&GENRES.includes(args[1])&&/^[a-f0-9]{40}$/.test(args[2])&&(args.length===3||validResearchDate(args[3]));
   const consumeGenre=(args.length===2&&args[0]==='--consume'&&GENRES.includes(args[1]))||verify?args[1]:null;
   if(consumeGenre===null&&(args.some(arg=>arg!=='--dry-run')||args.length>1))fail('unsupported_argument');
   const dryRun=consumeGenre!==null||args.includes('--dry-run');
@@ -152,10 +156,10 @@ async function main(){
   if(execFileSync('git',['status','--porcelain','--untracked-files=no'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim())fail('trusted_checkout_modified');
   const token=process.env.GH_TOKEN,api=new GitHub(PRIVATE,token,{writable:!dryRun});
   const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,token)]));
-  const result=await reconcile({api,publicApis,trustedRevision:head,dryRun,consumeGenre,researchCommit:verify?args[2]:null});
+  const result=await reconcile({api,publicApis,trustedRevision:head,dryRun,consumeGenre,researchCommit:verify?args[2]:null,researchDate:verify&&args.length===4?args[3]:null});
   // Only structural state reaches workflow logs. All personal evidence stays
   // in this private repository's immutable branches, never workflow artifacts.
   console.log(JSON.stringify(['research_ready','research_verified'].includes(result.state)?{state:result.state,branch:result.handoff.branch,commit:result.handoff.commit,use_id:result.handoff.issued.use_id,
-    ...(result.trace?{trace_id:result.trace.trace_id,research_commit:result.trace.research_commit,effect_status:result.trace.effect_status}:{})}:result));
+    ...(result.trace?{trace_id:result.trace.trace_id,research_commit:result.trace.research_commit,research_date:result.trace.research_date,effect_status:result.trace.effect_status}:{})}:result));
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error(`private-learning: ${error instanceof LearningError?error.code:'validation_failed'}`);process.exitCode=1;});

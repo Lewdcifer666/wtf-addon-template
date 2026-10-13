@@ -165,6 +165,10 @@ commit. That separate job has Contents read permission, executes pinned private
 main, and cannot create a fallback interpretation, receipt or publication.
 Its default is `none`, so existing schedules and reconciliation behavior remain.
 This verification interface does not remove the staging hold or activate learning.
+Delayed verification may pass the original Berlin date as a fourth CLI argument
+or the workflow's `research_date`. It authenticates that date's immutable handoff
+and actual packet. Invalid/future dates fail; stale feedback or policy still fail.
+Ordinary `--consume` always uses today's date and cannot select a past brief.
 
 Review/merge and observe the private processor first. Then add the private
 interpretation/read-receipt prelude to the six existing ChatGPT Plus discovery

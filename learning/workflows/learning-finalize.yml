@@ -21,6 +21,10 @@ on:
         description: Optional staged research commit to verify read-only
         type: string
         default: ''
+      research_date:
+        description: Optional original Berlin date for delayed research verification
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -100,12 +104,19 @@ jobs:
           LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
           CONSUME_GENRE: ${{ inputs.consume_genre }}
           RESEARCH_COMMIT: ${{ inputs.research_commit }}
+          RESEARCH_DATE: ${{ inputs.research_date }}
         run: |
           set -euo pipefail
           [[ "$CONSUME_GENRE" =~ ^(action|anime|fantasy|mystery|scifi|thriller)$ ]]
           if [ -n "$RESEARCH_COMMIT" ]; then
             [[ "$RESEARCH_COMMIT" =~ ^[0-9a-f]{40}$ ]]
-            node learning/reconcile.mjs --verify-research "$CONSUME_GENRE" "$RESEARCH_COMMIT"
+            if [ -n "$RESEARCH_DATE" ]; then
+              [[ "$RESEARCH_DATE" =~ ^20[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]]
+              node learning/reconcile.mjs --verify-research "$CONSUME_GENRE" "$RESEARCH_COMMIT" "$RESEARCH_DATE"
+            else
+              node learning/reconcile.mjs --verify-research "$CONSUME_GENRE" "$RESEARCH_COMMIT"
+            fi
           else
+            test -z "$RESEARCH_DATE"
             node learning/reconcile.mjs --consume "$CONSUME_GENRE"
           fi

@@ -248,3 +248,12 @@ test('consumer refuses missing interpretation and verifies only explicit read-on
  await assert.rejects(reconcile({...s.args,researchCommit:'a'.repeat(40)}),/invalid_consumer_request/);
  assert.equal(s.privateRepo.writes.length,0);
 });
+test('delayed verification selects the original dated handoff; daily consumption cannot select a past day',async()=>{
+ const {s,researchCommit}=await verificationScenario(),writes=s.privateRepo.writes.length;
+ const clock=()=>new Date('2026-10-12T22:30:00Z'); // October 13 in Berlin
+ const verified=await reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit,researchDate:'2026-10-12',clock});
+ assert.equal(verified.trace.research_date,'2026-10-12');assert.equal(verified.state,'research_verified');assert.equal(s.privateRepo.writes.length,writes);
+ await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit,clock}),/invalid_handoff/);
+ for(const researchDate of ['2026-02-30','2026-10-14'])await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit,researchDate,clock}));
+ await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchDate:'2026-10-12',clock}),/invalid_consumer_request/);
+});
