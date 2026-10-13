@@ -170,6 +170,34 @@ or the workflow's `research_date`. It authenticates that date's immutable handof
 and actual packet. Invalid/future dates fail; stale feedback or policy still fail.
 Ordinary `--consume` always uses today's date and cannot select a past brief.
 
+When learning is explicitly activated, normal private reconciliation also
+collects `learning/handoff-*` refs as a durable observation queue. A verified
+public research packet produces an immutable private
+`learning/observation-<digest>` branch containing only
+`learning-output/observation.json`. Unchanged retries reuse the branch; an
+interrupted write can resume without changing main or any public repository.
+Missing packets stay pending. A receipt issued after a packet is not relabeled
+as the packet's input. Verification failures retain closed private failure
+artifacts and fail the job rather than silently dropping an unresolved handoff.
+
+Delayed observation reconstructs the ORIGINAL complete feedback, interpretation
+and six public profile snapshots from authenticated ancestors of current main.
+It recomputes every receipt and handoff byte using current trusted code and
+adapters, reads only the permitted research packet, and refuses incompatible
+outputs. No historical code/dependencies are executed. New feedback or retraction
+does not rewrite these historical records or revive their taste state.
+Current daily consumption still requires fresh inputs; this historical path is
+restricted to diagnostic observation. Records explicitly set `current_evidence`,
+`actual_context_use_verified` and `behavioral_effect_observed` to false.
+Neither matching DNA adjustments nor a matching handoff proves the task used
+that context. Actual private search-use evidence remains required integration.
+
+Inactive reconciliation and read-only consumption never run this writer.
+Activation, task instructions, schedules and existing safety holds are unchanged.
+Do not lift the private learning hold or activate additional publication merely
+because this transport passes its synthetic checks. The engine fingerprint also
+covers the shared identity helper used to determine candidate duplicates.
+
 Review/merge and observe the private processor first. Then add the private
 interpretation/read-receipt prelude to the six existing ChatGPT Plus discovery
 tasks without changing their times, enabled states or rotator. Verify a complete

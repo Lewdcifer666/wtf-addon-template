@@ -257,3 +257,98 @@ test('delayed verification selects the original dated handoff; daily consumption
  for(const researchDate of ['2026-02-30','2026-10-14'])await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit,researchDate,clock}));
  await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchDate:'2026-10-12',clock}),/invalid_consumer_request/);
 });
+
+const recordedObservation=(s,result)=>{
+ const recorded=result.observations.observations.find(o=>o.state==='diagnostics_recorded');assert(recorded);
+ return {recorded,body:JSON.parse(s.privateRepo.filesAt(recorded.commit)['learning-output/observation.json'])};
+};
+
+test('automatic private observation transport persists diagnostics, reuses retries, and never asserts actual use/effect',async()=>{
+ const {s,researchCommit}=await verificationScenario(),before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision));
+ const result=await reconcile(s.args),{recorded,body}=recordedObservation(s,result);
+ assert.equal(body.trace.research_commit,researchCommit);assert.equal(body.current_evidence,false);assert.equal(body.actual_context_use_verified,false);assert.equal(body.behavioral_effect_observed,false);
+ assert.equal(body.trace.verification_mode,'historical_observation');assert.equal(body.trace.effect_status,'candidate_diagnostics_only');
+ assert.equal(body.trace.candidates[1].diagnostic_status,'duplicate_in_packet');
+ const writes=s.privateRepo.writes.length;assert.deepEqual(await reconcile(s.args),result);assert.equal(s.privateRepo.writes.length,writes);
+ assert.equal(stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),before);assert(s.publicRepos.scifi.writes.length===0);
+ assert(!stableJson(result).includes('PRIVATE_SENTINEL'));assert(!stableJson(result).includes('tt11111111'));
+ assert.equal(s.privateRepo.refs.get('refs/heads/'+recorded.branch).object.sha,recorded.commit);
+});
+
+test('delayed collector recovers original handoff after publication advances main without refreshing its date or receipt',async()=>{
+ const {s,researchCommit}=await verificationScenario();
+ s.publicRepos.scifi.branch('main',{'README.md':'Trusted publication advanced main; original packet ref retained.\n'});
+ const result=await reconcile({...s.args,clock:()=>new Date('2026-10-13T08:00:00Z')}),{body}=recordedObservation(s,result);
+ assert.equal(body.trace.research_commit,researchCommit);assert.equal(body.trace.research_date,'2026-10-12');
+ assert.notEqual(body.trace.evaluated_base,(await s.publicApis.scifi.pinMain()).sha);assert.equal(body.current_evidence,false);
+ const writes=s.privateRepo.writes.length;await reconcile({...s.args,clock:()=>new Date('2026-10-13T08:00:00Z')});assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('new receipts issued after a same-day packet do not relabel it as using the new taste context',async()=>{
+ const {s}=await verificationScenario();s.publicRepos.scifi.branch('main',{'README.md':'Later publication\n'});
+ const result=await reconcile(s.args),records=result.observations.observations;
+ assert.equal(records.filter(o=>o.state==='diagnostics_recorded').length,1);assert.equal(records.filter(o=>o.state==='research_not_bound_to_handoff').length,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/observation-')).length,1);
+});
+
+test('feedback retraction preserves historical diagnostics but prevents them from becoming current research evidence',async()=>{
+ const {s,researchCommit}=await verificationScenario();
+ const head=s.privateRepo.branch('main',{'data/feedback/2026-10-01/tomb.json':stableJson({...s.event,feedback_id:'tomb',supersedes:s.event.feedback_id,status:'retracted',rating:null,feedback:null})});
+ const result=await reconcile({...s.args,trustedRevision:head}),{body}=recordedObservation(s,result);
+ assert.equal(result.state,'awaiting_interpretation');assert.equal(body.trace.research_commit,researchCommit);assert.equal(body.current_evidence,false);
+ assert.equal(body.actual_context_use_verified,false);assert.equal(body.behavioral_effect_observed,false);
+ assert.equal(JSON.parse(s.privateRepo.filesAt(head)['data/feedback/2026-10-01/tomb.json']).status,'retracted');
+ const writes=s.privateRepo.writes.length;await reconcile({...s.args,trustedRevision:head});assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('interrupted observation persistence resumes from the same queue without changing artifacts or public branches',async()=>{
+ const {s}=await verificationScenario(),post=s.privateRepo.api.post;let interrupted=false;
+ s.privateRepo.api.post=async(route,body)=>{if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/observation-')&&!interrupted){interrupted=true;throw Error('synthetic interruption');}return post(route,body);};
+ await assert.rejects(reconcile(s.args),/invalid_research_observation/);assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+ s.privateRepo.api.post=post;const result=await reconcile(s.args),{recorded}=recordedObservation(s,result);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/observation-')).length,1);const writes=s.privateRepo.writes.length;
+ await reconcile(s.args);assert.equal(s.privateRepo.writes.length,writes);assert.equal(s.privateRepo.refs.get('refs/heads/'+recorded.branch).object.sha,recorded.commit);
+ assert.equal(s.publicRepos.scifi.writes.length,0);
+});
+
+test('forged handoffs and malicious research code produce private failures without copying data into workflow results',async()=>{
+ for(const attack of ['handoff','code']){
+  const {s,packet}=await verificationScenario();
+  if(attack==='code')s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':stableJson(packet),'scripts/evil.mjs':'throw Error("EXECUTED_PRIVATE_SENTINEL")'});
+  else{
+   const ref=[...s.privateRepo.refs.values()].find(r=>r.ref.includes('/handoff-'));
+   const body=JSON.parse(s.privateRepo.filesAt(ref.object.sha)['learning-output/handoff.json']);body.context={untrusted:'PRIVATE_SENTINEL'};
+   s.privateRepo.branch(ref.ref.slice('refs/heads/'.length),{'learning-output/handoff.json':stableJson(body)});
+  }
+  await assert.rejects(reconcile(s.args),attack==='handoff'?/immutable_artifact_mismatch/:/invalid_research_observation/);assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+  const failures=[...s.privateRepo.refs.values()].filter(r=>r.ref.includes('/failure-'));assert(failures.length);
+  for(const ref of failures){const body=s.privateRepo.filesAt(ref.object.sha)['learning-output/state.json'];assert(!body.includes('PRIVATE_SENTINEL'));}
+ }
+});
+
+test('collector never runs during inactive reconciliation or read-only consumption',async()=>{
+ const inactive=scenario();await stage(inactive);await reconcile(inactive.args);assert(![...inactive.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+ const {s,researchCommit}=await verificationScenario(),writes=s.privateRepo.writes.length;
+ await reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit});assert.equal(s.privateRepo.writes.length,writes);
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+});
+
+test('changed public heads during observation creation retain artifacts but cannot claim a completed current job',async()=>{
+ const {s}=await verificationScenario(),post=s.privateRepo.api.post;let moved=false;
+ s.privateRepo.api.post=async(route,body)=>{
+  const result=await post(route,body);
+  if(!moved&&route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/observation-')){moved=true;s.publicRepos.scifi.branch('main',{'README.md':'Main moved during recording\n'});}
+  return result;
+ };
+ await assert.rejects(reconcile(s.args),/stale_input/);assert(moved);
+ const preserved=[...s.privateRepo.refs].find(([name])=>name.includes('/observation-'));assert(preserved);
+ s.privateRepo.api.post=post;await reconcile(s.args);assert.equal(s.privateRepo.refs.get(preserved[0]).object.sha,preserved[1].object.sha);
+});
+
+test('untrusted historical public ancestry is rejected, not accepted from a claimed source tuple',async()=>{
+ const {s}=await verificationScenario(),oldBase=(await s.publicApis.scifi.pinMain()).sha;
+ const newHead=s.publicRepos.scifi.branch('main',{'README.md':'Synthetic incompatible ancestry\n'}),get=s.publicApis.scifi.get;
+ s.publicApis.scifi.get=async route=>route===`/compare/${oldBase}...${newHead}`?{status:'diverged',merge_base_commit:{sha:'d'.repeat(40)}}:get(route);
+ await assert.rejects(reconcile(s.args),/invalid_research_observation/);
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+});
