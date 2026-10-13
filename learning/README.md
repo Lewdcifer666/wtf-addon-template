@@ -198,6 +198,39 @@ Do not lift the private learning hold or activate additional publication merely
 because this transport passes its synthetic checks. The engine fingerprint also
 covers the shared identity helper used to determine candidate duplicates.
 
+Recovery also accepts the documented earlier fingerprint scheme that omitted
+the identity helper, validating it against the exact historical source tree.
+It preserves the stored fingerprint and all immutable receipt bytes rather than
+rewriting history to the new scheme. Other source changes still fail validation.
+
+The queue processes at most six unresolved handoffs per run, prioritizes new
+refs and rotates older pending work using a persisted cursor. Completed records
+are skipped only when their handoff/research/observation refs still match a
+sealed terminal index. The index is bound to a GitHub-signed OIDC statement from
+this private repository's `learning-finalize.yml` on trusted main, including the
+immutable repository/owner IDs, revision and exact payload digest. A self-declared
+checksum or AI-authored completion marker cannot skip pending work. The writer
+job adds `id-token: write` solely to request these statements; it grants no new
+repository write scope, uses no publisher App or long-lived signing secret, and
+requests no statement while learning is inactive. Read-only consumption has no
+OIDC mint permission. Statements and their payloads remain private and never
+appear in workflow logs.
+
+Index lookup is bounded; signing-key rotation that makes an old statement
+unverifiable triggers bounded re-verification without deleting any old artifact.
+An unavailable issuance key keeps ordering verification pending. Expired JWTs
+are accepted only as signature evidence about historical bookkeeping, never as
+fresh action authorization or a renewed taste snapshot. Daily consumption still
+recomputes complete current feedback/policy inputs. Production issuer keys are
+loaded only from GitHub's fixed HTTPS endpoint, never from a stored record.
+
+A packet with the same policy parent may still predate the handoff. After the
+handoff is persisted, the trusted writer checks that the dated packet is absent
+and seals that fact on `learning/issuance-<use_id>`. Consumption requires this
+certificate. A handoff first issued after staging receives no certificate and
+its packet is recorded as `ordering_unproven`, without candidate diagnostics or
+any context-use claim. No late writer can backfill this missing ordering proof.
+
 Review/merge and observe the private processor first. Then add the private
 interpretation/read-receipt prelude to the six existing ChatGPT Plus discovery
 tasks without changing their times, enabled states or rotator. Verify a complete

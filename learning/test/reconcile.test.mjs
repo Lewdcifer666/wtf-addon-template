@@ -1,11 +1,16 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {reconcile,loadPublicProfile} from '../reconcile.mjs';
+import {reconcile,loadPublicProfile,engineFingerprintAt} from '../reconcile.mjs';
 import {GitHub} from '../github.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretation.mjs';
 import {inventoryFeedback} from '../inventory.mjs';
 import {GENRES} from '../receipt.mjs';
+import {fixtureObservationProof} from './fixtures/observation-proof.mjs';
+import {buildReceipt} from '../receipt.mjs';
+import {loadVerifiedReceipt} from '../receipt-loader.mjs';
+import {prepareResearchUse} from '../research-use.mjs';
+import {persistImmutable,persistSealedState} from '../git-artifacts.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -54,7 +59,7 @@ function memoryRepo(name,initial){
 }
 function scenario(){
  const event={schema_version:3,feedback_id:'synthetic',supersedes:null,imdb_id:'tt999999991',source_id:null,rated_at:'2026-10-01T10:00:00Z',profile_context:null,status:'seen',rating:4,premise_interest:null,liked:[],disliked:[],feedback:'PRIVATE_SENTINEL I want more mystery.'};
- const privateRepo=memoryRepo('Lewdcifer666/wtf-scifi-feedback',{'data/feedback/2026-10-01/synthetic.json':stableJson(event),'learning/reconcile.mjs':'// trusted fixture, never imported from API\n','learning/config/activation.json':stableJson({schema_version:1,research_learning_enabled:false,public_catalog_personalization_enabled:false})}),publicApis={},publicRepos={};
+ const privateRepo=memoryRepo('Lewdcifer666/wtf-scifi-feedback',{'data/feedback/2026-10-01/synthetic.json':stableJson(event),'engine/identity.mjs':'// existing synthetic identity helper\n','learning/reconcile.mjs':'// trusted fixture, never imported from API\n','learning/config/activation.json':stableJson({schema_version:1,research_learning_enabled:false,public_catalog_personalization_enabled:false})}),publicApis={},publicRepos={};
  for(const genre of GENRES){
   const policy=JSON.parse(fs.readFileSync(new URL(`./fixtures/${genre}-policy.json`,import.meta.url),'utf8')),dimension=genre==='mystery'?'central_mystery':'mystery';
   policy.automation_rules={minimum_match_score:0};policy.dna_baseline={weights:{[dimension]:1},completeness_defaults:{min_known_dimensions:1,min_confidence:0,required_known_dimensions:[dimension]},archetypes:[]};policy.dna_guardrails={hard_exclusion:[],combination:[]};
@@ -156,7 +161,7 @@ test('privileged workflow pins main, has no cache, and read-only intake never ch
 async function activeScenario(){
  const s=scenario();
  const head=s.privateRepo.branch('main',{'learning/config/activation.json':stableJson({schema_version:1,research_learning_enabled:true,public_catalog_personalization_enabled:false})});
- s.args={...s.args,trustedRevision:head,clock:()=>new Date('2026-10-11T22:30:00Z')};
+ s.args={...s.args,trustedRevision:head,clock:()=>new Date('2026-10-11T22:30:00Z'),proof:fixtureObservationProof(),observationBudget:24};
  await stage(s);return s;
 }
 test('activated reconciliation issues six immutable Berlin-day handoffs; read-only use verifies their full Git provenance',async()=>{
@@ -288,7 +293,7 @@ test('new receipts issued after a same-day packet do not relabel it as using the
  const {s}=await verificationScenario();s.publicRepos.scifi.branch('main',{'README.md':'Later publication\n'});
  const result=await reconcile(s.args),records=result.observations.observations;
  assert.equal(records.filter(o=>o.state==='diagnostics_recorded').length,1);assert.equal(records.filter(o=>o.state==='research_not_bound_to_handoff').length,1);
- assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/observation-')).length,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)).length,1);
 });
 
 test('feedback retraction preserves historical diagnostics but prevents them from becoming current research evidence',async()=>{
@@ -304,9 +309,9 @@ test('feedback retraction preserves historical diagnostics but prevents them fro
 test('interrupted observation persistence resumes from the same queue without changing artifacts or public branches',async()=>{
  const {s}=await verificationScenario(),post=s.privateRepo.api.post;let interrupted=false;
  s.privateRepo.api.post=async(route,body)=>{if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/observation-')&&!interrupted){interrupted=true;throw Error('synthetic interruption');}return post(route,body);};
- await assert.rejects(reconcile(s.args),/invalid_research_observation/);assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+ await assert.rejects(reconcile(s.args),/invalid_research_observation/);assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
  s.privateRepo.api.post=post;const result=await reconcile(s.args),{recorded}=recordedObservation(s,result);
- assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/observation-')).length,1);const writes=s.privateRepo.writes.length;
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)).length,1);const writes=s.privateRepo.writes.length;
  await reconcile(s.args);assert.equal(s.privateRepo.writes.length,writes);assert.equal(s.privateRepo.refs.get('refs/heads/'+recorded.branch).object.sha,recorded.commit);
  assert.equal(s.publicRepos.scifi.writes.length,0);
 });
@@ -320,17 +325,17 @@ test('forged handoffs and malicious research code produce private failures witho
    const body=JSON.parse(s.privateRepo.filesAt(ref.object.sha)['learning-output/handoff.json']);body.context={untrusted:'PRIVATE_SENTINEL'};
    s.privateRepo.branch(ref.ref.slice('refs/heads/'.length),{'learning-output/handoff.json':stableJson(body)});
   }
-  await assert.rejects(reconcile(s.args),attack==='handoff'?/immutable_artifact_mismatch/:/invalid_research_observation/);assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+  await assert.rejects(reconcile(s.args),attack==='handoff'?/immutable_artifact_mismatch/:/invalid_research_observation/);assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
   const failures=[...s.privateRepo.refs.values()].filter(r=>r.ref.includes('/failure-'));assert(failures.length);
   for(const ref of failures){const body=s.privateRepo.filesAt(ref.object.sha)['learning-output/state.json'];assert(!body.includes('PRIVATE_SENTINEL'));}
  }
 });
 
 test('collector never runs during inactive reconciliation or read-only consumption',async()=>{
- const inactive=scenario();await stage(inactive);await reconcile(inactive.args);assert(![...inactive.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+ const inactive=scenario();await stage(inactive);await reconcile(inactive.args);assert(![...inactive.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
  const {s,researchCommit}=await verificationScenario(),writes=s.privateRepo.writes.length;
  await reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit});assert.equal(s.privateRepo.writes.length,writes);
- assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
 });
 
 test('changed public heads during observation creation retain artifacts but cannot claim a completed current job',async()=>{
@@ -341,7 +346,7 @@ test('changed public heads during observation creation retain artifacts but cann
   return result;
  };
  await assert.rejects(reconcile(s.args),/stale_input/);assert(moved);
- const preserved=[...s.privateRepo.refs].find(([name])=>name.includes('/observation-'));assert(preserved);
+ const preserved=[...s.privateRepo.refs].find(([name])=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(name));assert(preserved);
  s.privateRepo.api.post=post;await reconcile(s.args);assert.equal(s.privateRepo.refs.get(preserved[0]).object.sha,preserved[1].object.sha);
 });
 
@@ -350,5 +355,74 @@ test('untrusted historical public ancestry is rejected, not accepted from a clai
  const newHead=s.publicRepos.scifi.branch('main',{'README.md':'Synthetic incompatible ancestry\n'}),get=s.publicApis.scifi.get;
  s.publicApis.scifi.get=async route=>route===`/compare/${oldBase}...${newHead}`?{status:'diverged',merge_base_commit:{sha:'d'.repeat(40)}}:get(route);
  await assert.rejects(reconcile(s.args),/invalid_research_observation/);
- assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/observation-')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
+});
+
+test('a packet staged before an uncertified handoff with the SAME parent is never attributed to the later context',async()=>{
+ const {s,researchCommit}=await verificationScenario();
+ const oldHandoffs=[...s.privateRepo.refs.keys()].filter(r=>r.includes('/handoff-'));
+ for(const name of oldHandoffs)s.privateRepo.refs.delete(name);
+ for(const name of [...s.privateRepo.refs.keys()].filter(r=>r.includes('/issuance-')))s.privateRepo.refs.delete(name);
+ // Re-issuing the same day after packet staging cannot manufacture ordering.
+ const result=await reconcile(s.args);
+ assert.equal(result.observations.observations.filter(o=>o.state==='ordering_unproven').length,1);
+ assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
+ const writes=s.privateRepo.writes.length;await reconcile(s.args);assert.equal(s.privateRepo.writes.length,writes);
+ assert(Object.values(s.publicRepos).every(repo=>repo.writes.length===0));assert.equal((await s.publicApis.scifi.get('/git/ref/heads/research/2026-10-12-scifi')).object.sha,researchCommit);
+});
+
+test('sealed completed index skips historical receipt/profile reads; spoofing its proof cannot suppress pending work',async()=>{
+ const {s,researchCommit}=await verificationScenario();await reconcile(s.args);
+ const researchTree=s.publicRepos.scifi.trees.get((await s.publicApis.scifi.get(`/git/commits/${researchCommit}`)).tree.sha);
+ const packetOid=researchTree.tree.find(e=>e.path==='research-inbox/2026-10-12.json').sha;
+ const privateGet=s.privateRepo.api.get,publicGet=s.publicApis.scifi.get;
+ let packetBlobReads=0;
+ s.publicApis.scifi.get=async route=>{if(route===`/git/blobs/${packetOid}`)packetBlobReads++;return publicGet(route);};
+ await reconcile(s.args);assert.equal(packetBlobReads,0,'Completed diagnostics must not be re-authenticated every hour');
+ const ref=[...s.privateRepo.refs.values()].filter(r=>r.ref.includes('/observation-index-')).at(-1);
+ const record=JSON.parse(s.privateRepo.filesAt(ref.object.sha)['learning-output/index.json']);record.proof=record.proof.slice(0,-8)+'forgedxx';
+ const malicious=s.privateRepo.branch(ref.ref.slice('refs/heads/'.length),{'learning-output/index.json':stableJson(record)});
+ await assert.rejects(reconcile(s.args),/invalid_observation_proof/);
+ assert.equal(s.privateRepo.refs.get(ref.ref).object.sha,malicious,'Unresolved forged index must not be overwritten');
+ s.privateRepo.api.get=privateGet;
+});
+
+test('an hourly run processes a bounded batch even after many days of permanently missing research',async()=>{
+ const s=await activeScenario();
+ for(let day=12;day<=24;day++)await reconcile({...s.args,observationBudget:4,clock:()=>new Date(`2026-10-${day}T08:00:00Z`)});
+ let reads=0;
+ for(const repo of [s.privateRepo,...Object.values(s.publicRepos)]){const get=repo.api.get;repo.api.get=async route=>{reads++;return get(route);};}
+ const result=await reconcile({...s.args,observationBudget:4,clock:()=>new Date('2026-10-24T09:00:00Z')});
+ assert.equal(result.observations.observations.length,4);assert(result.observations.deferred>=70);assert(reads<600,`Bounded reconciliation used ${reads} reads`);
+ const before=[...s.privateRepo.refs].map(([name,ref])=>[name,ref.object.sha]);await reconcile({...s.args,observationBudget:4,clock:()=>new Date('2026-10-24T10:00:00Z')});
+ for(const [name,sha] of before)assert.equal(s.privateRepo.refs.get(name).object.sha,sha);
+});
+
+test('legacy receipts with the already-existing identity helper recover without fingerprint rewrites or fabricated ordering',async()=>{
+ const {s}=await verificationScenario(),base=await s.privateRepo.api.pinMain(),tree=s.privateRepo.trees.get(base.tree.sha);
+ const source=inventoryFeedback({commit:base,tree,blobs:s.privateRepo.blobs}),request=interpretationRequest(source);
+ const packetCommit=s.privateRepo.refs.get(`refs/heads/interpretation/${base.sha}`).object.sha;
+ const packet=JSON.parse(s.privateRepo.filesAt(packetCommit)[`learning-inbox/${base.sha}/${request.request_id}.json`]),profiles={};
+ for(const genre of GENRES)profiles[genre]=await loadPublicProfile(s.publicApis[genre],genre,JSON.parse(fs.readFileSync(new URL(`../config/${genre}.json`,import.meta.url))));
+ const legacy=engineFingerprintAt(tree,{legacy:true});assert.notEqual(legacy,engineFingerprintAt(tree));
+ const inputs={source,packet,packetCommit,trustedRevision:base.sha,engineFingerprint:legacy,profiles,activation:{schema_version:1,research_learning_enabled:true,public_catalog_personalization_enabled:false}};
+ const expected=buildReceipt(inputs),saved=await persistImmutable(s.privateRepo.api,{base,...expected});
+ const artifact=await loadVerifiedReceipt({api:s.privateRepo.api,base,expected,assertCurrent:async()=>{}});
+ const issued=prepareResearchUse({inputs,artifact,genre:'scifi',researchDate:'2026-10-12'});
+ const handoff=await persistImmutable(s.privateRepo.api,{base,branch:`learning/handoff-${issued.use_id}`,files:{'handoff.json':stableJson(issued)}});
+ const result=await reconcile(s.args);assert.equal(result.state,'computed_active');
+ assert.equal(result.observations.observations.find(o=>o.handoff_commit===handoff.commit).state,'ordering_unproven');
+ assert.equal(s.privateRepo.refs.get('refs/heads/'+expected.branch).object.sha,saved.commit);
+ assert.equal(JSON.parse(s.privateRepo.filesAt(saved.commit)['learning-output/receipt.json']).sources.engine_fingerprint,legacy);
+});
+
+test('sealed-state creation races reuse a verified statement despite different JWTs, while payload changes fail',async()=>{
+ const s=await activeScenario(),base=await s.privateRepo.api.pinMain(),body={schema_version:1,kind:'synthetic_sealed_state'},branch='learning/issuance-'+digest(stableJson(body));
+ let serial=0;const proof={...s.args.proof,sign:(body,revision)=>s.args.proof.sign(body,revision,{jti:String(++serial)})};
+ const options={api:s.privateRepo.api,base,branch,name:'issuance.json',body,proof,assertCurrent:async()=>{}};
+ const [first,second]=await Promise.all([persistSealedState(options),persistSealedState(options)]);
+ assert.equal(first.commit,second.commit);assert(serial>=2);
+ const writes=s.privateRepo.writes.length;assert.equal((await persistSealedState(options)).commit,first.commit);assert.equal(s.privateRepo.writes.length,writes);
+ await assert.rejects(persistSealedState({...options,body:{...body,forged:true}}),/immutable_artifact_mismatch/);
+ assert.equal(s.privateRepo.refs.get('refs/heads/'+branch).object.sha,first.commit);
 });
