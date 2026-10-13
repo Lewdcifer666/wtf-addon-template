@@ -25,9 +25,10 @@ function memoryRepo(name,initial){
    if(route.startsWith('/git/commits/'))return commits.get(route.split('/').at(-1));
    if(route.startsWith('/git/blobs/')){const sha=route.split('/').at(-1),bytes=blobs.get(sha);return {sha,size:bytes.length,encoding:'base64',content:bytes.toString('base64')};}
    if(route.startsWith('/git/matching-refs/'))return [...refs.values()].filter(r=>r.ref.startsWith(`refs/${route.slice('/git/matching-refs/'.length)}`));
+   if(route.startsWith('/git/ref/'))return refs.get(`refs/${route.slice('/git/ref/'.length)}`);
    if(route.startsWith('/compare/')){
     const [base,head]=route.slice('/compare/'.length).split('...'),before=filesAt(base),after=filesAt(head);
-    return {merge_base_commit:{sha:base},status:'ahead',files:[...new Set([...Object.keys(before),...Object.keys(after)])].filter(p=>before[p]!==after[p]).map(filename=>({filename,status:before[filename]===undefined?'added':after[filename]===undefined?'removed':'modified'}))};
+    return {merge_base_commit:{sha:base},status:'ahead',total_commits:head===base?0:1,files:[...new Set([...Object.keys(before),...Object.keys(after)])].filter(p=>before[p]!==after[p]).map(filename=>({filename,status:before[filename]===undefined?'added':after[filename]===undefined?'removed':'modified'}))};
    }
    throw Error('unexpected mock read');
   },
@@ -209,4 +210,41 @@ test('a policy head moving during authenticated consumption invalidates the hand
  };
  await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi'}),/stale_input/);
  assert(moved);assert.equal(s.privateRepo.writes.length,writes);
+});
+async function verificationScenario(){
+ const s=await activeScenario(),profile=JSON.parse(fs.readFileSync(new URL('./fixtures/contracts/scifi-profile.json',import.meta.url))),dimensions=profile.dna_dimensions.dimensions.map(d=>d.id);
+ const registry=`export const CANONICAL_DIMENSIONS = ${JSON.stringify(dimensions)};\nexport const CANONICAL_DNA_TAGS = ${JSON.stringify(profile.dna_dimensions.tag_registry)};\nexport const SLOW_TO_FAST_DIMENSION = "pace_speed";\n`;
+ s.publicRepos.scifi.branch('main',{'data/taste-profile.json':stableJson(profile),'scripts/registry.mjs':registry,
+  'schemas/research-packet.schema.json':fs.readFileSync(new URL('../schemas/research-packet.schema.json',import.meta.url),'utf8'),
+  'config/research.json':stableJson({schema_version:1,genre:'scifi',run_prefix:'s',timezone:'Europe/Berlin',minimum_sources:1,require_all_known:false})});
+ await reconcile(s.args);
+ const candidate={imdb_id:'tt11111111',type:'movie',title:'Synthetic verified candidate',year:2020,reason:'Public-source fixture.',
+  dna:Object.fromEntries(dimensions.map(d=>[d,5])),dna_confidence:1,dna_tags:[],sources:[{url:'https://example.org/review',purpose:'review'}]};
+ const packet={schema_version:1,genre:'scifi',research_date:'2026-10-12',candidates:[candidate,{...candidate}],research_rejections:[]};
+ const researchCommit=s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':stableJson(packet)});
+ return {s,packet,researchCommit};
+}
+test('read-only processor authenticates staged research using pinned contracts, including duplicates',async()=>{
+ const {s,researchCommit}=await verificationScenario(),before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),writes=s.privateRepo.writes.length;
+ const verified=await reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit});
+ assert.equal(verified.state,'research_verified');assert.equal(verified.trace.research_commit,researchCommit);
+ assert.equal(verified.trace.candidates.length,2);assert.equal(verified.trace.candidates[1].diagnostic_status,'duplicate_in_packet');
+ assert.equal(verified.trace.effect_status,'candidate_diagnostics_only');assert.equal(s.privateRepo.writes.length,writes);
+ assert.equal(stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),before);assert.equal(s.publicRepos.scifi.writes.length,0);
+ assert(!JSON.stringify(verified).includes('PRIVATE_SENTINEL'));
+});
+test('actual processor rejects packet policy violations and code changes without a fallback writer',async()=>{
+ for(const malicious of [false,true]){
+  const {s,packet}=await verificationScenario(),writes=s.privateRepo.writes.length;
+  if(!malicious)packet.final_score=100;
+  const researchCommit=s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':stableJson(packet),...(malicious?{'scripts/cache.mjs':'throw Error("EXECUTED_UNTRUSTED")'}:{})});
+  await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi',researchCommit}),/invalid_handoff/);
+  assert.equal(s.privateRepo.writes.length,writes);assert.equal(s.publicRepos.scifi.writes.length,0);
+ }
+});
+test('consumer refuses missing interpretation and verifies only explicit read-only requests',async()=>{
+ const s=await activeScenario();s.privateRepo.refs.delete(`refs/heads/interpretation/${s.args.trustedRevision}`);
+ await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi'}),/interpretation_not_staged/);
+ await assert.rejects(reconcile({...s.args,researchCommit:'a'.repeat(40)}),/invalid_consumer_request/);
+ assert.equal(s.privateRepo.writes.length,0);
 });

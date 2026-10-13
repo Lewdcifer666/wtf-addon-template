@@ -1,0 +1,989 @@
+{
+  "schema_version": 3,
+  "profile_name": "WTF Sci-Fi / Fringe-Annihilation High-Concept Mystery",
+  "mission": "Find movies and series that create a strong need to understand an impossible situation, phenomenon, organism, experiment, system, or reality-bending rule set. Discovery and concept escalation matter more than raw action.",
+  "strong_positive_signals": [
+    {
+      "signal": "Scientists actively investigating an unexplained or impossible phenomenon",
+      "weight": 20
+    },
+    {
+      "signal": "Biology, genetics, mutation, alien organisms, ecology, parasites, evolution or unusual physiology",
+      "weight": 20
+    },
+    {
+      "signal": "Unknown phenomenon whose rules are discovered through observation, testing or deduction",
+      "weight": 18
+    },
+    {
+      "signal": "High-concept premise that keeps revealing new implications instead of stopping at one gimmick",
+      "weight": 18
+    },
+    {
+      "signal": "Scientific experiments or technologies with unexpected consequences",
+      "weight": 16
+    },
+    {
+      "signal": "Reality distortion, time anomalies, memory anomalies or consciousness manipulation",
+      "weight": 15
+    },
+    {
+      "signal": "Artificial systems, games, facilities or social experiments whose hidden rules/purpose must be discovered",
+      "weight": 15
+    },
+    {
+      "signal": "Suspense driven by needing to know what is actually happening",
+      "weight": 14
+    },
+    {
+      "signal": "Conspiracies or secret research programs connected to the central phenomenon",
+      "weight": 10
+    }
+  ],
+  "negative_signals": [
+    {
+      "signal": "Straightforward monster/creature escape after the threat is revealed",
+      "weight": -30
+    },
+    {
+      "signal": "Generic slasher, torture or psychological horror where the science/mystery is secondary",
+      "weight": -30
+    },
+    {
+      "signal": "Space opera, franchise lore, military spectacle or action-first sci-fi with little investigation",
+      "weight": -35
+    },
+    {
+      "signal": "Slow pacing where the movie withholds information without providing meaningful discoveries",
+      "weight": -22
+    },
+    {
+      "signal": "Sequel or remake that mostly repeats an already-seen concept without a substantial new idea",
+      "weight": -25
+    },
+    {
+      "signal": "Mystery whose payoff is primarily symbolic/ambiguous and not supported by ongoing discoveries",
+      "weight": -12
+    }
+  ],
+  "hard_exclusions": [
+    "Star Wars franchise",
+    "Star Trek franchise"
+  ],
+  "reference_titles": [
+    {
+      "title": "Fringe",
+      "type": "series",
+      "preference": "love",
+      "why": "Ideal reference: scientific investigation, bizarre cases, biology, experiments, conspiracies and escalating mythology."
+    },
+    {
+      "title": "Arrival",
+      "type": "movie",
+      "preference": "love",
+      "why": "Scientists/language experts seriously investigate an alien phenomenon; patient pacing is fine because discoveries keep mattering."
+    },
+    {
+      "title": "Annihilation",
+      "type": "movie",
+      "preference": "love",
+      "why": "Scientists enter an unknown zone full of continuously evolving biological impossibilities."
+    },
+    {
+      "title": "Lucy",
+      "type": "movie",
+      "preference": "love",
+      "why": "A scientific premise keeps escalating into larger and stranger implications."
+    },
+    {
+      "title": "The Platform",
+      "type": "movie",
+      "preference": "like",
+      "why": "Bizarre artificial system with unknown rules, purpose and social consequences."
+    },
+    {
+      "title": "Circle",
+      "type": "movie",
+      "preference": "like",
+      "why": "Immediate high-concept situation where people theorize, test and exploit unknown rules."
+    },
+    {
+      "title": "Cube",
+      "type": "movie",
+      "preference": "like",
+      "why": "Hidden system, mathematical clues and survival through understanding the structure."
+    },
+    {
+      "title": "Cube 2: Hypercube",
+      "type": "movie",
+      "preference": "like",
+      "why": "Extends the rule-discovery premise into stranger physics and dimensions."
+    },
+    {
+      "title": "Spectral",
+      "type": "movie",
+      "preference": "mixed",
+      "why": "Interesting phenomenon, but became too military/action-focused."
+    },
+    {
+      "title": "Weapons",
+      "type": "movie",
+      "preference": "mixed",
+      "why": "Strange premise, but the investigation felt too withholding/boring."
+    },
+    {
+      "title": "Underwater",
+      "type": "movie",
+      "preference": "mixed",
+      "why": "Interesting setup but too much straightforward escape-the-monsters/catastrophe."
+    },
+    {
+      "title": "Saw",
+      "type": "movie",
+      "preference": "dislike",
+      "why": "Leans too heavily toward psychological horror/torture rather than scientific mystery."
+    },
+    {
+      "title": "The Platform 2",
+      "type": "movie",
+      "preference": "dislike",
+      "why": "Too repetitive; did not introduce enough fresh conceptual territory."
+    }
+  ],
+  "automation_rules": {
+    "daily_movie_max": 5,
+    "daily_series_max": 3,
+    "minimum_match_score": 82,
+    "best_match_score": 90,
+    "zero_findings_is_valid": true,
+    "never_silently_delete_existing_watchlist_items": true,
+    "dedupe_primary_key": "imdb_id",
+    "dedupe_fallback": "normalized title + year + type",
+    "past_24h_definition": "Only items with added_by=daily-automation and added_at within the last 24 hours."
+  },
+  "controlled_tags": [
+    "best",
+    "biology",
+    "science",
+    "experiment",
+    "conspiracy",
+    "systems",
+    "time",
+    "mind",
+    "alien",
+    "mystery",
+    "phenomenon",
+    "genetics",
+    "ecology",
+    "technology",
+    "favorite"
+  ],
+  "dna_dimensions": {
+    "registry_version": 2,
+    "count": 28,
+    "scale": {
+      "min": 0,
+      "max": 10,
+      "integer": true,
+      "unknown": null
+    },
+    "principles": {
+      "descriptive_only": "A DNA value describes how strongly a property exists in a TITLE. It never states whether that property is desirable. Desirability lives only in dna_baseline and dna_guardrails.",
+      "unknown_is_not_zero": "Missing or null means UNKNOWN, never 'definitely absent'. Never substitute 0.",
+      "unknown_never_satisfies": "A threshold comparison against an unknown value is false in both directions. Unknown can never satisfy a positive or a negative test.",
+      "unknown_is_not_safe": "Unknown must not be read as 'passes the guardrail'. An item is not DNA-score-eligible unless every dimension referenced ANYWHERE in dna_guardrails is known - hard_exclusion, combination all_of and combination any_of alike. See dna_baseline.completeness_defaults.required_known_dimensions.",
+      "independent_dimensions": "creature_threat and survival_chase are separate information and must never be combined, averaged or substituted for one another, here or in any downstream consumer. The same holds for action_density and action_intensity: action_density is HOW MUCH of the runtime contains action, action_intensity is HOW HARD that action hits WHEN it occurs. Neither may be derived from the other, from a trailer, from pace_speed or from a genre label, and action_density requires whole-runtime or whole-season structural evidence. HISTORY, NOW CLOSED: the MG-7 shape migration introduced action_density as null on every record that existed at the time, and MG-7.2 then backfilled the complete 127-title legacy set. Those records now carry researched action_density AND action_intensity re-researched under the corrected peak-force rubric; no legacy backlog remains. A current accepted discovery MUST carry known integer values for BOTH dimensions. null still means unknown to the generic engine, and unknown is never zero, so an unmeasured value can never satisfy a gate or dodge a guardrail - but it is no longer an acceptable state for a completed Sci-Fi DNA Match record."
+    },
+    "tag_registry": [
+      "glacier",
+      "research_station",
+      "lab",
+      "underwater",
+      "space_station",
+      "small_town",
+      "alien_ecology",
+      "mutation",
+      "parasite",
+      "infection",
+      "dimension",
+      "simulation",
+      "time_loop",
+      "parallel_reality",
+      "body_horror",
+      "first_contact",
+      "artifact",
+      "signal",
+      "containment",
+      "experiment_gone_wrong"
+    ],
+    "tag_registry_note": "Controlled descriptive DNA tags. This vocabulary is CLOSED: item.dna_tags may contain only values from this array. It is deliberately separate from the top-level controlled_tags array, which is the legacy public catalog tag vocabulary and has different semantics. The two must never be merged or cross-validated.",
+    "dimensions": [
+      {
+        "id": "scientific_investigation",
+        "label": "Scientific Investigation",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "occasional explanation",
+          "5": "meaningful but secondary",
+          "8": "major narrative driver",
+          "10": "understanding the phenomenon is the core story"
+        }
+      },
+      {
+        "id": "biology_genetics",
+        "label": "Biology / Genetics",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "incidental biology",
+          "5": "a real biological element",
+          "8": "biology drives the plot",
+          "10": "organism, genetics or mutation is the subject"
+        }
+      },
+      {
+        "id": "alien_unknown_life",
+        "label": "Alien / Unknown Life",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "present but secondary",
+          "8": "central non-human life",
+          "10": "the unknown life form is the subject"
+        }
+      },
+      {
+        "id": "unknown_phenomenon",
+        "label": "Unknown Phenomenon",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing unexplained",
+          "3": "a minor oddity",
+          "5": "a real unexplained element",
+          "8": "the phenomenon drives the plot",
+          "10": "the entire story is the phenomenon"
+        }
+      },
+      {
+        "id": "mystery",
+        "label": "Mystery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "nothing withheld",
+          "5": "substantial mystery thread",
+          "8": "mystery drives the structure",
+          "10": "the whole structure is a mystery"
+        }
+      },
+      {
+        "id": "suspense",
+        "label": "Suspense",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "recurring tension",
+          "8": "sustained tension",
+          "10": "sustained throughout"
+        }
+      },
+      {
+        "id": "rule_discovery",
+        "label": "Rule Discovery",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no hidden mechanics",
+          "5": "some rules are learned",
+          "8": "learning the rules drives the plot",
+          "10": "discovering the system's rules is central"
+        }
+      },
+      {
+        "id": "concept_escalation",
+        "label": "Concept Escalation",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "core idea stays static",
+          "3": "a few developments",
+          "5": "moderate new layers",
+          "8": "repeated major escalation",
+          "10": "continuously expands and reframes the concept"
+        }
+      },
+      {
+        "id": "weirdness",
+        "label": "Weirdness",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "mundane",
+          "5": "noticeably strange",
+          "8": "pervasively strange",
+          "10": "sustained, disorienting strangeness"
+        }
+      },
+      {
+        "id": "reality_anomaly",
+        "label": "Reality Anomaly",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "reality bends meaningfully",
+          "8": "reality instability drives the plot",
+          "10": "reality instability is the premise"
+        }
+      },
+      {
+        "id": "time_anomaly",
+        "label": "Time Anomaly",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real time element",
+          "8": "time drives the plot",
+          "10": "time is the mechanism"
+        }
+      },
+      {
+        "id": "mind_consciousness",
+        "label": "Mind / Consciousness",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real mind or memory element",
+          "8": "drives the plot",
+          "10": "consciousness is the subject"
+        }
+      },
+      {
+        "id": "experiments",
+        "label": "Experiments",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "an experiment matters",
+          "8": "the experiment drives the plot",
+          "10": "the experiment is the story"
+        }
+      },
+      {
+        "id": "conspiracy",
+        "label": "Conspiracy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "a real hidden agenda",
+          "8": "drives the plot",
+          "10": "the conspiracy is the plot"
+        }
+      },
+      {
+        "id": "scientist_presence",
+        "label": "Scientist Presence",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no meaningful scientist or researcher presence",
+          "3": "a scientist or researcher appears but is secondary",
+          "5": "scientists or researchers are meaningful recurring characters",
+          "8": "scientists or researchers drive much of the investigation or story",
+          "10": "scientists or researchers are dominant protagonists and scientific inquiry is central"
+        }
+      },
+      {
+        "id": "research_setting",
+        "label": "Research Setting",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no meaningful research environment",
+          "5": "substantial time in labs, stations, field research or expeditions",
+          "8": "research environments are the primary setting",
+          "10": "research, lab, station or expedition environments dominate the story setting"
+        }
+      },
+      {
+        "id": "isolation",
+        "label": "Isolation",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "fully connected",
+          "5": "meaningfully cut off",
+          "8": "severely cut off",
+          "10": "total isolation"
+        }
+      },
+      {
+        "id": "creature_threat",
+        "label": "Creature / Threat",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no creature",
+          "5": "a creature is a real element",
+          "8": "a central threat",
+          "10": "the creature is the antagonist"
+        }
+      },
+      {
+        "id": "survival_chase",
+        "label": "Survival / Chase",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "little survival or chase structure",
+          "3": "occasional",
+          "5": "substantial",
+          "8": "dominant",
+          "10": "almost entirely escape, survival or chase"
+        }
+      },
+      {
+        "id": "horror",
+        "label": "Horror",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "real horror content",
+          "8": "horror-forward",
+          "10": "horror is the operating mode"
+        }
+      },
+      {
+        "id": "action_density",
+        "label": "Action Density",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "essentially no action across the runtime",
+          "3": "a few isolated action scenes in an otherwise low-action runtime",
+          "5": "action recurs regularly, roughly a third of the runtime",
+          "8": "action occupies most of the runtime",
+          "10": "near-continuous action"
+        }
+      },
+      {
+        "id": "action_intensity",
+        "label": "Action Intensity",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "3": "minor scuffles",
+          "5": "ordinary force and stakes when action occurs",
+          "8": "large, punishing set pieces",
+          "10": "peak sequences are extreme in force, scale and stakes"
+        }
+      },
+      {
+        "id": "military_focus",
+        "label": "Military Focus",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "major military component",
+          "8": "military framing dominant",
+          "10": "military institutions, operations, command or combat framing dominates"
+        }
+      },
+      {
+        "id": "space_opera",
+        "label": "Space Opera",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no space-opera structure",
+          "5": "meaningful interstellar, faction, saga or lore elements",
+          "8": "saga framing prominent",
+          "10": "interstellar saga, factional conflict, war/lore or grand space-adventure framing dominates the story"
+        }
+      },
+      {
+        "id": "superhero",
+        "label": "Superhero",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "costumed or superpowered hero structure present",
+          "8": "central",
+          "10": "superhero structure is central"
+        }
+      },
+      {
+        "id": "comic_book_universe",
+        "label": "Comic-Book Universe",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "no comic or shared-universe structure",
+          "5": "meaningful crossover, shared-universe continuity or dependency",
+          "8": "strong universe dependency",
+          "10": "cinematic or comic-universe-first storytelling is central"
+        }
+      },
+      {
+        "id": "comedy",
+        "label": "Comedy",
+        "direction": "absent_to_dominant",
+        "rubric": {
+          "0": "none",
+          "5": "substantial comic register",
+          "8": "comedy-forward",
+          "10": "primarily a comedy"
+        }
+      },
+      {
+        "id": "pace_speed",
+        "label": "Pace (speed)",
+        "direction": "slow_to_fast",
+        "rubric": {
+          "0": "very slow / contemplative",
+          "3": "deliberate",
+          "5": "moderate / steady",
+          "8": "brisk",
+          "10": "relentless / extremely fast"
+        }
+      }
+    ]
+  },
+  "dna_baseline": {
+    "description": "The desired CONTENT universe expressed on the DNA scale. Stable baseline. Accumulated user feedback is NEVER merged into this section.",
+    "scale_note": "Weights are commensurate with strong_positive_signals and negative_signals, in the range -40..40.",
+    "weights": {
+      "scientific_investigation": 20,
+      "biology_genetics": 20,
+      "unknown_phenomenon": 18,
+      "rule_discovery": 18,
+      "concept_escalation": 18,
+      "experiments": 16,
+      "reality_anomaly": 15,
+      "time_anomaly": 15,
+      "mind_consciousness": 15,
+      "mystery": 14,
+      "suspense": 14,
+      "alien_unknown_life": 14,
+      "weirdness": 12,
+      "scientist_presence": 12,
+      "research_setting": 10,
+      "conspiracy": 10,
+      "creature_threat": 0,
+      "isolation": 0,
+      "comedy": -4,
+      "horror": -6,
+      "survival_chase": -10,
+      "military_focus": -12
+    },
+    "unweighted": [
+      "action_density",
+      "pace_speed",
+      "space_opera",
+      "superhero",
+      "comic_book_universe",
+      "action_intensity"
+    ],
+    "unweighted_note": "These six carry no linear baseline weight, and each for its own reason. pace_speed is meaningful only in combination (see dna_guardrails.combination.slow_without_discovery). space_opera, superhero and comic_book_universe are handled entirely by dna_guardrails so that a descriptive measurement is never confused with a policy decision. action_density and action_intensity are unweighted BY CALIBRATION, not because they are unmeasured: the baseline is a normalised weighted average, so a positive weight on a dimension the corpus scores low on behaves as a new requirement rather than a bonus - measured over the completed 127-title set, a positive action_density weight would have raised only the 19 lowest-scoring titles and lowered the other 95, and a negative action_intensity weight penalised titles purely for having forceful sequences. BOTH ARE REQUIRED-KNOWN AND FULLY RESEARCHED. action_density is referenced by dna_guardrails.combination.action_first_without_investigation and by the three action archetypes; sustained action earns its advantage there, through the archetype path, never through the linear average. weights and unweighted are disjoint and their union is exactly the 28 registry ids.",
+    "completeness_defaults": {
+      "min_known_dimensions": 18,
+      "min_confidence": 0.6,
+      "required_known_dimensions": [
+        "superhero",
+        "comic_book_universe",
+        "scientific_investigation",
+        "space_opera",
+        "military_focus",
+        "creature_threat",
+        "survival_chase",
+        "rule_discovery",
+        "horror",
+        "biology_genetics",
+        "unknown_phenomenon",
+        "mystery",
+        "pace_speed",
+        "concept_escalation",
+        "action_density",
+        "action_intensity"
+      ],
+      "note": "Baseline DNA score-eligibility. An item must satisfy ALL THREE conditions to be scored by the DNA path. required_known_dimensions must contain every dimension referenced ANYWHERE in dna_guardrails - hard_exclusion, combination all_of and combination any_of - so that an item can never pass a structural guardrail or dodge a combination penalty merely because the relevant dimension is unknown. It MAY be stricter than that minimum: product-level research completeness is a separate concern from the guardrail floor, and action_intensity is required-known even though no guardrail references it, because a discovery that has not measured how hard its action hits is not finished. An ineligible item is NOT excluded and NOT penalised by DNA; it falls back to the existing stable baseline ranking path until enrichment fills the missing values. Individual catalog rows may override these defaults in config/catalogs.json at F2-8, but may never remove a guardrail-referenced dimension from the required set."
+    },
+    "archetypes": [
+      {
+        "id": "biology_organism_investigation",
+        "label": "Biology / Organism Investigation",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "biology_genetics",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "biology_genetics": 10,
+          "scientific_investigation": 9,
+          "unknown_phenomenon": 7,
+          "research_setting": 6,
+          "alien_unknown_life": 5,
+          "mystery": 5
+        },
+        "penalise": {
+          "survival_chase": 4
+        }
+      },
+      {
+        "id": "alien_unknown_phenomenon",
+        "label": "Alien / Unknown Phenomenon",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "alien_unknown_life",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "unknown_phenomenon",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "alien_unknown_life": 10,
+          "unknown_phenomenon": 9,
+          "scientific_investigation": 8,
+          "mystery": 7,
+          "concept_escalation": 6
+        },
+        "penalise": {
+          "military_focus": 5
+        }
+      },
+      {
+        "id": "impossible_system_rule_discovery",
+        "label": "Impossible Systems / Rule Discovery",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "rule_discovery",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "rule_discovery": 10,
+          "concept_escalation": 8,
+          "weirdness": 7,
+          "mystery": 7,
+          "unknown_phenomenon": 6
+        }
+      },
+      {
+        "id": "reality_time_anomaly",
+        "label": "Reality / Time Anomaly",
+        "weight": 1,
+        "requires_mode": "any",
+        "requires": [
+          {
+            "dimension": "reality_anomaly",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "time_anomaly",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "mind_consciousness",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "reality_anomaly": 9,
+          "time_anomaly": 9,
+          "mind_consciousness": 8,
+          "concept_escalation": 8,
+          "weirdness": 6
+        }
+      },
+      {
+        "id": "experiments_conspiracy",
+        "label": "Experiments / Conspiracy",
+        "weight": 0.9,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "experiments",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "experiments": 10,
+          "conspiracy": 7,
+          "scientist_presence": 7,
+          "research_setting": 6,
+          "concept_escalation": 5
+        },
+        "penalise": {
+          "military_focus": 4
+        }
+      },
+      {
+        "id": "investigative_weird_science",
+        "label": "Investigative Weird Science",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "scientific_investigation",
+            "at_or_above": 6
+          }
+        ],
+        "emphasis": {
+          "scientific_investigation": 10,
+          "mystery": 8,
+          "weirdness": 8,
+          "unknown_phenomenon": 8,
+          "concept_escalation": 7,
+          "scientist_presence": 6
+        },
+        "penalise": {
+          "space_opera": 6,
+          "superhero": 8,
+          "survival_chase": 4
+        }
+      },
+      {
+        "id": "investigative_scifi_action",
+        "label": "Investigative Sci-Fi Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "action_density",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "scientific_investigation",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "scientific_investigation": 9,
+          "action_density": 8,
+          "unknown_phenomenon": 7,
+          "mystery": 6,
+          "suspense": 6,
+          "action_intensity": 5
+        }
+      },
+      {
+        "id": "rule_discovery_action",
+        "label": "Rule-Discovery Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "action_density",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "rule_discovery",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "rule_discovery": 9,
+          "action_density": 8,
+          "concept_escalation": 7,
+          "mystery": 6,
+          "suspense": 6,
+          "action_intensity": 5
+        }
+      },
+      {
+        "id": "high_concept_action",
+        "label": "High-Concept Action",
+        "weight": 1,
+        "requires_mode": "all",
+        "requires": [
+          {
+            "dimension": "action_density",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "concept_escalation",
+            "at_or_above": 5
+          },
+          {
+            "dimension": "mystery",
+            "at_or_above": 5
+          }
+        ],
+        "emphasis": {
+          "concept_escalation": 9,
+          "mystery": 8,
+          "action_density": 8,
+          "unknown_phenomenon": 6,
+          "suspense": 6,
+          "action_intensity": 5
+        }
+      }
+    ],
+    "archetype_note": "Scoring takes the BEST-matching archetype, never an average across them. Averaging distinct interests produces a mediocre midpoint and erases exactly the clusters this profile exists to find. requires_mode is mandatory on every archetype and has no default: 'all' means every entry in requires must hold, 'any' means at least one must hold. An archetype whose requires cannot be evaluated because the referenced dimensions are unknown simply does not match. The three action archetypes added at MG-7.3 are the ONLY route by which sustained action improves a general DNA Match score, and each requires action_density >= 5 TOGETHER WITH real Sci-Fi substance - investigation, rule discovery, or concept escalation plus mystery. None rewards density alone, and because scoring takes the single best-matching archetype rather than a sum, action flavours cannot stack. Consumed by build-site.mjs at F2-8; unused in F2-6."
+  },
+  "dna_guardrails": {
+    "description": "Policy applied to descriptive DNA measurements. Not learnable away by ordinary feedback; changing these requires a deliberate edit of this file.",
+    "structural_note": "Judge superhero, comic_book_universe and space_opera by story identity - costumed or superpowered hero structure, cinematic-universe-first storytelling, saga or war framing - not by franchise name.",
+    "evaluation_note": "Guardrails are evaluated only for items that are DNA-score-eligible under dna_baseline.completeness_defaults. A condition whose dimension is unknown/null evaluates FALSE. A combination guardrail fires if and only if EVERY condition in all_of is true AND (any_of is empty OR at least one condition in any_of is true). hard_exclusion entries remove the item from DNA-scored results. combination entries apply a score penalty and never remove an item on their own.",
+    "hard_exclusion": [
+      {
+        "id": "superhero_first",
+        "dimension": "superhero",
+        "at_or_above": 7,
+        "note": "Superhero structure is central. Not merely a powered character appearing."
+      },
+      {
+        "id": "comic_book_universe_first",
+        "dimension": "comic_book_universe",
+        "at_or_above": 7,
+        "note": "Cinematic-universe-first storytelling. A standalone adaptation with an easter egg does not qualify."
+      }
+    ],
+    "combination": [
+      {
+        "id": "action_first_without_investigation",
+        "penalty": -35,
+        "all_of": [
+          {
+            "dimension": "scientific_investigation",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "rule_discovery",
+            "at_or_below": 5
+          },
+          {
+            "dimension": "concept_escalation",
+            "at_or_below": 5
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 5
+          }
+        ],
+        "any_of": [
+          {
+            "dimension": "space_opera",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "military_focus",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "action_density",
+            "at_or_above": 6
+          }
+        ],
+        "note": "negative_signals #3, rewritten at MG-7.3. HIGH ACTION IS NOT THE PROBLEM. Space, military and sustained action are all fine when the title carries real Sci-Fi substance, so this fires only when scientific investigation AND rule discovery AND concept escalation AND mystery are all weak at the same time. A title with low literal scientific_investigation but strong rule discovery, mystery or concept escalation is doing Sci-Fi work by another route and is deliberately spared."
+      },
+      {
+        "id": "creature_chase_without_investigation",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "creature_threat",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "survival_chase",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "scientific_investigation",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "rule_discovery",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "negative_signals #1. A high creature_threat alone is NOT penalised - an investigated organism is exactly what this profile wants."
+      },
+      {
+        "id": "horror_without_science_or_mystery",
+        "penalty": -30,
+        "all_of": [
+          {
+            "dimension": "horror",
+            "at_or_above": 6
+          },
+          {
+            "dimension": "scientific_investigation",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "biology_genetics",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "unknown_phenomenon",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "negative_signals #2. High horror alone is NOT penalised."
+      },
+      {
+        "id": "slow_without_discovery",
+        "penalty": -22,
+        "all_of": [
+          {
+            "dimension": "pace_speed",
+            "at_or_below": 3
+          },
+          {
+            "dimension": "mystery",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "concept_escalation",
+            "at_or_below": 4
+          },
+          {
+            "dimension": "rule_discovery",
+            "at_or_below": 4
+          }
+        ],
+        "any_of": [],
+        "note": "negative_signals #4. Slow is not bad; slow WITHOUT discovery is."
+      }
+    ],
+    "not_expressible_in_dna": {
+      "documentation_only": true,
+      "consumer_rule": "NO CONSUMER MAY READ, EVALUATE OR SCORE THIS FIELD. It carries zero runtime semantics. It exists only to record that these two negative signals were considered and deliberately left out of the descriptive DNA vector, so that a future reader does not add dimensions for them by mistake. The DNA model is not required to encode every reason a title can be bad.",
+      "entries": [
+        {
+          "signal": "Sequel or remake that mostly repeats an already-seen concept without a substantial new idea",
+          "reason": "Already expressed by a low concept_escalation value under dna_baseline.weights. A separate penalty would double-count the same measurement."
+        },
+        {
+          "signal": "Mystery whose payoff is primarily symbolic/ambiguous and not supported by ongoing discoveries",
+          "reason": "There is no payoff-quality DNA dimension and inventing one would be false precision. This remains a prose signal in negative_signals, interpreted by the automation at title level."
+        }
+      ]
+    }
+  },
+  "execution_preferences": {
+    "description": "Baseline POLICY for how execution evidence is applied. Policy only. Accumulated feedback is NEVER written here.",
+    "content_vs_execution": {
+      "content_fit": 0.7,
+      "execution_fit": 0.3
+    },
+    "evidence_ladder": {
+      "weak": 1,
+      "emerging": 2,
+      "meaningful": 3
+    },
+    "rules": [
+      "Execution feedback never changes topic or DNA eligibility.",
+      "Concept feedback may refine content preference, conservatively and preferably on repeated independent evidence.",
+      "Tone feedback is a soft ranking adjustment and never a hard subject blacklist.",
+      "A single title never establishes a generalised content aversion.",
+      "Structured schema-2 feedback fields outrank speculative interpretation of free text.",
+      "The stable baseline remains dominant while feedback history is small."
+    ]
+  }
+}

@@ -150,6 +150,21 @@ and currentness checks. The result binds private candidate diagnostics to the
 receipt, handoff and real research commit. Diagnostics retain baseline scoring
 and unknown-value semantics and explicitly cannot prove a behavioral effect.
 This library has no writer and is not yet wired into saved-task execution.
+The processor now exposes `--verify-research <genre> <commit>` as a read-only
+entry point. It reloads the complete current inputs and authenticated handoff,
+validates the actual packet against the pinned public schema/configuration and
+declarative registry, and computes the trace. Registry JavaScript is parsed as
+closed data and never evaluated. The shared profile validator is generated from
+the trusted template source so required-known/nullability semantics remain intact.
+Repeated candidates use the finalizer's canonical order and identity forms;
+duplicate diagnostics retain their provenance without applying another learned
+term. CLI output contains identifiers only; the full trace remains private.
+
+Manual workflow dispatch may select `consume_genre` and an optional research
+commit. That separate job has Contents read permission, executes pinned private
+main, and cannot create a fallback interpretation, receipt or publication.
+Its default is `none`, so existing schedules and reconciliation behavior remain.
+This verification interface does not remove the staging hold or activate learning.
 
 Review/merge and observe the private processor first. Then add the private
 interpretation/read-receipt prelude to the six existing ChatGPT Plus discovery
