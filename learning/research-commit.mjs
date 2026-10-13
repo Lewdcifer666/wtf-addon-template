@@ -2,7 +2,7 @@ import {verifyResearchUse} from './research-use.mjs';
 import {digest,gitBlobOid,stableJson} from './interpretation.mjs';
 import {learningAdjustments} from './aggregate.mjs';
 import {makePolicy,scoreItem} from '../engine/dna-score.mjs';
-import {LearningError,requirePacketDiff} from './git-artifacts.mjs';
+import {LearningError,requirePacketDiff,requireTrustedAncestor} from './git-artifacts.mjs';
 import {identityForms} from '../engine/identity.mjs';
 import {normalizeResearchTitle} from './normalize-research-title.mjs';
 
@@ -12,15 +12,18 @@ const sha=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
 // Read-only post-staging boundary. The trusted caller supplies its own packet
 // validator and fresh-head checks; never import code from the research branch.
 // The resulting diagnostics stay PRIVATE and do not establish behavioral effect.
-export async function authenticateResearchCommit({api,issued,inputs,artifact,researchDate,commit:revision,validatePacket,assertCurrent}){
+export async function authenticateResearchCommit({api,issued,inputs,artifact,researchDate,commit:revision,validatePacket,assertCurrent,historical=false}){
  if(typeof validatePacket!=='function'||typeof assertCurrent!=='function'||!sha(revision))fail();
+ if(typeof historical!=='boolean')fail();
  const current=verifyResearchUse({issued,inputs,artifact,researchDate});
  const repository=`Lewdcifer666/wtf-${current.genre}-stremio`;
  const metadata=await api.get('/');
  if(api.repository!==repository||metadata.full_name!==repository||metadata.private!==false||metadata.default_branch!=='main')fail();
  await assertCurrent();
  const base=current.source_heads.public[current.genre],branch=`research/${researchDate}-${current.genre}`;
- if((await api.pinMain()).sha!==base)throw new LearningError('stale_input');
+ const main=(await api.pinMain()).sha;
+ if(historical)await requireTrustedAncestor(api,base,main);
+ else if(main!==base)throw new LearningError('stale_input');
  const ref=await api.get(`/git/ref/heads/${branch}`);
  if(ref.ref!==`refs/heads/${branch}`||ref.object?.sha!==revision)fail();
  const packetPath=`research-inbox/${researchDate}.json`;
@@ -66,11 +69,11 @@ export async function authenticateResearchCommit({api,issued,inputs,artifact,res
   candidates.push({imdb_id:candidate.imdb_id,type:candidate.type,diagnostic_status:'evaluated',baseline_score:baseline.score,baseline_reason:baseline.reason,...adjustments});
  }
  await assertCurrent();
- if((await api.pinMain()).sha!==base)throw new LearningError('stale_input');
+ if((await api.pinMain()).sha!==main)throw new LearningError('stale_input');
  if((await api.get(`/git/ref/heads/${branch}`)).object?.sha!==revision)throw new LearningError('stale_input');
  const trace={schema_version:1,kind:'private_research_commit_diagnostics',genre:current.genre,research_date:researchDate,
   use_id:current.use_id,receipt_commit:current.receipt_commit,state_digest:current.state_digest,
   repository,research_branch:branch,research_commit:revision,evaluated_base:base,packet_hash:digest(bytes),
-  publication_scores_unchanged:true,effect_status:'candidate_diagnostics_only',candidates};
+  publication_scores_unchanged:true,effect_status:'candidate_diagnostics_only',verification_mode:historical?'historical_observation':'current_prepublication',candidates};
  return {...trace,trace_id:digest(stableJson(trace))};
 }

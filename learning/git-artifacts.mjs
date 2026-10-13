@@ -13,7 +13,7 @@ export function requirePacketDiff(comparison,sourceRevision,packetPath){
 // The API capability is scoped by its caller to the verified PRIVATE repository.
 // Creation is atomic and never updates an existing ref, commit or artifact.
 function artifactNames(branch,files){
-  if(!/^learning\/(?:request|receipt|failure|handoff)-[a-f0-9]{64}$/.test(branch))throw new LearningError('unsafe_artifact_branch');
+  if(!/^learning\/(?:request|receipt|failure|handoff|observation)-[a-f0-9]{64}$/.test(branch))throw new LearningError('unsafe_artifact_branch');
   const names=Object.keys(files).sort();
   if(!names.length||names.some(name=>!name.endsWith('.json')||!/^[a-z0-9/-]+\.json$/.test(name)||name.includes('..')))throw new LearningError('unsafe_artifact_path');
   return names;
@@ -71,8 +71,18 @@ export async function persistImmutable(api,{base,branch,files,assertCurrent=asyn
 
 export function failureArtifact({packetCommit,sourceRevision,evaluatedBase=sourceRevision,engineFingerprint,code}){
   // Never copy an exception message or raw GitHub payload into a durable log.
-  const allowed=['unauthorized_packet_changes','invalid_interpretation','invalid_handoff','stale_input','invalid_source','invalid_public_policy','immutable_artifact_mismatch','transport_failure'];
+  const allowed=['unauthorized_packet_changes','invalid_interpretation','invalid_handoff','invalid_research_observation','stale_input','invalid_source','invalid_public_policy','immutable_artifact_mismatch','transport_failure'];
   if(!allowed.includes(code))code='transport_failure';
   const state={schema_version:1,state:'finalization_failed',packet_commit:packetCommit,source_revision:sourceRevision,evaluated_base:evaluatedBase,engine_fingerprint:engineFingerprint,code};
   return {branch:`learning/failure-${digest(stableJson(state))}`,files:{'state.json':stableJson(state)}};
+}
+
+// GitHub's merge-base/status response authenticates ancestry. Changed file
+// lists are irrelevant here; they are checked separately for packet/artifact
+// ownership. Never infer ancestry from timestamps or a commit's supplied name.
+export async function requireTrustedAncestor(api,ancestor,head){
+  if(!/^[a-f0-9]{40}$/.test(ancestor)||!/^[a-f0-9]{40}$/.test(head))throw new LearningError('invalid_source');
+  if(ancestor===head)return;
+  const comparison=await api.get(`/compare/${ancestor}...${head}`);
+  if(comparison.merge_base_commit?.sha!==ancestor||comparison.status!=='ahead')throw new LearningError('invalid_source');
 }
