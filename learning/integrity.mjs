@@ -26,10 +26,10 @@ export function verifyEngineManifest(root){
     }
   };
   walk('learning');
-  for(const name of ['engine/dna-score.mjs','package.json','package-lock.json',...['ci','intake','finalize'].map(n=>`.github/workflows/learning-${n}.yml`)])if(fs.existsSync(path.join(root,name)))present.push(name);
+  for(const name of ['engine/dna-score.mjs','engine/identity.mjs','package.json','package-lock.json',...['ci','intake','finalize'].map(n=>`.github/workflows/learning-${n}.yml`)])if(fs.existsSync(path.join(root,name)))present.push(name);
   if(present.some(name=>!Object.hasOwn(manifest,name)))throw Error('Learning engine file missing from integrity manifest');
   for(const [name,expected] of Object.entries(manifest)){
-    if(!/^(?:learning\/|engine\/dna-score\.mjs$|\.github\/workflows\/learning-|package(?:-lock)?\.json$|\.gitignore$)/.test(name)
+    if(!/^(?:learning\/|engine\/(?:dna-score|identity)\.mjs$|\.github\/workflows\/learning-|package(?:-lock)?\.json$|\.gitignore$)/.test(name)
       ||name.split('/').some(p=>p==='..'||p==='.')||name.includes('\\')||!/^[a-f0-9]{64}$/.test(expected))throw Error('Invalid learning engine manifest entry');
     const actual=canonicalEngineBytes(fs.readFileSync(path.join(root,name)));
     if(engineHash(actual)!==expected)throw Error(`Learning engine integrity mismatch: ${name}`);

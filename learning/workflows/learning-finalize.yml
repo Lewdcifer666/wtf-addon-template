@@ -13,6 +13,14 @@ on:
       dry_run:
         type: boolean
         default: true
+      consume_genre:
+        type: choice
+        default: none
+        options: [none, action, anime, fantasy, mystery, scifi, thriller]
+      research_commit:
+        description: Optional staged research commit to verify read-only
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -20,7 +28,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   reconcile:
-    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback'
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && (github.event_name != 'workflow_dispatch' || inputs.consume_genre == 'none')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -58,4 +66,46 @@ jobs:
             node learning/reconcile.mjs --dry-run
           else
             node learning/reconcile.mjs
+          fi
+  consume:
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.event_name == 'workflow_dispatch' && inputs.consume_genre != 'none'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Pin trusted main for read-only verification
+        id: trusted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$REPOSITORY" --jq .private)" = true
+          revision=$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.trusted.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Read current private handoff or verify its research commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
+          CONSUME_GENRE: ${{ inputs.consume_genre }}
+          RESEARCH_COMMIT: ${{ inputs.research_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$CONSUME_GENRE" =~ ^(action|anime|fantasy|mystery|scifi|thriller)$ ]]
+          if [ -n "$RESEARCH_COMMIT" ]; then
+            [[ "$RESEARCH_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+            node learning/reconcile.mjs --verify-research "$CONSUME_GENRE" "$RESEARCH_COMMIT"
+          else
+            node learning/reconcile.mjs --consume "$CONSUME_GENRE"
           fi

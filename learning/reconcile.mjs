@@ -9,6 +9,9 @@ import {buildReceipt,GENRES,validateActivation} from './receipt.mjs';
 import {issueDailyHandoffs,readDailyHandoff,berlinResearchDate} from './handoff.mjs';
 import {validateExecutionEvidence} from './aggregate.mjs';
 import {LearningError,requirePacketDiff,persistImmutable,failureArtifact} from './git-artifacts.mjs';
+import {loadVerifiedReceipt} from './receipt-loader.mjs';
+import {authenticateResearchCommit} from './research-commit.mjs';
+import {createResearchValidator} from './research-contract.mjs';
 
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
 const readLocal=name=>JSON.parse(fs.readFileSync(new URL(name,import.meta.url),'utf8'));
@@ -38,7 +41,7 @@ async function readEntries(api,entries){
 export async function loadPublicProfile(api,genre,adapter){
   const commit=await api.pinMain(),tree=await treeAt(api,commit);
   const required=['data/taste-profile.json','data/library.json','data/rejections.json','config/catalogs.json','config/research.json','scripts/registry.mjs'];
-  const entries=tree.tree.filter(e=>required.includes(e.path)||e.path==='data/execution-evidence.json'||/^data\/discoveries\/[^/]+\.json$/.test(e.path));
+  const entries=tree.tree.filter(e=>required.includes(e.path)||e.path==='schemas/research-packet.schema.json'||e.path==='data/execution-evidence.json'||/^data\/discoveries\/[^/]+\.json$/.test(e.path));
   if(required.some(p=>!entries.some(e=>e.path===p)))fail('invalid_public_policy');
   const blobs=await readEntries(api,entries);
   const json=name=>JSON.parse(blobs.get(entries.find(e=>e.path===name).sha).toString('utf8'));
@@ -53,11 +56,14 @@ export async function loadPublicProfile(api,genre,adapter){
   try{executionEvidence=validateExecutionEvidence(entries.some(e=>e.path==='data/execution-evidence.json')?json('data/execution-evidence.json'):{});}
   catch{fail('invalid_public_policy');}
   return {revision:commit.sha,inventory_hash:digest(stableJson(entries.map(({path,sha})=>({path,sha})).sort((a,b)=>a.path.localeCompare(b.path,'en')))),
-    profile,catalogs:json('config/catalogs.json'),publicItems,adapter,executionEvidence};
+    profile,catalogs:json('config/catalogs.json'),publicItems,adapter,executionEvidence,research:json('config/research.json'),
+    registry_source:blobs.get(entries.find(e=>e.path==='scripts/registry.mjs').sha).toString('utf8'),
+    packetSchema:entries.some(e=>e.path==='schemas/research-packet.schema.json')?json('schemas/research-packet.schema.json'):null};
 }
 
-export async function reconcile({api,publicApis,trustedRevision,dryRun=false,consumeGenre=null,clock=()=>new Date()}){
+export async function reconcile({api,publicApis,trustedRevision,dryRun=false,consumeGenre=null,researchCommit=null,clock=()=>new Date()}){
   if(consumeGenre!==null&&(!dryRun||!GENRES.includes(consumeGenre)))fail('invalid_consumer_request');
+  if(researchCommit!==null&&(consumeGenre===null||!/^[a-f0-9]{40}$/.test(researchCommit)))fail('invalid_consumer_request');
   const metadata=await api.get('/');
   if(metadata.full_name!==PRIVATE||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
   const base=await api.pinMain();if(base.sha!==trustedRevision)fail('stale_input');
@@ -100,7 +106,10 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
   for(const ref of refs.filter(ref=>/^refs\/heads\/interpretation\/[a-f0-9]{40}$/.test(ref.ref)&&ref.ref!==`refs/heads/interpretation/${base.sha}`)){
     if(!dryRun){const artifact=failureArtifact({packetCommit:ref.object.sha,sourceRevision:ref.ref.split('/').at(-1),evaluatedBase:base.sha,engineFingerprint,code:'stale_input'});await persistImmutable(api,{base,...artifact,assertCurrent});}
   }
-  if(!current.length)return {state:'awaiting_interpretation',request_id:request.request_id,events:source.event_count,required_interpretations:request.required.length,dry_run:dryRun};
+  if(!current.length){
+    if(consumeGenre!==null)fail('interpretation_not_staged');
+    return {state:'awaiting_interpretation',request_id:request.request_id,events:source.event_count,required_interpretations:request.required.length,dry_run:dryRun};
+  }
   const packetCommit=current[0].object.sha,packetPath=`learning-inbox/${base.sha}/${request.request_id}.json`;
   let stage='unauthorized_packet_changes';
   try{
@@ -114,7 +123,12 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
     await assertCurrent();
     if(consumeGenre!==null){
       stage='invalid_handoff';
-      return {state:'research_ready',handoff:await readDailyHandoff({api,base,inputs,genre:consumeGenre,researchDate:berlinResearchDate(clock()),assertCurrent})};
+      const researchDate=berlinResearchDate(clock()),handoff=await readDailyHandoff({api,base,inputs,genre:consumeGenre,researchDate,assertCurrent});
+      if(researchCommit===null)return {state:'research_ready',handoff};
+      const artifact=await loadVerifiedReceipt({api,base,expected:receipt,assertCurrent});
+      const validatePacket=createResearchValidator(profiles[consumeGenre],{now:+clock()});
+      const trace=await authenticateResearchCommit({api:publicApis[consumeGenre],issued:handoff.issued,inputs,artifact,researchDate,commit:researchCommit,validatePacket,assertCurrent});
+      return {state:'research_verified',handoff,trace};
     }
     if(!dryRun)await persistImmutable(api,{base,...receipt,assertCurrent});
     stage='invalid_handoff';
@@ -128,7 +142,8 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
 }
 
 async function main(){
-  const args=process.argv.slice(2),consumeGenre=args.length===2&&args[0]==='--consume'&&GENRES.includes(args[1])?args[1]:null;
+  const args=process.argv.slice(2),verify=args.length===3&&args[0]==='--verify-research'&&GENRES.includes(args[1])&&/^[a-f0-9]{40}$/.test(args[2]);
+  const consumeGenre=(args.length===2&&args[0]==='--consume'&&GENRES.includes(args[1]))||verify?args[1]:null;
   if(consumeGenre===null&&(args.some(arg=>arg!=='--dry-run')||args.length>1))fail('unsupported_argument');
   const dryRun=consumeGenre!==null||args.includes('--dry-run');
   if(process.env.GITHUB_REPOSITORY!==PRIVATE)fail('private_repository_required');
@@ -137,9 +152,10 @@ async function main(){
   if(execFileSync('git',['status','--porcelain','--untracked-files=no'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim())fail('trusted_checkout_modified');
   const token=process.env.GH_TOKEN,api=new GitHub(PRIVATE,token,{writable:!dryRun});
   const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,token)]));
-  const result=await reconcile({api,publicApis,trustedRevision:head,dryRun,consumeGenre});
+  const result=await reconcile({api,publicApis,trustedRevision:head,dryRun,consumeGenre,researchCommit:verify?args[2]:null});
   // Only structural state reaches workflow logs. All personal evidence stays
   // in this private repository's immutable branches, never workflow artifacts.
-  console.log(JSON.stringify(result.state==='research_ready'?{state:result.state,branch:result.handoff.branch,commit:result.handoff.commit,use_id:result.handoff.issued.use_id}:result));
+  console.log(JSON.stringify(['research_ready','research_verified'].includes(result.state)?{state:result.state,branch:result.handoff.branch,commit:result.handoff.commit,use_id:result.handoff.issued.use_id,
+    ...(result.trace?{trace_id:result.trace.trace_id,research_commit:result.trace.research_commit,effect_status:result.trace.effect_status}:{})}:result));
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error(`private-learning: ${error instanceof LearningError?error.code:'validation_failed'}`);process.exitCode=1;});

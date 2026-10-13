@@ -260,3 +260,11 @@ bundle and job summary, but unchanged acknowledged holds do not repeatedly fail
 the workflow. Changed or missing branches, new packets, attempts, malformed
 holds and all unrelated errors still fail. Removing a hold requires a reviewed
 change. No logs, branches or discoveries are deleted or relabelled as successful.
+
+An unheld research ref that still points to trusted-main history, has no dated
+packet and has no publication attempt remains `not_started`, explicitly marked
+`incomplete` / `awaiting_research_packet` in every persisted bundle. Branch
+creation alone is never finalized as a zero-result run. The durable ref stays
+in reconciliation; normal packet staging resumes its daily key. Changed code,
+ambiguous ancestry, truncated trees or existing attempts still fail validation.
+Reviewed safety holds keep their separate failed / requires-user-action state.

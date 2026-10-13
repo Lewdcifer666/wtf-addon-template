@@ -21,6 +21,7 @@ function scan(relative){for(const entry of fs.readdirSync(path.join(root,relativ
  const name=`${relative}/${entry.name}`;if(entry.isDirectory())scan(name);else if(entry.isFile())files[name]=fs.readFileSync(path.join(root,name));else throw Error('No symlinks in learning source');
 }}
 scan('learning');files['engine/dna-score.mjs']=fs.readFileSync(path.join(root,'engine/dna-score.mjs'));
+files['engine/identity.mjs']=fs.readFileSync(path.join(root,'engine/identity.mjs'));
 // Activation belongs to the private deployment. A later engine sync must never
 // toggle it or turn a shadow receipt into an activated one.
 if(fs.existsSync(path.join(target,'learning/config/activation.json')))delete files['learning/config/activation.json'];

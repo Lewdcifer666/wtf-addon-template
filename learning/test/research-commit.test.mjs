@@ -68,3 +68,16 @@ test('retraction invalidates old use; recomputed diagnostics remove the learned 
  assert.equal(fresh.candidates[0].baseline_score,old.candidates[0].baseline_score);
  assert.equal(fresh.candidates[0].content_adjustment,null);
 });
+test('repeated IMDb identities and normalized title aliases retain canonical duplicate diagnostics',async()=>{
+ const first={imdb_id:'tt11111111',type:'movie',title:'Caf\u00e9 & Puzzle\u00b2',year:2020,dna:{mystery:8},dna_confidence:1};
+ const repeated={...first,dna:{mystery:4}};
+ const alias={...first,imdb_id:'tt22222222',title:'Cafe and Puzzle2'};
+ const packet=[first,repeated,alias];
+ const a=await authenticateResearchCommit(await fixture({candidates:packet}));
+ const b=await authenticateResearchCommit(await fixture({candidates:[...packet].reverse()}));
+ assert.deepEqual(a.candidates,b.candidates);assert.equal(a.candidates.length,3);
+ assert.equal(a.candidates.filter(c=>c.diagnostic_status==='evaluated').length,1);
+ for(const [index,c] of a.candidates.entries())if(c.diagnostic_status==='duplicate_in_packet'){
+  assert(c.duplicate_of<index);assert(!Object.hasOwn(c,'content_adjustment'));assert(!Object.hasOwn(c,'baseline_score'));
+ }
+});
