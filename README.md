@@ -1,6 +1,6 @@
 # wtf-addon-template
 
-## Reliability pilot
+## Deployed reliability publication
 
 `node generate.mjs --profile thriller --out <existing-addon> --engine-only`
 synchronizes shared scripts, tests, schema and validation action. It preserves
@@ -17,16 +17,19 @@ Audited genre evidence rules can use `blocked_source_hosts` and
 match exact hostnames or their subdomains, never URL paths or lookalike hosts.
 Omitting them leaves the genre's source-count and purpose rules unchanged.
 
-The publication implementation is piloted on Thriller only. `require_all_known`
-is a per-profile setting, never a shared assumption. Other genre cutovers need
-their own audited research configuration and preserved evidence requirements.
+The historical Thriller publication pilot passed, and the shared publication
+architecture is deployed to all six independent addons. `require_all_known` is
+a per-profile setting, never a shared assumption; each deployment retains its
+own audited research configuration and evidence requirements. Existing paused
+tasks and safety holds remain unchanged. Private feedback learning is inactive
+and its staging hold is still binding.
 Privileged research finalization uses pinned trusted main and packet data only.
 Hourly reconciliation is required; concurrency is not a durable queue. Live
 publication acceptance and the mandatory private feedback-learning phase are
 separate completion gates; neither is satisfied by fixture tests alone.
 
 Canonical engine + deterministic scaffold generator for the WTF Discovery addons
-(Sci-Fi, Fantasy, Action, Anime, Thriller).
+(Sci-Fi, Fantasy, Action, Anime, Thriller, Mystery).
 
 This is **development tooling**. No deployed addon depends on it at runtime or at
 build time. Delete this directory and every generated repo still validates,
