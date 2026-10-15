@@ -13,6 +13,8 @@ import {prepareResearchUse} from '../research-use.mjs';
 import {persistImmutable,persistSealedState} from '../git-artifacts.mjs';
 import {loadObservationIndex} from '../observation-index.mjs';
 import {openResearchSession,privateResearchSessionResponse,recheckResearchSession,observeResearchSessionSearch,verifyResearchSessionCommit} from '../research-session.mjs';
+import {persistResearchSessionContext,persistResearchSessionSearch} from '../session-journal-writer.mjs';
+import {loadSessionSearchRefs} from '../session-journal.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -678,4 +680,184 @@ test('packet ref replacement during final head checks invalidates session commit
  s.publicApis.scifi.get=async route=>{const result=await get(route);if(route==='/git/ref/heads/research/2026-10-12-scifi')packetReads++;return result;};
  s.publicApis.thriller.pinMain=async()=>{const result=await pin();if(packetReads>=2)s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});return result;};
  await assert.rejects(verifyResearchSessionCommit({session,researchCommit}),/stale_input/);
+});
+
+async function journalScenario({persistContext=true,persistSearch=true,onSearch=async()=>{},providerResponse=null}={}){
+ let session,handle,contextRecord,searchRecord,searchCalls=0;
+ const result=await verificationScenario({onReady:async s=>{
+  session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:{id:'synthetic-journal-search',search:async()=>{
+   searchCalls++;return providerResponse??{request_id:'synthetic-query-id',sources:[{url:'https://example.org/review',title:'A public review'}]};
+  }}});
+  if(persistContext)contextRecord=await persistResearchSessionContext({api:s.privateRepo.api,session,proof:s.args.proof});
+  ({handle}=await observeResearchSessionSearch({session,query:'PRIVATE_SEARCH_QUERY science mystery reviews',preferenceIndexes:[0]}));
+  await onSearch({s,session,handle});
+  if(persistSearch)searchRecord=await persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof});
+ }});
+ return {...result,session,handle,contextRecord,searchRecord,searchCalls};
+}
+
+test('signed private session journal survives process-local handle loss and binds observations to the actual packet',async()=>{
+ const {s,researchCommit,contextRecord,searchRecord,searchCalls}=await journalScenario();
+ const before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),result=await reconcile(s.args),{body}=recordedObservation(s,result);
+ assert.equal(body.schema_version,2);assert.equal(body.trace.research_commit,researchCommit);
+ const journal=body.session_journal;assert.equal(journal.context_commit,contextRecord.commit);
+ assert.equal(journal.search_adapter_invocations_observed,1);assert.equal(journal.searches[0].commit,searchRecord.commit);
+ assert.equal(journal.searches[0].observation.provider_request_id,'synthetic-query-id');assert.equal(searchCalls,1);
+ assert.equal(journal.brief_delivery_verified,false);assert.equal(journal.actual_context_use_verified,false);assert.equal(journal.behavioral_effect_observed,false);
+ assert.equal(body.current_evidence,false);assert.equal(body.actual_context_use_verified,false);assert.equal(body.behavioral_effect_observed,false);
+ assert(!JSON.stringify(result).includes('PRIVATE_SEARCH_QUERY'));assert(!JSON.stringify(result).includes('PRIVATE_SENTINEL'));
+ assert.equal(stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),before);
+ assert.equal(s.publicRepos.scifi.writes.length,0);
+ const writes=s.privateRepo.writes.length;await reconcile(s.args);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('unchanged journal retries reuse signed bytes and never repeat the observed search',async()=>{
+ let originalContext,originalSearch;
+ const {s,contextRecord,searchRecord,searchCalls}=await journalScenario({onSearch:async({s,session,handle})=>{
+  originalContext=await persistResearchSessionContext({api:s.privateRepo.api,session,proof:s.args.proof});
+  originalSearch=await persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof});
+  const writes=s.privateRepo.writes.length;
+  const again=await persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof});
+  assert.equal(again.commit,originalSearch.commit);assert.equal(s.privateRepo.writes.length,writes);
+ }});
+ assert.equal(originalContext.commit,contextRecord.commit);assert.equal(originalSearch.commit,searchRecord.commit);assert.equal(searchCalls,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/session-')).length,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/search-')).length,1);
+});
+
+test('interrupted journal ref creation resumes with the same observation and retains prior context',async()=>{
+ const {s,searchCalls}=await journalScenario({persistSearch:false,onSearch:async({s,session,handle})=>{
+  const post=s.privateRepo.api.post;let interrupted=false;
+  s.privateRepo.api.post=async(route,body)=>{
+   if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')&&!interrupted){interrupted=true;const error=Error('synthetic interruption');error.status=503;throw error;}
+   return post(route,body);
+  };
+  const context=[...s.privateRepo.refs].find(([name])=>name.includes('/learning/session-'));
+  await assert.rejects(persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof}),/synthetic interruption/);
+  assert.equal(s.privateRepo.refs.get(context[0]).object.sha,context[1].object.sha);
+  s.privateRepo.api.post=post;
+  await persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof});
+ }});
+ const result=await reconcile(s.args),{body}=recordedObservation(s,result);
+ assert.equal(body.session_journal.search_adapter_invocations_observed,1);assert.equal(searchCalls,1);
+});
+
+test('journal writers cannot synthesize context, use copied handles, or append observations after packet staging',async()=>{
+ const {s,session,handle}=await journalScenario({persistContext:false,persistSearch:false,onSearch:async({s,session,handle})=>{
+  const writes=s.privateRepo.writes.length;
+  await assert.rejects(persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof}),/session_context_not_persisted/);
+  await assert.rejects(persistResearchSessionContext({api:s.privateRepo.api,session:structuredClone(session),proof:s.args.proof}),/unauthenticated_research_session/);
+  await assert.rejects(persistResearchSessionSearch({api:s.privateRepo.api,session,handle:structuredClone(handle),proof:s.args.proof}),/unauthenticated_research_search/);
+  assert.equal(s.privateRepo.writes.length,writes);
+ }});
+ const writes=s.privateRepo.writes.length;
+ await assert.rejects(persistResearchSessionContext({api:s.privateRepo.api,session,proof:s.args.proof}),/research_already_staged/);
+ await assert.rejects(persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof}),/research_already_staged/);
+ assert.equal(s.privateRepo.writes.length,writes);
+ const {body}=recordedObservation(s,await reconcile(s.args));assert.equal(body.schema_version,1);assert(!Object.hasOwn(body,'session_journal'));
+});
+
+test('prepared context with no observed search never becomes claimed delivery, context use or learning effect',async()=>{
+ const {s}=await journalScenario({persistSearch:false});
+ const {body}=recordedObservation(s,await reconcile(s.args)),journal=body.session_journal;
+ assert.equal(journal.context_prepared_verified,true);assert.equal(journal.search_adapter_invocations_observed,0);
+ assert.equal(journal.brief_delivery_verified,false);assert.equal(journal.actual_context_use_verified,false);assert.equal(journal.behavioral_effect_observed,false);
+});
+
+test('forged or altered private journal artifacts remain unresolved with a closed failure',async()=>{
+ for(const alter of ['query','proof','extra_field','raw_path']){
+  const {s,searchRecord}=await journalScenario(),files=s.privateRepo.filesAt(searchRecord.commit),record=JSON.parse(files['learning-output/search.json']);
+  if(alter==='query')record.body.observation.query='forged query';
+  if(alter==='proof')record.proof='self-declared-proof';
+  if(alter==='extra_field')record.body.observation.weight=999;
+  s.privateRepo.branch(searchRecord.branch,{'learning-output/search.json':stableJson(record),...(alter==='raw_path'?{'data/feedback/2026-10-12/forged.json':'{}'}:{})});
+  await assert.rejects(reconcile(s.args),/invalid_research_observation/);
+  assert([...s.privateRepo.refs.keys()].some(r=>r.includes('/learning/failure-')));
+  assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
+  assert.equal(s.publicRepos.scifi.writes.length,0);
+ }
+});
+
+test('unavailable journal signing key stays pending and resumes without deleting or renewing its original artifacts',async()=>{
+ const {s,searchRecord}=await journalScenario(),proof=s.args.proof;
+ s.args.proof={...proof,verify:async(token,body,revision)=>{
+  if(body.kind==='private_research_search_record'){const error=Error('proof_key_unavailable');error.code='proof_key_unavailable';throw error;}
+  return proof.verify(token,body,revision);
+ }};
+ const pending=await reconcile(s.args);assert(pending.observations.observations.some(o=>o.state==='session_verification_pending'));
+ assert.equal(s.privateRepo.refs.get('refs/heads/'+searchRecord.branch).object.sha,searchRecord.commit);
+ assert(![...s.privateRepo.refs.keys()].some(r=>/^refs\/heads\/learning\/observation-[a-f0-9]{64}$/.test(r)));
+ s.args.proof=proof;
+ const {body}=recordedObservation(s,await reconcile(s.args));assert.equal(body.session_journal.searches[0].commit,searchRecord.commit);
+});
+
+test('historical journal recovery after publication and retraction never supplies stale current context',async()=>{
+ const {s,session,searchRecord}=await journalScenario();
+ s.publicRepos.scifi.branch('main',{'config/research.json':'{"after_publication":true}'});
+ const head=s.privateRepo.branch('main',{'data/feedback/2026-10-02/later-tombstone.json':stableJson({schema_version:3,feedback_id:'later-tombstone',supersedes:s.event.feedback_id,imdb_id:s.event.imdb_id,source_id:null,rated_at:'2026-10-02T12:00:00Z',profile_context:null,status:'retracted',rating:null,premise_interest:null,liked:[],disliked:[],feedback:''})});
+ s.args={...s.args,trustedRevision:head};
+ const result=await reconcile(s.args),{body}=recordedObservation(s,result);
+ assert.equal(body.session_journal.searches[0].commit,searchRecord.commit);
+ assert.equal(body.current_evidence,false);assert.equal(body.actual_context_use_verified,false);
+ await assert.rejects(privateResearchSessionResponse(session));
+});
+
+test('session ref listing rejects malformed, duplicate, excessive and cross-session entries instead of truncating them',async()=>{
+ const session_id='a'.repeat(64),ref={ref:`refs/heads/learning/search-${session_id}-${'b'.repeat(64)}`,object:{sha:'c'.repeat(40)}};
+ for(const refs of [null,[null],[ref,ref],Array.from({length:101},()=>ref),[{...ref,ref:'refs/heads/learning/search-other'}], [{...ref,object:{sha:'invalid'}}]]){
+  await assert.rejects(loadSessionSearchRefs({get:async()=>refs},session_id),/invalid_session_journal/);
+ }
+});
+
+test('late-visible journal refs reopen a sealed completed observation while preserving its immutable first result',async()=>{
+ const {s,searchRecord,searchCalls}=await journalScenario(),get=s.privateRepo.api.get,optional=s.privateRepo.api.optional;
+ s.privateRepo.api.get=async route=>/^\/git\/matching-refs\/heads\/learning\/(?:session|search)-/.test(route)?[]:get(route);
+ s.privateRepo.api.optional=async route=>route.startsWith('/git/ref/heads/learning/session-')?null:optional(route);
+ const first=recordedObservation(s,await reconcile(s.args));assert.equal(first.body.schema_version,1);
+ const original=stableJson(first.body);
+ s.privateRepo.api.get=get;s.privateRepo.api.optional=optional;
+ const recovered=recordedObservation(s,await reconcile(s.args));assert.equal(recovered.body.schema_version,2);
+ assert.notEqual(recovered.recorded.branch,first.recorded.branch);
+ assert.equal(recovered.body.session_journal.searches[0].commit,searchRecord.commit);assert.equal(searchCalls,1);
+ assert.equal(s.privateRepo.refs.get('refs/heads/'+first.recorded.branch).object.sha,first.recorded.commit);
+ assert.equal(stableJson(JSON.parse(s.privateRepo.filesAt(first.recorded.commit)['learning-output/observation.json'])),original);
+ const writes=s.privateRepo.writes.length;await reconcile(s.args);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('version-one sealed indices migrate to journal-aware entries without changing any old ref or observation',async()=>{
+ const {s}=await verificationScenario();await reconcile(s.args);
+ const base=await s.privateRepo.api.pinMain(),options={api:s.privateRepo.api,base,proof:s.args.proof,assertCurrent:async()=>{},period:'2026-10'};
+ const before=await loadObservationIndex(options),legacy={...before.index,schema_version:1,sequence:before.largest_sequence+1,
+  completed:before.index.completed.map(({session_id,journal_heads_hash,...entry})=>entry)};
+ const branch=`learning/observation-index-2026-10-${String(legacy.sequence).padStart(10,'0')}-${digest(stableJson(legacy))}`;
+ const stored=await persistSealedState({...options,branch,name:'index.json',body:legacy});
+ const historical=stableJson(s.privateRepo.filesAt(stored.commit));
+ await reconcile(s.args);
+ const after=await loadObservationIndex(options);assert.equal(after.index.schema_version,2);
+ assert(after.index.sequence>legacy.sequence);assert(after.index.completed[0].session_id);assert(after.index.completed[0].journal_heads_hash);
+ assert.equal(s.privateRepo.refs.get('refs/heads/'+branch).object.sha,stored.commit);
+ assert.equal(stableJson(s.privateRepo.filesAt(stored.commit)),historical);
+});
+
+test('journal writer enforces the reader byte limit before any Git writes, including multibyte provider data',async()=>{
+ const response={request_id:null,sources:Array.from({length:100},()=>({url:'https://example.org/'+'😀'.repeat(4000),title:'😀'.repeat(1024)}))};
+ const {s}=await journalScenario({persistSearch:false,providerResponse:response,onSearch:async({s,session,handle})=>{
+  const writes=s.privateRepo.writes.length;
+  await assert.rejects(persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof}),/session_journal_limit/);
+  assert.equal(s.privateRepo.writes.length,writes);
+ }});
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/search-')).length,0);
+});
+
+test('concurrent journal writers reuse one authenticated context and search despite different proof nonces',async()=>{
+ const {s,searchCalls}=await journalScenario({persistContext:false,persistSearch:false,onSearch:async({s,session,handle})=>{
+  const proof=nonce=>({...s.args.proof,sign:(body,revision)=>s.args.proof.sign(body,revision,{jti:nonce})});
+  const contexts=await Promise.all(['first','second'].map(nonce=>persistResearchSessionContext({api:s.privateRepo.api,session,proof:proof(nonce)})));
+  assert.equal(contexts[0].commit,contexts[1].commit);
+  const searches=await Promise.all(['first','second'].map(nonce=>persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:proof(nonce)})));
+  assert.equal(searches[0].commit,searches[1].commit);
+ }});
+ const {body}=recordedObservation(s,await reconcile(s.args));assert.equal(body.session_journal.search_adapter_invocations_observed,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/session-')).length,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/search-')).length,1);assert.equal(searchCalls,1);
 });

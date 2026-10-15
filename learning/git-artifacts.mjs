@@ -13,7 +13,7 @@ export function requirePacketDiff(comparison,sourceRevision,packetPath){
 // The API capability is scoped by its caller to the verified PRIVATE repository.
 // Creation is atomic and never updates an existing ref, commit or artifact.
 function artifactNames(branch,files){
-  if(!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance)-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
+  if(!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance|session)-[a-f0-9]{64}|search-[a-f0-9]{64}-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
   const names=Object.keys(files).sort();
   if(!names.length||names.some(name=>!name.endsWith('.json')||!/^[a-z0-9/-]+\.json$/.test(name)||name.includes('..')))throw new LearningError('unsafe_artifact_path');
   return names;

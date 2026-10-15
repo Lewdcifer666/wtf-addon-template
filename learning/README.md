@@ -170,8 +170,39 @@ Only the query is sent to the provider, never the complete private brief.
 Commit verification can bind these observed invocations to a validated public
 packet. This verifies a local adapter invocation, not an authenticated external
 provider trace, AI compliance, source semantics, or a causal recommendation
-effect. The returned record is private; durable transport and live task wiring
+effect. The returned record is private; live task-facing transport and wiring
 remain held and incomplete. No external search provider is configured here.
+
+`session-journal-writer.mjs` supplies the dormant durable transport capability
+for a future trusted-main adapter. An already active authenticated session can
+prepare a signed private context record and persist its observed local searches
+before the public packet is staged. These are additive immutable
+`learning/session-<session_id>` and `learning/search-<session_id>-<search_id>`
+refs containing one closed JSON artifact each. An unchanged retry reuses the
+authenticated original bytes, including a racing signer's different JWT. The
+writer refuses missing context, copied handles, moved inputs and staged public
+research; it cannot create an interpretation, raw event or public packet.
+No existing CLI or workflow invokes the writer, and activation stays unchanged.
+
+Normal active observation reconciliation can authenticate these historical
+records after publication or feedback corrections, without restoring stale
+context to a current task. The observer verifies the original source tuple,
+Git graph and trusted private main OIDC proof for every record. At most 100
+closed search records of at most 1 MiB each are accepted per session. Missing
+issuer keys stay pending; forged or oversized work fails visibly and is retained.
+Observation schema 2 adds the private journal only when it exists. Schema 1
+observations and all old bytes remain unchanged. Context preparation and local
+search invocation still prove neither brief delivery, AI compliance, external
+provider execution nor a causal recommendation effect.
+
+Version 2 of the sealed monthly queue index additionally binds the observed
+session/search ref heads. A late-visible or interrupted writer invalidates the
+completed entry and receives a new immutable observation rather than being
+silently skipped. Version 1 indices remain authenticated and migrate by adding
+a new index ref; no old index, log or observation is rewritten. The global
+non-canceling concurrency and bounded fair recovery model remain in place.
+Live task-facing wiring, a configured read-only search provider, hold resolution,
+explicit cutover and genuine observed feedback effects are still required.
 
 `research-commit.mjs` adds the read-only post-staging boundary. It authenticates
 the public repository and dated research ref, exactly one packet addition and
