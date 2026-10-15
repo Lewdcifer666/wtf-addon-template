@@ -69,6 +69,7 @@ export async function openResearchSession({api,publicApis,trustedRevision,reques
   if(current.state!=='research_ready'||handoff.issued.source_heads.public[copied.genre]!==copied.public_revision)fail('stale_input');
   await assertNotStaged(options,copied);
   await assertHeads(options,handoff.issued);
+  await assertNotStaged(options,copied);
   if(copied.research_date!==berlinResearchDate(clock()))fail('stale_input');
   const binding={schema_version:1,kind:'private_research_session',request:copied,
     handoff_commit:handoff.commit,issuance_commit:handoff.issuance_commit,
@@ -76,7 +77,7 @@ export async function openResearchSession({api,publicApis,trustedRevision,reques
   const session=freeze({schema_version:1,kind:'private_research_session',genre:copied.genre,
     research_date:copied.research_date,session_id:digest(stableJson(binding))});
   sessions.set(session,{options,request:freeze(copied),binding:freeze(structuredClone(binding)),
-    provider:searchProvider===null?null:Object.freeze({id:searchProvider.id,search:searchProvider.search})});
+    provider:searchProvider===null?null:Object.freeze({id:searchProvider.id,search:searchProvider.search.bind(searchProvider)})});
   return session;
 }
 
@@ -154,6 +155,9 @@ export async function verifyResearchSessionCommit({session,researchCommit,search
   if(verified.state!=='research_verified'||stableJson(verified.handoff.issued)!==stableJson(binding.issued)
     ||verified.handoff.commit!==binding.handoff_commit||verified.handoff.issuance_commit!==binding.issuance_commit)fail('stale_input');
   await assertHeads(options,binding.issued);
+  const branch=`research/${request.research_date}-${request.genre}`;
+  const ref=await options.publicApis[request.genre].optional(`/git/ref/heads/${branch}`);
+  if(ref?.ref!==`refs/heads/${branch}`||ref.object?.sha!==researchCommit)fail('stale_input');
   if(request.research_date!==berlinResearchDate(options.clock()))fail('stale_input');
   return freeze({schema_version:1,kind:'private_research_session_verification',session_id:session.session_id,
     trace:structuredClone(verified.trace),searches:structuredClone(records),

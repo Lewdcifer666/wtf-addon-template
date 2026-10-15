@@ -639,3 +639,43 @@ test('search observation snapshots validated preferences and provider results ac
  assert.deepEqual(result.searches[0].preference_indexes,[0]);
  assert.equal(result.searches[0].sources[0].url,'https://example.org/review');
 });
+
+test('normal provider methods retain their receiver and are snapshotted before later method replacement',async()=>{
+ let session,handle;
+ const {researchCommit}=await verificationScenario({onReady:async s=>{
+  const provider={id:'synthetic-stateful-search',client:{search:async query=>({request_id:query,sources:[]})},
+   async search(query){return this.client.search(query);}};
+  session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:provider});
+  provider.search=()=>{throw Error('Replacement method must not be called');};
+  ({handle}=await observeResearchSessionSearch({session,query:'stateful public query',preferenceIndexes:[]}));
+ }});
+ const result=await verifyResearchSessionCommit({session,researchCommit,searches:[handle]});
+ assert.equal(result.searches[0].provider_request_id,'stateful public query');
+});
+
+test('research advancing during final head checks blocks opening, private delivery and search invocation',async()=>{
+ for(const operation of ['open','response','search']){
+  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);let searches=0,session;
+  const options={...s.args,request,searchProvider:{id:'synthetic-search',search:async()=>{searches++;return {request_id:null,sources:[]};}}};
+  if(operation!=='open')session=await openResearchSession(options);
+  const pin=s.publicApis.thriller.pinMain;
+  // Detect the first explicit dated-ref read, then advance during the following
+  // head check; avoid depending on the consumer's internal read count.
+  let checkedBranch=false;const optional=s.publicApis.scifi.optional;
+  s.publicApis.scifi.optional=async route=>{const result=await optional(route);if(route==='/git/ref/heads/research/2026-10-12-scifi')checkedBranch=true;return result;};
+  s.publicApis.thriller.pinMain=async()=>{const result=await pin();if(checkedBranch)s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});return result;};
+  if(operation==='open')await assert.rejects(openResearchSession(options),/research_already_staged/);
+  if(operation==='response')await assert.rejects(privateResearchSessionResponse(session),/research_already_staged/);
+  if(operation==='search')await assert.rejects(observeResearchSessionSearch({session,query:'a public query',preferenceIndexes:[]}),/research_already_staged/);
+  assert.equal(searches,0);
+ }
+});
+
+test('packet ref replacement during final head checks invalidates session commit verification',async()=>{
+ let session;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{session=await openResearchSession({...s.args,request:await sessionRequest(s)});}});
+ const pin=s.publicApis.thriller.pinMain,get=s.publicApis.scifi.get;let packetReads=0;
+ s.publicApis.scifi.get=async route=>{const result=await get(route);if(route==='/git/ref/heads/research/2026-10-12-scifi')packetReads++;return result;};
+ s.publicApis.thriller.pinMain=async()=>{const result=await pin();if(packetReads>=2)s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});return result;};
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit}),/stale_input/);
+});
