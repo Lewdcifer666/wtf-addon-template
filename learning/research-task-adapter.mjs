@@ -15,12 +15,14 @@ const token={type:'string',pattern:'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab]
 const object=properties=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
 const call=(operation,request)=>object({schema_version:{const:1},operation:{const:operation},request});
 const sessionRequest=JSON.parse(fs.readFileSync(new URL('./schemas/research-session-request.schema.json',import.meta.url),'utf8'));
-const validate=new Ajv({strict:true,allErrors:false}).compile({oneOf:[
+const taskCallSchema={oneOf:[
  call('open',sessionRequest),call('context',object({task_token:token})),
  call('search',object({task_token:token,request_id:{type:'string',pattern:'^[a-zA-Z0-9._-]{1,64}$'},
   query:{type:'string',minLength:1,maxLength:2000},preference_indexes:{type:'array',maxItems:100,uniqueItems:true,items:{type:'integer',minimum:0}}})),
  call('verify',object({task_token:token,research_commit:{type:'string',pattern:'^[a-f0-9]{40}$'}}))
-]});
+]};
+const validate=new Ajv({strict:true,allErrors:false}).compile(taskCallSchema);
+export const researchTaskCallSchema=()=>structuredClone(taskCallSchema);
 const fail=code=>{throw new LearningError(code);};
 const recoverable=error=>error?.code==='github_request_failed'&&[408,429,500,502,503,504].includes(error.status)
  ||['transport_failure','proof_key_unavailable','proof_transport_failure'].includes(error?.code);
@@ -31,6 +33,7 @@ const publicErrors=new Set(['invalid_task_call','private_task_access_held','task
  'github_request_failed','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure',
  'invalid_session_journal','invalid_observation_proof','immutable_artifact_mismatch','invalid_signed_artifact']);
 const safeError=error=>new LearningError(publicErrors.has(error?.code)?error.code:'private_task_failed');
+export const privateTaskErrorCode=error=>safeError(error).code;
 
 // These options are installed by trusted host code, NEVER by a task request.
 // The host must authenticate its private caller before dispatch. A separate

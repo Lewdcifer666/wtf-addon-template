@@ -286,7 +286,9 @@ export function generate({ profileName, outDir, force = false, engineOnly = fals
     scripts: { ...defaults.scripts, ...previousPackage.scripts },
     dependencies: { ...previousPackage.dependencies, ...defaults.dependencies } }));
   if (!fs.existsSync(path.join(outDir, "package-lock.json"))) {
-    const lock = JSON.parse(readLF(path.join(here, "package-lock.json")));
+    // Public addons have only the approved Ajv runtime. Private host SDK
+    // dependencies belong to the template/private engine, never addon locks.
+    const lock = JSON.parse(readLF(path.join(here, "skeleton", "package-lock.json")));
     lock.name = addon.package_name;
     lock.packages[""].name = addon.package_name;
     written.push(writeJson(outDir, "package-lock.json", lock));

@@ -17,6 +17,9 @@ import {openResearchSession,privateResearchSessionResponse,recheckResearchSessio
 import {persistResearchSessionContext,persistResearchSessionSearch,persistResearchSessionTaskIntent} from '../session-journal-writer.mjs';
 import {loadSessionSearchRefs,sessionSearchBody} from '../session-journal.mjs';
 import {createPrivateResearchTaskAdapter} from '../research-task-adapter.mjs';
+import {startLocalResearchMcpHost} from '../research-mcp-host.mjs';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -792,6 +795,30 @@ test('post-provider head and complete-inventory network failures retain the orig
   await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code===(stage==='http'?'github_request_failed':'transport_failure'));
   assert((await adapter.dispatch(taskSearch(context))).observation_commit);assert.equal(calls,1);
  }
+});
+
+test('authenticated HTTP MCP connects complete private recomputation, durable evidence and actual packet verification',async()=>{
+ let client,host,context;let calls=0;
+ try{
+  const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+   const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+    searchProvider:{id:'synthetic-http-search',async search(){calls++;return {request_id:null,sources:[{url:'https://example.org/review',title:'Synthetic public review'}]};}}});
+   const token=digest('synthetic local HTTP credential');host=await startLocalResearchMcpHost({bearerToken:token,adapter});
+   client=new Client({name:'synthetic-full-private-task',version:'1'});
+   await client.connect(new StreamableHTTPClientTransport(new URL(host.url),{requestInit:{headers:{Authorization:'Bearer '+token}}}));
+   context=(await client.callTool({name:'private_research_open',arguments:await sessionRequest(s)})).structuredContent;
+   assert(context.context_commit);assert(context.response.context.preferences.length>0);
+   const input={task_token:context.task_token,request_id:'http-search',query:'science mystery public reviews',preference_indexes:[0]};
+   const result=(await client.callTool({name:'private_research_search',arguments:input})).structuredContent;
+   assert(result.observation_commit);assert.equal(result.sources[0].url,'https://example.org/review');
+   const repeated=(await client.callTool({name:'private_research_search',arguments:input})).structuredContent;
+   assert.deepEqual(repeated,result);assert.equal(calls,1);
+  }});
+  const verified=(await client.callTool({name:'private_research_verify',arguments:{task_token:context.task_token,research_commit:researchCommit}})).structuredContent;
+  assert.equal(verified.research_commit,researchCommit);assert.equal(verified.search_adapter_invocations_observed,1);
+  assert.equal(verified.actual_context_use_verified,false);assert.equal(verified.behavioral_effect_observed,false);
+  assert.equal(s.publicRepos.scifi.writes.length,0);assert(!JSON.stringify(context).includes('PRIVATE_SENTINEL'));
+ }finally{await client?.close();await host?.close();}
 });
 
 test('inactive or unpersisted learning blocks session opening without a fallback writer',async()=>{

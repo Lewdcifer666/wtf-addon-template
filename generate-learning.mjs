@@ -26,7 +26,7 @@ files['engine/identity.mjs']=fs.readFileSync(path.join(root,'engine/identity.mjs
 // toggle it or turn a shadow receipt into an activated one.
 if(fs.existsSync(path.join(target,'learning/config/activation.json')))delete files['learning/config/activation.json'];
 for(const name of ['learning-ci.yml','learning-intake.yml','learning-finalize.yml'])files[`.github/workflows/${name}`]=files[`learning/workflows/${name}`];
-const pkg={name:'wtf-private-feedback-learning',version:'1.0.0',private:true,type:'module',engines:{node:'>=20'},scripts:{test:'node --test learning/test/*.test.mjs'},dependencies:{ajv:'8.20.0'}};
+const pkg={name:'wtf-private-feedback-learning',version:'1.0.0',private:true,type:'module',engines:{node:'>=20'},scripts:{test:'node --test learning/test/*.test.mjs'},dependencies:{ajv:'8.20.0','@modelcontextprotocol/sdk':'1.32.1'}};
 files['package.json']=Buffer.from(JSON.stringify(pkg,null,2)+'\n');
 if(!fs.existsSync(path.join(target,'.gitignore')))files['.gitignore']=Buffer.from('node_modules/\n');
 const lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8'));lock.name=pkg.name;lock.packages[''].name=pkg.name;
