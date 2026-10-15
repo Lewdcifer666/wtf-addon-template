@@ -100,6 +100,10 @@ try {
     check("G5", "schema validation has exactly the approved pinned Ajv dependency",
       JSON.stringify(pkg.dependencies) === JSON.stringify({ ajv: "8.20.0" }) && !pkg.devDependencies,
       "Ajv is pinned; generated addons remain independent of other repositories");
+    const addonLock = readJson('package-lock.json');
+    check('G5c', 'public addon lock excludes the private MCP SDK and its dependency graph',
+      JSON.stringify(addonLock.packages[''].dependencies) === JSON.stringify({ ajv: '8.20.0' })
+      && !Object.keys(addonLock.packages).some(name => name.includes('@modelcontextprotocol/')));
     execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci', '--ignore-scripts'], { cwd: out, stdio: 'pipe', shell: process.platform === 'win32' });
     check("G5b", "the test script DISCOVERS suites rather than listing them",
       pkg.scripts.test === "node test/run-all.mjs",

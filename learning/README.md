@@ -18,6 +18,44 @@ The initial policy is **inactive**. Public catalog scores, baseline weights,
 eligibility, guardrails, profile nullability, schedules and old snapshots remain
 unchanged. Computed inactive receipts do not prove an automatic learning cutover.
 
+## PC transport and deployment boundary
+
+`research-mcp-host.mjs` exposes the existing closed open/context/search/verify
+dispatcher through the official MCP SDK, pinned to 1.32.1. The host binds only
+127.0.0.1, requires a separate random bearer credential even for initialization,
+rejects browser origins and unexpected Host headers, limits JSON bodies/results
+to 1 MiB and returns closed error codes without raw request/exception logging.
+The tools cannot stage interpretation/research packets, publish or alter policy.
+Open and search truthfully advertise their private persistence side effects.
+One installed adapter instance queues calls across stateless HTTP connections;
+replacing an HTTP connection does not replace the durable search identity.
+
+The CLI accepts only `--port PORT` and reads `PRIVATE_RESEARCH_MCP_TOKEN` from
+its environment, never command-line credentials. It always installs the default
+held adapter. It does not load GitHub credentials, configure a search provider,
+mint provenance or make any repository request. Its authenticated health check
+reports transport readiness, never learning readiness. The SDK's official client
+tests both in-memory discovery and real authenticated loopback requests. Active
+synthetic fixtures also exercise signed search recovery and public-packet
+verification through this transport; these are not genuine feedback observations.
+
+This PC is the selected future host. No listener, scheduled Windows service,
+tunnel, connector or runner is installed by engine generation or CI. Cloud tasks
+cannot reach loopback. An authenticated HTTPS connection and a trusted runtime
+are still required before connecting the saved tasks. Do not expose this bearer
+endpoint through an unauthenticated tunnel or paste its credential into a task.
+The production proof verifier still requires the private repository's trusted-main
+GitHub Actions OIDC identity; a local server may not substitute a fixture/local
+signing key. A deployed runtime must preserve that boundary, durable recovery and
+single-writer ordering without starving normal private reconciliation. Transport
+authentication and signed learning provenance are separate requirements.
+
+The selected host does not authorize a learning cutover, new credential scope or
+replay of a denied operation. Existing holds remain authoritative. No live search
+provider is configured and no actual task use or recommendation effect is claimed.
+Public addon generation uses a separate Ajv-only skeleton lock, keeping this
+private SDK and its dependency graph out of all public addon packages.
+
 ## Evidence and interpretation
 
 `inventory.mjs` verifies one complete recursive Git tree, exact blob hashes,
