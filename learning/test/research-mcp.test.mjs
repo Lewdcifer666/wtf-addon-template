@@ -89,6 +89,21 @@ test('schema discovery cannot modify the authoritative closed contract',async()=
  try{assert.equal((await connection.client.listTools()).tools.find(t=>t.name==='private_research_open').inputSchema.additionalProperties,false);}
  finally{await connection.close();}
 });
+test('the complete serialized RPC response stays bounded when MCP duplicates and escapes a valid adapter result',async()=>{
+ const token=randomBytes(32).toString('base64url');let value;
+ const host=await startLocalResearchMcpHost({bearerToken:token,adapter:{async dispatch(){return value;}}});
+ const headers={Authorization:'Bearer '+token,'Content-Type':'application/json',Accept:'application/json, text/event-stream'};
+ try{
+  for(const [text,denied] of [['x'.repeat(600000),true],['"'.repeat(300000),true],['x'.repeat(300000),false]]){
+   value={schema_version:1,body:text};assert(Buffer.byteLength(JSON.stringify(value))<1024*1024);
+   const response=await fetch(host.url,{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id:'rpc-id',method:'tools/call',params:{name:'private_research_open',arguments:request}})});
+   const bytes=await response.text();assert.equal(response.status,200);assert(Buffer.byteLength(bytes)<=1024*1024);
+   const result=JSON.parse(bytes).result;assert.equal(result.isError===true,denied);
+   if(denied)assert.equal(result.structuredContent.error,'private_task_failed');else assert.equal(result.structuredContent.body,text);
+  }
+  assert.equal((await fetch(host.url,{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id:'x'.repeat(129),method:'tools/list'})})).status,400);
+ }finally{await host.close();}
+});
 test('local host refuses absent credentials and CLI starts no listener with missing credentials or unknown options',async()=>{
  await assert.rejects(startLocalResearchMcpHost(),/private_host_credentials_required/);
  const env={...process.env};delete env.PRIVATE_RESEARCH_MCP_TOKEN;

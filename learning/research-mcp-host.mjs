@@ -31,13 +31,16 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
  const server=new Server({name:'wtf-private-research',version:'1.0.0'},
   {capabilities:{tools:{}},instructions:'Private learning tools only. A hold or denial means stop; never retry using a different tool, ID or writer. Keep all context/results private. Tools cannot stage AI packets, publish, change activation or prove a recommendation effect.'});
  server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:structuredClone(tools)}));
- server.setRequestHandler(CallToolRequestSchema,async({params})=>{
+ server.setRequestHandler(CallToolRequestSchema,async({params},{requestId})=>{
   const validate=validators.get(params.name);if(!validate||!validate(params.arguments))return failure('invalid_task_call');
   const operation=params.name.slice('private_research_'.length);
   try{
    const result=await adapter.dispatch({schema_version:1,operation,request:structuredClone(params.arguments)});
-   if(Buffer.byteLength(JSON.stringify(result),'utf8')>1024*1024)return failure('private_task_failed');
-   return reply(result);
+   const response=reply(result);
+   // Text and structuredContent both carry the value; count escaped JSON and
+   // the RPC envelope too, not merely the adapter's unduplicated object.
+   if(Buffer.byteLength(JSON.stringify({jsonrpc:'2.0',id:requestId,result:response}),'utf8')>1024*1024)return failure('private_task_failed');
+   return response;
   }catch(error){return failure(privateTaskErrorCode(error));}
  });
  // No raw request, result, credential or exception logging.
@@ -77,6 +80,8 @@ export async function startLocalResearchMcpHost({bearerToken,adapter,port=0}={})
   }catch{end(400,'invalid_private_host_request');return;}
   // Reject batch requests; no call may bypass the task dispatcher's queue.
   if(!body||typeof body!=='object'||Array.isArray(body)){end(400,'invalid_private_host_request');return;}
+  // Bound the echoed ID even for SDK-generated errors and initialization.
+  if(body.id!==undefined&&!(typeof body.id==='string'&&body.id.length<=128||typeof body.id==='number'&&Number.isSafeInteger(body.id))){end(400,'invalid_private_host_request');return;}
   const server=createResearchMcpServer(installedAdapter),transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
   res.on('close',()=>{void transport.close();void server.close();});
   try{await server.connect(transport);await transport.handleRequest(req,res,body);}
