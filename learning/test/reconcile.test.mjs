@@ -12,6 +12,7 @@ import {loadVerifiedReceipt} from '../receipt-loader.mjs';
 import {prepareResearchUse} from '../research-use.mjs';
 import {persistImmutable,persistSealedState} from '../git-artifacts.mjs';
 import {loadObservationIndex} from '../observation-index.mjs';
+import {openResearchSession,privateResearchSessionResponse,recheckResearchSession,observeResearchSessionSearch,verifyResearchSessionCommit} from '../research-session.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -217,13 +218,14 @@ test('a policy head moving during authenticated consumption invalidates the hand
  await assert.rejects(reconcile({...s.args,dryRun:true,consumeGenre:'scifi'}),/stale_input/);
  assert(moved);assert.equal(s.privateRepo.writes.length,writes);
 });
-async function verificationScenario({issueBeforePacket=true}={}){
+async function verificationScenario({issueBeforePacket=true,onReady=async()=>{}}={}){
  const s=await activeScenario(),profile=JSON.parse(fs.readFileSync(new URL('./fixtures/contracts/scifi-profile.json',import.meta.url))),dimensions=profile.dna_dimensions.dimensions.map(d=>d.id);
  const registry=`export const CANONICAL_DIMENSIONS = ${JSON.stringify(dimensions)};\nexport const CANONICAL_DNA_TAGS = ${JSON.stringify(profile.dna_dimensions.tag_registry)};\nexport const SLOW_TO_FAST_DIMENSION = "pace_speed";\n`;
  s.publicRepos.scifi.branch('main',{'data/taste-profile.json':stableJson(profile),'scripts/registry.mjs':registry,
   'schemas/research-packet.schema.json':fs.readFileSync(new URL('../schemas/research-packet.schema.json',import.meta.url),'utf8'),
   'config/research.json':stableJson({schema_version:1,genre:'scifi',run_prefix:'s',timezone:'Europe/Berlin',minimum_sources:1,require_all_known:false})});
  if(issueBeforePacket)await reconcile(s.args);
+ await onReady(s);
  const candidate={imdb_id:'tt11111111',type:'movie',title:'Synthetic verified candidate',year:2020,reason:'Public-source fixture.',
   dna:Object.fromEntries(dimensions.map(d=>[d,5])),dna_confidence:1,dna_tags:[],sources:[{url:'https://example.org/review',purpose:'review'}]};
  const packet={schema_version:1,genre:'scifi',research_date:'2026-10-12',candidates:[candidate,{...candidate}],research_rejections:[]};
@@ -453,4 +455,227 @@ test('explicit provenance probe is metadata-only and the ordinary consumer canno
  const probe=workflow.slice(workflow.indexOf('  provenance-probe:'));assert(probe.includes('contents: read'));assert(!probe.includes('contents: write'));assert(probe.includes('id-token: write'));assert(probe.includes('node learning/reconcile.mjs --probe-proof'));
  const cli=fs.readFileSync(new URL('../reconcile.mjs',import.meta.url),'utf8'),body=cli.slice(cli.indexOf('  if(probe){'),cli.indexOf('  const publicApis=',cli.indexOf('  if(probe){')));
  assert(!body.includes('inventoryFeedback'));assert(!body.includes('.post('));assert(body.includes('feedback_read:false,git_writes:false'));
+});
+
+async function sessionRequest(s){
+ return {schema_version:1,genre:'scifi',research_date:'2026-10-12',private_revision:s.args.trustedRevision,
+  public_revision:(await s.publicApis.scifi.pinMain()).sha};
+}
+
+test('private session request recomputes a complete current context without writes or automatic log disclosure',async()=>{
+ const s=await activeScenario();await reconcile(s.args);
+ const request=await sessionRequest(s),before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),writes=s.privateRepo.writes.length;
+ const session=await openResearchSession({...s.args,request}),response=await privateResearchSessionResponse(session);
+ assert.equal((await openResearchSession({...s.args,request})).session_id,session.session_id);
+ assert.equal((await openResearchSession({...s.args,request:Object.fromEntries(Object.entries(request).reverse())})).session_id,session.session_id);
+ assert.equal(await recheckResearchSession(session),session);
+ assert.equal(response.genre,'scifi');assert(response.context.preferences.length>0);
+ assert.equal(response.context_hash,digest(stableJson(response.context)));
+ assert.equal(response.source_heads.private,s.args.trustedRevision);
+ assert(!stableJson(session).includes('preferences'));assert(!stableJson(response).includes('PRIVATE_SENTINEL'));
+ assert(!stableJson(response).includes('tt999999991'));assert(!stableJson(response).includes('feedback_id'));
+ assert.throws(()=>{response.context.preferences.length=0;},TypeError);
+ await assert.rejects(privateResearchSessionResponse(structuredClone(session)),/unauthenticated_research_session/);
+ assert.equal(s.privateRepo.writes.length,writes);assert.equal(stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),before);
+ for(const repo of Object.values(s.publicRepos))assert.equal(repo.writes.length,0);
+});
+
+test('closed session requests reject arbitrary revisions, invalid dates, caller briefs and activation fields',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const writes=s.privateRepo.writes.length,request=await sessionRequest(s);
+ for(const invalid of [null,{}, {...request,genre:'unknown'}, {...request,private_revision:'a'.repeat(40)},
+  {...request,research_date:'2026-02-30'}, {...request,research_date:'2026-10-11'}, {...request,research_date:'2026-10-13'},
+  {...request,context:{preferences:[]}}, {...request,research_learning_enabled:true}]){
+  await assert.rejects(openResearchSession({...s.args,request:invalid}),/invalid_consumer_request/);
+ }
+ await assert.rejects(openResearchSession({...s.args,request:{...request,public_revision:'b'.repeat(40)}}),/stale_input/);
+ assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('inactive or unpersisted learning blocks session opening without a fallback writer',async()=>{
+ const inactive=scenario();inactive.args.clock=()=>new Date('2026-10-11T22:30:00Z');await stage(inactive);await reconcile(inactive.args);const writes=inactive.privateRepo.writes.length;
+ await assert.rejects(openResearchSession({...inactive.args,request:await sessionRequest(inactive)}),/learning_inactive/);
+ assert.equal(inactive.privateRepo.writes.length,writes);
+ const missing=await activeScenario();
+ await assert.rejects(openResearchSession({...missing.args,request:await sessionRequest(missing)}),/invalid_handoff/);
+ assert.equal(missing.privateRepo.writes.length,0);
+});
+
+test('a session cannot be opened after research or unauthorized branch work has already been staged',async()=>{
+ for(const content of [{'research-inbox/2026-10-12.json':'{}'},{'scripts/evil.mjs':'throw Error("UNTRUSTED")'}]){
+  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s),writes=s.privateRepo.writes.length;
+  s.publicRepos.scifi.branch('research/2026-10-12-scifi',content);
+  await assert.rejects(openResearchSession({...s.args,request}),/research_already_staged/);
+  assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('any of six changed public heads or a superseding private revision invalidates the session',async()=>{
+ for(const changed of [...GENRES,'private']){
+  const s=await activeScenario();await reconcile(s.args);const session=await openResearchSession({...s.args,request:await sessionRequest(s)}),writes=s.privateRepo.writes.length;
+  if(changed==='private')s.privateRepo.branch('main',{'data/feedback/2026-10-01/synthetic.json':stableJson({...s.event,feedback:'A replacement opinion.'})});
+  else s.publicRepos[changed].branch('main',{'config/research.json':'{"changed_policy":true}'});
+  await assert.rejects(recheckResearchSession(session));
+  await assert.rejects(privateResearchSessionResponse(session));
+  assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('session date follows Berlin midnight and rechecks immediately before returning context',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let now=new Date('2026-10-12T21:59:59Z');
+ const clock=()=>now,session=await openResearchSession({...s.args,clock,request:await sessionRequest(s)});
+ now=new Date('2026-10-12T22:00:00Z');
+ await assert.rejects(recheckResearchSession(session),/invalid_consumer_request/);
+ await assert.rejects(privateResearchSessionResponse(session),/invalid_consumer_request/);
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit:'a'.repeat(40)}),/stale_input/);
+});
+
+test('session verifies actual packet ancestry and diagnostics without claiming AI use or a behavioral effect',async()=>{
+ let session;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{session=await openResearchSession({...s.args,request:await sessionRequest(s)});}});
+ const writes=s.privateRepo.writes.length;
+ const result=await verifyResearchSessionCommit({session,researchCommit});
+ assert.equal(result.trace.research_commit,researchCommit);assert.equal(result.session_id,session.session_id);
+ assert.equal(result.actual_context_use_verified,false);assert.equal(result.behavioral_effect_observed,false);
+ assert.equal(result.trace.effect_status,'candidate_diagnostics_only');assert.equal(result.trace.candidates.length,2);
+ await assert.rejects(verifyResearchSessionCommit({session:structuredClone(session),researchCommit}),/unauthenticated_research_session/);
+ await assert.rejects(recheckResearchSession(session),/research_already_staged/);
+ assert.equal(s.privateRepo.writes.length,writes);assert.equal(s.publicRepos.scifi.writes.length,0);
+});
+
+test('public staging followed by changed feedback or retraction cannot reuse the old session',async()=>{
+ for(const status of ['seen','retracted']){
+  let session;
+  const {s,researchCommit}=await verificationScenario({onReady:async s=>{session=await openResearchSession({...s.args,request:await sessionRequest(s)});}});
+  const writes=s.privateRepo.writes.length;
+  s.privateRepo.branch('main',{'data/feedback/2026-10-01/synthetic.json':stableJson({...s.event,status})});
+  await assert.rejects(verifyResearchSessionCommit({session,researchCommit}));
+  assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('trusted search adapter observations bind real local invocations to the session and actual packet without claiming effect',async()=>{
+ let session,searches;const calls=[];
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  const provider={id:'synthetic-primary-search',search:async query=>{
+   calls.push(query);return {request_id:'synthetic-provider-request',sources:[{url:'https://example.org/review',title:'Public fixture review'}]};
+  }};
+  session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:provider});
+  const learned=await observeResearchSessionSearch({session,query:'science mystery films investigation reviews',preferenceIndexes:[0]});
+  const baseline=await observeResearchSessionSearch({session,query:'science fiction film reviews',preferenceIndexes:[]});
+  searches=[learned.handle,baseline.handle];
+  assert.equal(learned.sources[0].url,'https://example.org/review');
+  assert(!stableJson(learned.handle).includes('query'));assert(Object.isFrozen(learned.sources[0]));
+ }});
+ const writes=s.privateRepo.writes.length,result=await verifyResearchSessionCommit({session,researchCommit,searches});
+ assert.deepEqual(calls,['science mystery films investigation reviews','science fiction film reviews']);
+ assert.equal(result.trace.research_commit,researchCommit);assert.equal(result.search_adapter_invocations_observed,2);
+ assert.deepEqual(result.searches[0].preference_indexes,[0]);assert.deepEqual(result.searches[1].preference_indexes,[]);
+ assert.equal(result.actual_context_use_verified,false);assert.equal(result.behavioral_effect_observed,false);
+ assert(!stableJson(result).includes('PRIVATE_SENTINEL'));assert(!stableJson(result).includes('tt999999991'));
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit,searches:[structuredClone(searches[0])]}),/unauthenticated_research_search/);
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit,searches:[searches[0],searches[0]]}),/invalid_research_search_evidence/);
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit,searches:new Array(1)}),/unauthenticated_research_search/);
+ assert.equal(s.privateRepo.writes.length,writes);assert.equal(s.publicRepos.scifi.writes.length,0);
+});
+
+test('search evidence from a different authenticated session cannot be relabeled onto another session',async()=>{
+ let session,other,handle;
+ const {researchCommit}=await verificationScenario({onReady:async s=>{
+  const options={...s.args,request:await sessionRequest(s),searchProvider:{id:'synthetic-search',search:async()=>({request_id:null,sources:[]})}};
+  session=await openResearchSession(options);other=await openResearchSession(options);
+  assert.equal(session.session_id,other.session_id);
+  ({handle}=await observeResearchSessionSearch({session:other,query:'a public synthetic query',preferenceIndexes:[]}));
+ }});
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit,searches:[handle]}),/unauthenticated_research_search/);
+});
+
+test('search validation and provider errors stop locally without a retry or an alternate provider',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);let calls=0;
+ const searchProvider={id:'synthetic-search',search:async()=>{calls++;throw Error('PRIVATE_SENTINEL provider failure');}};
+ const session=await openResearchSession({...s.args,request,searchProvider});
+ for(const args of [{query:'',preferenceIndexes:[]},{query:'a query',preferenceIndexes:[999]},
+  {query:'a query',preferenceIndexes:[0,0]},{query:'a query',preferenceIndexes:['0']},
+  {query:'\ud800',preferenceIndexes:[]},{query:'x'.repeat(2001),preferenceIndexes:[]},{query:'a query',preferenceIndexes:new Array(1)}]){
+  await assert.rejects(observeResearchSessionSearch({session,...args}),/invalid_search_request/);
+ }
+ assert.equal(calls,0);
+ await assert.rejects(observeResearchSessionSearch({session,query:'a public query',preferenceIndexes:[]}),error=>error.code==='research_search_failed'&&!String(error).includes('PRIVATE_SENTINEL'));
+ assert.equal(calls,1);
+ const unavailable=await openResearchSession({...s.args,request});
+ await assert.rejects(observeResearchSessionSearch({session:unavailable,query:'a public query',preferenceIndexes:[]}),/search_provider_unavailable/);
+ await assert.rejects(openResearchSession({...s.args,request,searchProvider:{id:'arbitrary-provider',search:'AI-authored code'}}),/invalid_search_provider/);
+});
+
+test('malformed search results and source movement during search cannot become accepted evidence',async()=>{
+ for(const response of [{sources:[],request_id:null,score:100},
+  {sources:[{url:'https://secret@example.org/review',title:'Fixture'}],request_id:null},
+  {sources:[{url:'javascript:alert(1)',title:'Fixture'}],request_id:null},
+  {sources:[],request_id:null}]){
+  const s=await activeScenario();await reconcile(s.args);const writes=s.privateRepo.writes.length;let calls=0;
+  const move=response.sources.length===0&&!Object.hasOwn(response,'score');
+  const session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:{id:'synthetic-search',search:async()=>{
+   calls++;if(move)s.publicRepos.anime.branch('main',{'config/research.json':'{"changed_during_search":true}'});return response;
+  }}});
+  await assert.rejects(observeResearchSessionSearch({session,query:'a public query',preferenceIndexes:[]}));
+  assert.equal(calls,1);assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('search observation snapshots validated preferences and provider results across asynchronous currentness checks',async()=>{
+ let session,handle;const preferenceIndexes=[0],response={request_id:null,sources:[{url:'https://example.org/review',title:'Original public review'}]};
+ const {researchCommit}=await verificationScenario({onReady:async s=>{
+  let returned=false,changed=false;const get=s.privateRepo.api.get;
+  s.privateRepo.api.get=async route=>{
+   if(returned&&!changed){changed=true;response.sources[0].url='https://secret@example.org/changed';}
+   return get(route);
+  };
+  session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:{id:'synthetic-search',search:async()=>{
+   preferenceIndexes[0]=999;returned=true;return response;
+  }}});
+  ({handle}=await observeResearchSessionSearch({session,query:'a public query',preferenceIndexes}));
+  assert(changed);
+ }});
+ const result=await verifyResearchSessionCommit({session,researchCommit,searches:[handle]});
+ assert.deepEqual(result.searches[0].preference_indexes,[0]);
+ assert.equal(result.searches[0].sources[0].url,'https://example.org/review');
+});
+
+test('normal provider methods retain their receiver and are snapshotted before later method replacement',async()=>{
+ let session,handle;
+ const {researchCommit}=await verificationScenario({onReady:async s=>{
+  const provider={id:'synthetic-stateful-search',client:{search:async query=>({request_id:query,sources:[]})},
+   async search(query){return this.client.search(query);}};
+  session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:provider});
+  provider.search=()=>{throw Error('Replacement method must not be called');};
+  ({handle}=await observeResearchSessionSearch({session,query:'stateful public query',preferenceIndexes:[]}));
+ }});
+ const result=await verifyResearchSessionCommit({session,researchCommit,searches:[handle]});
+ assert.equal(result.searches[0].provider_request_id,'stateful public query');
+});
+
+test('research advancing during final head checks blocks opening, private delivery and search invocation',async()=>{
+ for(const operation of ['open','response','search']){
+  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);let searches=0,session;
+  const options={...s.args,request,searchProvider:{id:'synthetic-search',search:async()=>{searches++;return {request_id:null,sources:[]};}}};
+  if(operation!=='open')session=await openResearchSession(options);
+  const pin=s.publicApis.thriller.pinMain;
+  // Detect the first explicit dated-ref read, then advance during the following
+  // head check; avoid depending on the consumer's internal read count.
+  let checkedBranch=false;const optional=s.publicApis.scifi.optional;
+  s.publicApis.scifi.optional=async route=>{const result=await optional(route);if(route==='/git/ref/heads/research/2026-10-12-scifi')checkedBranch=true;return result;};
+  s.publicApis.thriller.pinMain=async()=>{const result=await pin();if(checkedBranch)s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});return result;};
+  if(operation==='open')await assert.rejects(openResearchSession(options),/research_already_staged/);
+  if(operation==='response')await assert.rejects(privateResearchSessionResponse(session),/research_already_staged/);
+  if(operation==='search')await assert.rejects(observeResearchSessionSearch({session,query:'a public query',preferenceIndexes:[]}),/research_already_staged/);
+  assert.equal(searches,0);
+ }
+});
+
+test('packet ref replacement during final head checks invalidates session commit verification',async()=>{
+ let session;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{session=await openResearchSession({...s.args,request:await sessionRequest(s)});}});
+ const pin=s.publicApis.thriller.pinMain,get=s.publicApis.scifi.get;let packetReads=0;
+ s.publicApis.scifi.get=async route=>{const result=await get(route);if(route==='/git/ref/heads/research/2026-10-12-scifi')packetReads++;return result;};
+ s.publicApis.thriller.pinMain=async()=>{const result=await pin();if(packetReads>=2)s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});return result;};
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit}),/stale_input/);
 });

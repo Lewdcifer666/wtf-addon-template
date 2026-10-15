@@ -142,6 +142,37 @@ count as an observed learning effect.
 Keep the recorded private staging safety hold until independently resolved;
 this module does not provide an alternate writer for a denied operation.
 
+`research-session.mjs` supplies the private, read-only request/response adapter
+boundary. Its closed request pins the genre, Berlin research date, private main
+and selected public main. Opening a session recomputes the complete current
+receipt and authenticates the persisted handoff and ordering certificate; it
+refuses advanced research refs. The explicit private response rechecks all six
+public heads, complete feedback and activation before releasing the sanitized
+brief. Missing or stale receipts stay pending; this reader cannot stage their
+replacements. Generic serialization of the opaque session handle omits the
+brief. A JSON copy cannot act as an authenticated in-process session.
+
+`verifyResearchSessionCommit` binds that session to the actual permitted public
+packet using the trusted validator before publication. Source movement,
+supersession/retraction and Berlin midnight invalidate consumption. This module
+has no CLI, writer, workflow dispatch or exposed service endpoint. Wiring an
+authorized private task adapter, durable actual search-use/effect evidence and
+explicit cutover remains required. No session or candidate diagnostic alone is
+an observed behavioral effect, and the private learning hold remains in place.
+
+The session can also wrap a read-only search function installed by trusted
+adapter code. `observeResearchSessionSearch` checks currentness before and after
+the actual invocation, privately binds the query, referenced preference indexes,
+provider result URLs and an exposed provider request ID (or null), and issues an
+opaque in-process record. Caller-authored JSON and records from another session
+cannot substitute for that observation. Provider errors stop without retries.
+Only the query is sent to the provider, never the complete private brief.
+Commit verification can bind these observed invocations to a validated public
+packet. This verifies a local adapter invocation, not an authenticated external
+provider trace, AI compliance, source semantics, or a causal recommendation
+effect. The returned record is private; durable transport and live task wiring
+remain held and incomplete. No external search provider is configured here.
+
 `research-commit.mjs` adds the read-only post-staging boundary. It authenticates
 the public repository and dated research ref, exactly one packet addition and
 one parent based on the handoff's policy revision, the complete Git tree and

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "genre", "research_date", "private_revision", "public_revision"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "genre": {"enum": ["action", "anime", "fantasy", "mystery", "scifi", "thriller"]},
+    "research_date": {"type": "string", "pattern": "^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"},
+    "private_revision": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "public_revision": {"type": "string", "pattern": "^[a-f0-9]{40}$"}
+  }
+}
