@@ -56,3 +56,16 @@ test('queued main triggers authenticate separately from the fresh pinned executi
  const refusing=fixtureObservationProof({assertTriggerAncestor:async()=>{throw Error('untrusted main ancestry');}});
  await assert.rejects(refusing.verify(token,body,revision),/untrusted main ancestry/);
 });
+
+test('proof network and interrupted-body failures are recoverable while HTTP authorization denials stay permanent',async()=>{
+ const env={ACTIONS_ID_TOKEN_REQUEST_URL:'https://pipelines.actions.githubusercontent.com/synthetic',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'SYNTHETIC_SECRET'};
+ for(const stage of ['fetch','body','denied']){
+  let calls=0;const provider=githubObservationProof({env,fetcher:async()=>{
+   calls++;if(stage==='fetch')throw TypeError('SYNTHETIC_SECRET network unavailable');
+   if(stage==='denied')return {ok:false,status:403};
+   return {ok:true,text:async()=>{throw TypeError('SYNTHETIC_SECRET body unavailable');}};
+  }});
+  await assert.rejects(provider.sign(body,revision),error=>error.code===(stage==='denied'?'proof_credentials_required':'proof_transport_failure')&&!String(error).includes('SYNTHETIC_SECRET'));
+  assert.equal(calls,1);
+ }
+});

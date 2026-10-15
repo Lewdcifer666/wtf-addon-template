@@ -211,6 +211,55 @@ non-canceling concurrency and bounded fair recovery model remain in place.
 Live task-facing wiring, a configured read-only search provider, hold resolution,
 explicit cutover and genuine observed feedback effects are still required.
 
+`research-task-adapter.mjs` now connects these capabilities behind one closed
+task-call dispatcher: `open`, `context`, `search` and `verify`. Trusted host code
+supplies repository clients, the pinned engine revision, proof signer and an
+optional read-only search provider. A separate host-owned `taskAccessAllowed`
+gate defaults to deny and is rechecked for every call; request JSON cannot lift
+it or override the checked-in activation policy. The host must authenticate its
+private caller before dispatch. Responses and tokens remain private and must
+never be sent to public logs, artifacts or research packets. This module starts
+no server or CLI, installs no connector, and changes no saved task or hold.
+
+The adapter serializes calls within the supported single-writer process,
+snapshots queued arguments, and limits its session table to six entries per
+worker. It persists the signed context before releasing a private response,
+then persists each search observation before returning its sources. Stable
+task request IDs distinguish unchanged retries from changed inputs. Reusing an
+ID with a changed query/preference mapping fails rather than changing history.
+Results are rechecked for source, policy, activation, date and packet movement,
+including cached results. Verification authenticates the actual public packet;
+it does not publish that packet or assert an AI complied with a brief.
+
+Each search reserves an immutable signed private
+`learning/task-intent-<session_id>-<request_hash>` before calling its provider.
+Version-3 search observations carry that request ID; version-2 journals remain
+readable without modification. A replacement worker authenticates complete
+signed result/intent records and restores opaque handles without another search.
+A lost acknowledgement after result persistence therefore reuses the original
+record. If only intent survived and the provider outcome is unknown, all further
+search/verify calls for that session stay pending. Changing the request ID does
+not replay it. Late completed records can resolve this pending state through
+authenticated reopening. Metadata can block work, never prove it completed.
+An ambiguous external call cannot be automatically retried without a separately
+validated provider recovery/idempotency mechanism. The intent remains intact.
+
+Recoverable GitHub transport failures or temporarily unavailable proof keys may
+resume the same in-process observed handle; the provider is not called again.
+This includes DNS/socket and interrupted-response failures, and failures during
+the post-search source recheck: completed local results stay private in memory
+until a currentness check and durable persistence succeed. Explicit reopening
+always reauthenticates late journal records while retaining safe local retry
+handles. Missing provider configuration is refused before any intent is written.
+HTTP authorization denials stay permanent; network normalization does not turn
+them into automatic retries.
+Provider failures and permanent write errors stop that session, and arbitrary
+error text is replaced with closed codes. The adapter creates no interpretation,
+raw feedback, public packet, PR or activation commit. Saved-task connection,
+hosting/authentication, a real read-only search provider, hold resolution and
+explicit learning cutover are still required. Passing synthetic adapter tests
+is not a genuine feedback/recommendation effect or a completed migration.
+
 `research-commit.mjs` adds the read-only post-staging boundary. It authenticates
 the public repository and dated research ref, exactly one packet addition and
 one parent based on the handoff's policy revision, the complete Git tree and

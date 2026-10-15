@@ -113,6 +113,8 @@ export async function readResearchSessionJournal({api,base,issued,handoffCommit,
   if(search_id!==digest(stableJson(observation))||stableJson(record.body)!==stableJson(sessionSearchBody(search_id,observation)))fail();
   searches.push({commit:record.commit,search_id,observation});
  }
+ const requestIds=searches.map(s=>s.observation.task_request_id).filter(id=>id!==null&&id!==undefined);
+ if(new Set(requestIds).size!==requestIds.length)fail();
  // Recheck mutable refs after all awaited verification. Their immutable bodies
  // may not be swapped while the observer constructs its historical artifact.
  await assertCurrent();

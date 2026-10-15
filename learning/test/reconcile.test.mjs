@@ -7,14 +7,16 @@ import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretat
 import {inventoryFeedback} from '../inventory.mjs';
 import {GENRES} from '../receipt.mjs';
 import {fixtureObservationProof} from './fixtures/observation-proof.mjs';
+import {githubObservationProof} from '../observation-proof.mjs';
 import {buildReceipt} from '../receipt.mjs';
 import {loadVerifiedReceipt} from '../receipt-loader.mjs';
 import {prepareResearchUse} from '../research-use.mjs';
 import {persistImmutable,persistSealedState} from '../git-artifacts.mjs';
 import {loadObservationIndex} from '../observation-index.mjs';
 import {openResearchSession,privateResearchSessionResponse,recheckResearchSession,observeResearchSessionSearch,verifyResearchSessionCommit} from '../research-session.mjs';
-import {persistResearchSessionContext,persistResearchSessionSearch} from '../session-journal-writer.mjs';
-import {loadSessionSearchRefs} from '../session-journal.mjs';
+import {persistResearchSessionContext,persistResearchSessionSearch,persistResearchSessionTaskIntent} from '../session-journal-writer.mjs';
+import {loadSessionSearchRefs,sessionSearchBody} from '../session-journal.mjs';
+import {createPrivateResearchTaskAdapter} from '../research-task-adapter.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -491,6 +493,305 @@ test('closed session requests reject arbitrary revisions, invalid dates, caller 
  }
  await assert.rejects(openResearchSession({...s.args,request:{...request,public_revision:'b'.repeat(40)}}),/stale_input/);
  assert.equal(s.privateRepo.writes.length,writes);
+});
+
+const taskCall=(operation,request)=>({schema_version:1,operation,request});
+const taskSearch=(context,request_id='search-1',query='science mystery public reviews')=>taskCall('search',{
+ task_token:context.task_token,request_id,query,preference_indexes:[0]});
+
+test('task adapter defaults to held before repository reads, and active host access cannot override inactive policy',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s),writes=s.privateRepo.writes.length;
+ let reads=0;const get=s.privateRepo.api.get;s.privateRepo.api.get=async route=>{reads++;return get(route);};
+ const held=createPrivateResearchTaskAdapter(s.args);
+ await assert.rejects(held.dispatch(taskCall('open',request)),/private_task_access_held/);
+ assert.equal(reads,0);assert.equal(s.privateRepo.writes.length,writes);
+ await assert.rejects(held.dispatch(taskCall('open',{...request,taskAccessAllowed:true})),/invalid_task_call/);
+ const inactive=scenario();await stage(inactive);await reconcile(inactive.args);
+ const adapter=createPrivateResearchTaskAdapter({...inactive.args,clock:()=>new Date('2026-10-11T22:30:00Z'),taskAccessAllowed:async()=>true});
+ const before=inactive.privateRepo.writes.length;
+ await assert.rejects(adapter.dispatch(taskCall('open',await sessionRequest(inactive))),/learning_inactive/);
+ assert.equal(inactive.privateRepo.writes.length,before);
+});
+
+test('task adapter connects private context, durable searches and the actual packet while unchanged calls reuse records',async()=>{
+ let adapter,context,result;let calls=0;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',
+   async search(){calls++;return {request_id:null,sources:[{url:'https://example.org/review',title:'Public fixture review'}]};}}});
+  context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+  assert.equal(s.privateRepo.refs.get('refs/heads/learning/session-'+context.response.session_id).object.sha,context.context_commit);
+  assert.deepEqual(await adapter.dispatch(taskCall('open',await sessionRequest(s))),context);
+  [result]=await Promise.all([adapter.dispatch(taskSearch(context)),adapter.dispatch(taskSearch(context))]);
+  assert.equal(calls,1);assert(result.observation_commit);
+  const branch=`refs/heads/learning/search-${result.session_id}-${result.search_id}`;
+  assert.equal(s.privateRepo.refs.get(branch).object.sha,result.observation_commit);
+  await assert.rejects(adapter.dispatch(taskSearch(context,'search-1','different public query')),/task_request_conflict/);
+  assert.equal(calls,1);
+ }});
+ const verified=await adapter.dispatch(taskCall('verify',{task_token:context.task_token,research_commit:researchCommit}));
+ assert.equal(verified.research_commit,researchCommit);assert.equal(verified.search_adapter_invocations_observed,1);
+ assert.equal(verified.actual_context_use_verified,false);assert.equal(verified.behavioral_effect_observed,false);
+ await assert.rejects(adapter.dispatch(taskSearch(context,'after-packet')),/research_already_staged/);
+ assert.equal(s.publicRepos.scifi.writes.length,0);assert(!stableJson([context,result,verified]).includes('PRIVATE_SENTINEL'));
+ assert(!stableJson(context).includes('tt999999991'));
+});
+
+test('task adapter resumes a transient journal failure with the original search and blocks unrelated work until recovery',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+  searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+ const context=await adapter.dispatch(taskCall('open',await sessionRequest(s))),post=s.privateRepo.api.post;
+ let failOnce=true;s.privateRepo.api.post=async(route,body)=>{
+  if(failOnce&&route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')){
+   failOnce=false;const error=Error('PRIVATE_SENTINEL GitHub unavailable');error.code='github_request_failed';error.status=503;throw error;
+  }return post(route,body);
+ };
+ await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code==='github_request_failed'&&!String(error).includes('PRIVATE_SENTINEL'));
+ await assert.rejects(adapter.dispatch(taskSearch(context,'another-search')),/task_search_unresolved/);
+ await assert.rejects(adapter.dispatch(taskCall('verify',{task_token:context.task_token,research_commit:'a'.repeat(40)})),/task_search_unresolved/);
+ assert.equal((await adapter.dispatch(taskCall('open',await sessionRequest(s)))).task_token,context.task_token);
+ const recovered=await adapter.dispatch(taskSearch(context));assert(recovered.observation_commit);assert.equal(calls,1);
+ const writes=s.privateRepo.writes.length;assert.deepEqual(await adapter.dispatch(taskSearch(context)),recovered);
+ assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('task adapter stops after provider or permanent write failure and changing request IDs does not replay the operation',async()=>{
+ for(const failure of ['provider','journal']){
+  const s=await activeScenario();await reconcile(s.args);let calls=0;
+  const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+   searchProvider:{id:'synthetic-task-search',async search(){calls++;if(failure==='provider')throw Error('PRIVATE_SENTINEL');return {request_id:null,sources:[]};}}});
+  const context=await adapter.dispatch(taskCall('open',await sessionRequest(s))),post=s.privateRepo.api.post;
+  if(failure==='journal')s.privateRepo.api.post=async(route,body)=>{
+   if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')){
+    const error=Error('PRIVATE_SENTINEL denied');error.code='github_request_failed';error.status=403;throw error;
+   }return post(route,body);
+  };
+  const code=failure==='provider'?'research_search_failed':'github_request_failed';
+  for(const id of ['same-request','same-request','changed-request'])await assert.rejects(adapter.dispatch(taskSearch(context,id)),
+   error=>error.code===code&&!String(error).includes('PRIVATE_SENTINEL'));
+  assert.equal(calls,1);
+ }
+});
+
+test('task adapter rechecks the separate hold and policy before releasing cached context or search results',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let access=true,calls=0;
+ const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>access,
+  searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+ const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));await adapter.dispatch(taskSearch(context));
+ const writes=s.privateRepo.writes.length;access=false;
+ for(const call of [taskCall('context',{task_token:context.task_token}),taskSearch(context),
+  taskCall('verify',{task_token:context.task_token,research_commit:'a'.repeat(40)})]){
+  await assert.rejects(adapter.dispatch(call),/private_task_access_held/);
+ }
+ access=true;s.publicRepos.anime.branch('main',{'config/research.json':'{"changed":true}'});
+ await assert.rejects(adapter.dispatch(taskSearch(context)));await assert.rejects(adapter.dispatch(taskCall('context',{task_token:context.task_token})));
+ assert.equal(calls,1);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('queued task calls snapshot their data and cannot borrow another adapter token or inject execution options',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const queries=[];let release,started;
+ const entered=new Promise(resolve=>{started=resolve;}),wait=new Promise(resolve=>{release=resolve;});
+ const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+  searchProvider:{id:'synthetic-task-search',async search(query){queries.push(query);if(queries.length===1){started();await wait;}return {request_id:null,sources:[]};}}});
+ const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+ const first=adapter.dispatch(taskSearch(context,'first','original first query'));await entered;
+ const queued=taskSearch(context,'second','original second query'),second=adapter.dispatch(queued);
+ queued.request.query='PRIVATE_SENTINEL changed queued query';queued.request.preference_indexes[0]=999;release();
+ await Promise.all([first,second]);assert.deepEqual(queries,['original first query','original second query']);
+ const other=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true});
+ await assert.rejects(other.dispatch(taskCall('context',{task_token:context.task_token})),/unknown_task_session/);
+ for(const invalid of [{...taskSearch(context),token:'credential'},taskCall('search',{...taskSearch(context).request,provider:'evil'}),
+  taskCall('verify',{task_token:context.task_token,research_commit:'a'.repeat(40),script:'AI code'})]){
+  await assert.rejects(adapter.dispatch(invalid),/invalid_task_call/);
+ }
+});
+
+test('task adapter refuses a full durable journal before invoking the provider',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+  searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+ const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+ for(let i=0;i<100;i++){
+  const ref=`refs/heads/learning/search-${context.response.session_id}-${digest(String(i))}`;
+  s.privateRepo.refs.set(ref,{ref,object:{sha:'a'.repeat(40)}});
+ }
+ const writes=s.privateRepo.writes.length;await assert.rejects(adapter.dispatch(taskSearch(context)),/session_journal_limit/);
+ assert.equal(calls,0);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('a replacement task worker authenticates a saved search after a lost write acknowledgement without searching again',async()=>{
+ let adapter,context,first;let calls=0;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',
+   async search(){calls++;return {request_id:null,sources:[{url:'https://example.org/recovered',title:'Recovered public fixture'}]};}}};
+  first=createPrivateResearchTaskAdapter(options);const original=await first.dispatch(taskCall('open',await sessionRequest(s))),post=s.privateRepo.api.post;
+  let lose=true;s.privateRepo.api.post=async(route,body)=>{
+   const result=await post(route,body);
+   if(lose&&route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')){
+    lose=false;const error=Error('lost acknowledgement');error.code='github_request_failed';error.status=503;throw error;
+   }return result;
+  };
+  await assert.rejects(first.dispatch(taskSearch(original)),/github_request_failed/);
+  adapter=createPrivateResearchTaskAdapter(options);context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+  assert.notEqual(context.task_token,original.task_token);
+  await assert.rejects(adapter.dispatch(taskCall('context',{task_token:original.task_token})),/unknown_task_session/);
+  const recovered=await adapter.dispatch(taskSearch(context));assert.equal(recovered.sources[0].url,'https://example.org/recovered');
+  assert.equal(calls,1);
+  await assert.rejects(adapter.dispatch(taskSearch(context,'search-1','changed query after restart')),/task_request_conflict/);
+ }});
+ const result=await adapter.dispatch(taskCall('verify',{task_token:context.task_token,research_commit:researchCommit}));
+ assert.equal(result.search_adapter_invocations_observed,1);assert.equal(calls,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(name=>name.includes('/learning/search-')).length,1);
+});
+
+test('unresolved durable intent blocks a replacement worker even with another request ID',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}};
+ const first=createPrivateResearchTaskAdapter(options);await first.dispatch(taskCall('open',await sessionRequest(s)));
+ const session=await openResearchSession({...s.args,request:await sessionRequest(s)});
+ await persistResearchSessionTaskIntent({api:s.privateRepo.api,session,proof:s.args.proof,nonce:'11111111-1111-4111-8111-111111111111',
+  request:{request_id:'uncertain-search',query:'original public query',preference_indexes:[0]}});
+ const replacement=createPrivateResearchTaskAdapter(options),context=await replacement.dispatch(taskCall('open',await sessionRequest(s)));
+ const writes=s.privateRepo.writes.length;
+ for(const id of ['uncertain-search','different-search'])await assert.rejects(replacement.dispatch(taskSearch(context,id,'original public query')),/task_search_unresolved/);
+ await assert.rejects(replacement.dispatch(taskCall('verify',{task_token:context.task_token,research_commit:'a'.repeat(40)})),/task_search_unresolved/);
+ assert.equal(calls,0);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('late search persistence resolves a replacement worker pending intent through authenticated reopening',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}};
+ const first=createPrivateResearchTaskAdapter(options),original=await first.dispatch(taskCall('open',await sessionRequest(s))),post=s.privateRepo.api.post;
+ let failOnce=true;s.privateRepo.api.post=async(route,body)=>{
+  if(failOnce&&route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')){
+   failOnce=false;const error=Error('temporary failure');error.code='github_request_failed';error.status=503;throw error;
+  }return post(route,body);
+ };
+ await assert.rejects(first.dispatch(taskSearch(original)),/github_request_failed/);
+ const replacement=createPrivateResearchTaskAdapter(options),pending=await replacement.dispatch(taskCall('open',await sessionRequest(s)));
+ await assert.rejects(replacement.dispatch(taskSearch(pending)),/task_search_unresolved/);
+ const saved=await first.dispatch(taskSearch(original));
+ const resumed=await replacement.dispatch(taskCall('open',await sessionRequest(s)));
+ assert.equal(resumed.task_token,pending.task_token);
+ assert.equal((await replacement.dispatch(taskSearch(resumed))).observation_commit,saved.observation_commit);assert.equal(calls,1);
+});
+
+test('legacy version-2 search journals remain valid and restore as unkeyed private observations',async()=>{
+ let adapter,context;
+ const {researchCommit}=await verificationScenario({onReady:async s=>{
+  const session=await openResearchSession({...s.args,request:await sessionRequest(s),
+   searchProvider:{id:'synthetic-legacy-search',async search(){return {request_id:null,sources:[]};}}});
+  await persistResearchSessionContext({api:s.privateRepo.api,session,proof:s.args.proof});
+  const observed=await observeResearchSessionSearch({session,query:'legacy public query',preferenceIndexes:[]});
+  const verified=(await import('../research-session.mjs')).privateResearchSearchObservation({session,handle:observed.handle});
+  const {task_request_id,...body}=verified.observation;body.schema_version=2;
+  const searchId=digest(stableJson(body)),base=await s.privateRepo.api.pinMain();
+  await persistSealedState({api:s.privateRepo.api,base,branch:`learning/search-${session.session_id}-${searchId}`,name:'search.json',
+   body:sessionSearchBody(searchId,body),proof:s.args.proof,assertCurrent:()=>recheckResearchSession(session)});
+  adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true});
+  context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+ }});
+ const result=await adapter.dispatch(taskCall('verify',{task_token:context.task_token,research_commit:researchCommit}));
+ assert.equal(result.search_adapter_invocations_observed,1);assert.equal(result.actual_context_use_verified,false);
+});
+
+test('racing task workers reserve one durable intent and only its owner invokes the provider',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}};
+ const left=createPrivateResearchTaskAdapter(options),right=createPrivateResearchTaskAdapter(options);
+ const request=taskCall('open',await sessionRequest(s));
+ const [a,b]=await Promise.all([left.dispatch(request),right.dispatch(request)]);
+ const settled=await Promise.allSettled([left.dispatch(taskSearch(a)),right.dispatch(taskSearch(b))]);
+ assert.equal(settled.filter(result=>result.status==='fulfilled').length,1);
+ assert.equal(settled.find(result=>result.status==='rejected').reason.code,'task_search_unresolved');
+ assert.equal(calls,1);assert.equal([...s.privateRepo.refs.keys()].filter(name=>name.includes('/task-intent-')).length,1);
+});
+
+test('task intent captures the code-owned nonce and request before asynchronous authority checks',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const session=await openResearchSession({...s.args,request:await sessionRequest(s)});
+ const request={request_id:'original-request',query:'original public query',preference_indexes:[0]};
+ const options={api:s.privateRepo.api,session,proof:s.args.proof,nonce:'11111111-1111-4111-8111-111111111111',request};
+ const get=s.privateRepo.api.get;let changed=false;
+ s.privateRepo.api.get=async route=>{if(!changed){changed=true;options.nonce='INVALID';request.query='changed';}return get(route);};
+ const record=await persistResearchSessionTaskIntent(options);assert.equal(record.owned,true);
+ assert.equal(record.body.nonce,'11111111-1111-4111-8111-111111111111');assert.equal(record.body.query,'original public query');
+});
+
+test('GitHub network and body-read exceptions use closed recoverable codes without repeating writes or exposing tokens',async()=>{
+ for(const stage of ['fetch','body'])for(const method of ['get','post']){
+  let calls=0;const client=new GitHub('Lewdcifer666/wtf-scifi-feedback','SYNTHETIC_SECRET',{writable:true,fetcher:async()=>{
+   calls++;if(stage==='fetch')throw TypeError('SYNTHETIC_SECRET socket failed');
+   return {ok:true,json:async()=>{throw TypeError('SYNTHETIC_SECRET body interrupted');}};
+  }});
+  await assert.rejects(client[method]('/git/refs',{}),error=>error.code==='transport_failure'&&!String(error).includes('SYNTHETIC_SECRET'));
+  assert.equal(calls,1);
+ }
+ const denied=new GitHub('Lewdcifer666/wtf-scifi-feedback','SYNTHETIC_SECRET',{writable:true,fetcher:async()=>({ok:false,status:403})});
+ await assert.rejects(denied.post('/git/refs',{}),error=>error.code==='github_request_failed'&&error.status===403);
+});
+
+test('task adapter retains an observed handle across real GitHub and OIDC network exceptions',async()=>{
+ for(const transport of ['github','proof']){
+  const s=await activeScenario();await reconcile(s.args);let calls=0,failOnce=true;
+  const post=s.privateRepo.api.post,fixture=s.args.proof;
+  const unavailable=async()=>{throw TypeError('PRIVATE_SENTINEL socket failure');};
+  const brokenGit=new GitHub('Lewdcifer666/wtf-scifi-feedback','SYNTHETIC_SECRET',{writable:true,fetcher:unavailable});
+  const brokenProof=githubObservationProof({env:{ACTIONS_ID_TOKEN_REQUEST_URL:'https://pipelines.actions.githubusercontent.com/synthetic',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'SYNTHETIC_SECRET'},fetcher:unavailable});
+  if(transport==='github')s.privateRepo.api.post=async(route,body)=>{
+   if(failOnce&&route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')){failOnce=false;return brokenGit.post(route,body);}
+   return post(route,body);
+  };
+  else s.args.proof={verify:fixture.verify,async sign(body,revision){
+   if(failOnce&&body.kind==='private_research_search_record'){failOnce=false;return brokenProof.sign(body,revision);}
+   return fixture.sign(body,revision);
+  }};
+  const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+   searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+  const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+  await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code===(transport==='github'?'transport_failure':'proof_transport_failure')&&!String(error).includes('PRIVATE_SENTINEL'));
+  const result=await adapter.dispatch(taskSearch(context));assert(result.observation_commit);assert.equal(calls,1);
+ }
+});
+
+test('missing search configuration creates no intent and a configured replacement worker can start cleanly',async()=>{
+ const s=await activeScenario();await reconcile(s.args);
+ const empty=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true}),request=taskCall('open',await sessionRequest(s));
+ const context=await empty.dispatch(request),writes=s.privateRepo.writes.length;
+ await assert.rejects(empty.dispatch(taskSearch(context)),/search_provider_unavailable/);
+ assert.equal([...s.privateRepo.refs.keys()].filter(name=>name.includes('/task-intent-')).length,0);
+ assert.equal(s.privateRepo.writes.length,writes);let calls=0;
+ const configured=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+  searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+ const ready=await configured.dispatch(request);assert((await configured.dispatch(taskSearch(ready))).observation_commit);assert.equal(calls,1);
+});
+
+test('explicit reopening refreshes late durable results even if this worker opened before any intent existed',async()=>{
+ for(const attemptBeforeReopen of [false,true]){
+  const s=await activeScenario();await reconcile(s.args);let calls=0;
+  const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}};
+  const first=createPrivateResearchTaskAdapter(options),second=createPrivateResearchTaskAdapter(options),request=taskCall('open',await sessionRequest(s));
+  const a=await first.dispatch(request),b=await second.dispatch(request),saved=await first.dispatch(taskSearch(a));
+  if(attemptBeforeReopen)await assert.rejects(second.dispatch(taskSearch(b)),/task_search_unresolved/);
+  const fresh=await second.dispatch(request),recovered=await second.dispatch(taskSearch(fresh));
+  assert.equal(recovered.observation_commit,saved.observation_commit);assert.equal(calls,1);
+ }
+});
+
+test('post-provider head and complete-inventory network failures retain the original invocation for a safe retry',async()=>{
+ for(const stage of ['heads','inventory','http']){
+  const s=await activeScenario();await reconcile(s.args);let calls=0,returned=false,failOnce=true;
+  const get=s.privateRepo.api.get;s.privateRepo.api.get=async route=>{
+   if(returned&&failOnce&&(stage==='heads'?route==='/':route.startsWith('/git/blobs/'))){
+    failOnce=false;const error=Error('PRIVATE_SENTINEL temporary verification failure');
+    error.code=stage==='http'?'github_request_failed':'transport_failure';if(stage==='http')error.status=503;throw error;
+   }return get(route);
+  };
+  const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+   searchProvider:{id:'synthetic-task-search',async search(){calls++;returned=true;return {request_id:null,sources:[]};}}});
+  const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+  await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code===(stage==='http'?'github_request_failed':'transport_failure'));
+  assert((await adapter.dispatch(taskSearch(context))).observation_commit);assert.equal(calls,1);
+ }
 });
 
 test('inactive or unpersisted learning blocks session opening without a fallback writer',async()=>{

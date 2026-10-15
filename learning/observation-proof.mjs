@@ -31,8 +31,14 @@ export function verifyObservationProof(token,body,revision,keys,{now=Date.now(),
 export function githubObservationProof({env=process.env,fetcher=fetch,clock=()=>new Date(),assertTriggerAncestor}={}){
  let keys;
  const json=async(url,options={})=>{
-  const response=await fetcher(url,{...options,redirect:'error'});if(!response.ok)fail('proof_transport_failure');
-  const text=await response.text();if(Buffer.byteLength(text)>256*1024)fail();
+  let response,text;
+  try{response=await fetcher(url,{...options,redirect:'error'});}catch{fail('proof_transport_failure');}
+  if(!response.ok){
+   if([401,403].includes(response.status))fail('proof_credentials_required');
+   fail([408,429].includes(response.status)||response.status>=500?'proof_transport_failure':'invalid_observation_proof');
+  }
+  try{text=await response.text();}catch{fail('proof_transport_failure');}
+  if(Buffer.byteLength(text)>256*1024)fail();
   try{return JSON.parse(text);}catch{fail();}
  };
  const trustedKeys=async()=>{if(!keys){const document=await json(PROOF_ISSUER+'/.well-known/jwks');if(!Array.isArray(document.keys))fail();keys=document.keys;}return keys;};

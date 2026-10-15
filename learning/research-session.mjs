@@ -9,11 +9,12 @@ import {berlinResearchDate} from './handoff.mjs';
 import {GENRES} from './receipt.mjs';
 import {digest,stableJson} from './interpretation.mjs';
 import {LearningError} from './git-artifacts.mjs';
-import {describeResearchSession} from './session-journal.mjs';
+import {describeResearchSession,readResearchSessionJournal} from './session-journal.mjs';
 
 const validateRequest=new Ajv({strict:true,allErrors:false}).compile(JSON.parse(fs.readFileSync(new URL('./schemas/research-session-request.schema.json',import.meta.url),'utf8')));
 const sessions=new WeakMap();
 const searchRecords=new WeakMap();
+const taskSearches=new WeakMap();
 const validateSearchResult=new Ajv({strict:true,allErrors:false}).compile({
   type:'object',additionalProperties:false,required:['sources','request_id'],properties:{
     request_id:{type:['string','null'],minLength:1,maxLength:256},
@@ -105,15 +106,27 @@ export async function recheckResearchSession(session){
 // and preference mapping stay here. Failure stops this call without retries or
 // another writer/provider. These records prove that this adapter invoked its
 // configured search function, not that an AI claim or causal effect is true.
-export async function observeResearchSessionSearch({session,query,preferenceIndexes}){
+export async function observeResearchSessionSearch({session,query,preferenceIndexes,taskRequestId=null}){
   const {provider,binding}=recordFor(session);
   if(!provider)fail('search_provider_unavailable');
   const preferenceCount=binding.issued.context.preferences.length;
-  if(typeof query!=='string'||!query.trim()||query.length>2000||Buffer.from(query,'utf8').toString('utf8')!==query
+  if((taskRequestId!==null&&(typeof taskRequestId!=='string'||!/^[a-zA-Z0-9._-]{1,64}$/.test(taskRequestId)))
+    ||typeof query!=='string'||!query.trim()||query.length>2000||Buffer.from(query,'utf8').toString('utf8')!==query
     ||!Array.isArray(preferenceIndexes)||preferenceIndexes.length>preferenceCount
     ||new Set(preferenceIndexes).size!==preferenceIndexes.length
     ||Array.from(preferenceIndexes).some(i=>!Number.isInteger(i)||i<0||i>=preferenceCount))fail('invalid_search_request');
   const selectedIndexes=[...preferenceIndexes].sort((a,b)=>a-b);
+  const signature=stableJson({query,preference_indexes:selectedIndexes});
+  let pending;
+  if(taskRequestId!==null){
+    if(!taskSearches.has(session))taskSearches.set(session,new Map());
+    pending=taskSearches.get(session);const previous=pending.get(taskRequestId);
+    if(previous){
+      if(previous.signature!==signature)fail('task_request_conflict');
+      await recheckResearchSession(session);return previous.result;
+    }
+    if(pending.size>=100)fail('session_journal_limit');
+  }
   await recheckResearchSession(session);
   const invocation_id=randomUUID();
   let result;
@@ -123,14 +136,18 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     let url;try{url=new URL(source.url);}catch{fail('invalid_search_result');}
     if(url.protocol!=='https:'||url.username||url.password||!url.hostname.includes('.'))fail('invalid_search_result');
   }
-  await recheckResearchSession(session);
-  const body=freeze({schema_version:2,kind:'private_observed_research_search',invocation_id,session_id:session.session_id,
+  const body=freeze({schema_version:3,kind:'private_observed_research_search',invocation_id,task_request_id:taskRequestId,session_id:session.session_id,
     use_id:binding.issued.use_id,context_hash:binding.issued.context_hash,provider_id:provider.id,
     query,preference_indexes:selectedIndexes,
     provider_request_id:result.request_id,sources:structuredClone(result.sources)});
   const handle=freeze({schema_version:1,kind:'private_research_search_handle',search_id:digest(stableJson(body))});
   searchRecords.set(handle,{session,body});
-  return {handle,sources:freeze(structuredClone(result.sources))};
+  const observed=freeze({handle,sources:freeze(structuredClone(result.sources))});
+  // Retain a real completed invocation BEFORE the awaited final head check.
+  // Transient verification failures can retry its stable task request ID
+  // without invoking the provider again; stale evidence is never released.
+  if(pending)pending.set(taskRequestId,{signature,result:observed});
+  await recheckResearchSession(session);return observed;
 }
 
 // Explicit private transport boundary; copied handles and records from another
@@ -141,6 +158,24 @@ export function privateResearchSearchObservation({session,handle}){
   const record=handle&&typeof handle==='object'?searchRecords.get(handle):null;
   if(!record||record.session!==session)fail('unauthenticated_research_search');
   return freeze(structuredClone({search_id:handle.search_id,observation:record.body}));
+}
+
+// Recover only signed immutable observations authenticated against this active
+// session's original complete source tuple. Plain JSON still cannot mint a
+// handle. Recovery does not invoke a search or revive stale taste evidence.
+export async function restoreResearchSessionSearches(session){
+  const {options,binding}=recordFor(session);await recheckResearchSession(session);
+  const base=await options.api.pinMain();
+  const journal=await readResearchSessionJournal({api:options.api,base,issued:binding.issued,
+    handoffCommit:binding.handoff_commit,issuanceCommit:binding.issuance_commit,proof:options.proof,
+    assertCurrent:()=>recheckResearchSession(session)});
+  const restored=(journal?.searches||[]).map(({search_id,observation,commit})=>{
+    const handle=freeze({schema_version:1,kind:'private_research_search_handle',search_id});
+    searchRecords.set(handle,{session,body:freeze(structuredClone(observation))});
+    return {handle,commit,task_request_id:observation.task_request_id??null,query:observation.query,
+      preference_indexes:structuredClone(observation.preference_indexes),sources:structuredClone(observation.sources)};
+  });
+  await recheckResearchSession(session);return freeze(restored);
 }
 
 // Bind the session to the actual validated public packet before publication.
