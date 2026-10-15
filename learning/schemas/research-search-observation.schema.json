@@ -4,9 +4,10 @@
   "additionalProperties": false,
   "required": ["schema_version", "kind", "invocation_id", "session_id", "use_id", "context_hash", "provider_id", "query", "preference_indexes", "provider_request_id", "sources"],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"enum": [2, 3]},
     "kind": {"const": "private_observed_research_search"},
     "invocation_id": {"type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"},
+    "task_request_id": {"type": ["string", "null"], "pattern": "^[a-zA-Z0-9._-]{1,64}$"},
     "session_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "use_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "context_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
@@ -18,5 +19,8 @@
       "type": "object", "additionalProperties": false, "required": ["url", "title"],
       "properties": {"url": {"type": "string", "minLength": 1, "maxLength": 4096}, "title": {"type": "string", "maxLength": 1024}}
     }}
-  }
+  },
+  "allOf": [{"if": {"properties": {"schema_version": {"const": 3}}},
+    "then": {"properties": {"task_request_id": {}}, "required": ["task_request_id"]},
+    "else": {"properties": {"task_request_id": false}}}]
 }
