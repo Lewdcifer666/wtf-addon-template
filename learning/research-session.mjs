@@ -3,6 +3,7 @@
 // connector, publish research, or bypass a safety-denied operation.
 import fs from 'node:fs';
 import Ajv from 'ajv';
+import {randomUUID} from 'node:crypto';
 import {reconcile} from './reconcile.mjs';
 import {berlinResearchDate} from './handoff.mjs';
 import {GENRES} from './receipt.mjs';
@@ -114,6 +115,7 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     ||Array.from(preferenceIndexes).some(i=>!Number.isInteger(i)||i<0||i>=preferenceCount))fail('invalid_search_request');
   const selectedIndexes=[...preferenceIndexes].sort((a,b)=>a-b);
   await recheckResearchSession(session);
+  const invocation_id=randomUUID();
   let result;
   try{result=structuredClone(await provider.search(query));}catch{fail('research_search_failed');}
   if(!validateSearchResult(result))fail('invalid_search_result');
@@ -122,7 +124,7 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     if(url.protocol!=='https:'||url.username||url.password||!url.hostname.includes('.'))fail('invalid_search_result');
   }
   await recheckResearchSession(session);
-  const body=freeze({schema_version:1,kind:'private_observed_research_search',session_id:session.session_id,
+  const body=freeze({schema_version:2,kind:'private_observed_research_search',invocation_id,session_id:session.session_id,
     use_id:binding.issued.use_id,context_hash:binding.issued.context_hash,provider_id:provider.id,
     query,preference_indexes:selectedIndexes,
     provider_request_id:result.request_id,sources:structuredClone(result.sources)});

@@ -8,6 +8,18 @@ import {readSealedSessionRecord,sessionContextBody,sessionSearchBody,validateSes
 import {stableJson} from './interpretation.mjs';
 
 const fail=code=>{throw new LearningError(code);};
+// The trusted workflow has one writer process and repository-wide non-canceling
+// concurrency. Serialize its asynchronous calls as well: count + create must
+// be one operation even when several task searches finish together. A service
+// must queue to that writer, not mint a parallel writer outside the workflow.
+const searchWrites=new Map();
+async function serializeSearchWrite(sessionId,operation){
+ const previous=searchWrites.get(sessionId)||Promise.resolve();let release;
+ const current=new Promise(resolve=>{release=resolve;});searchWrites.set(sessionId,current);
+ await previous;
+ try{return await operation();}
+ finally{release();if(searchWrites.get(sessionId)===current)searchWrites.delete(sessionId);}
+}
 const boundedProof=proof=>({
  async sign(body,revision){
   const token=await proof.sign(body,revision);
@@ -47,6 +59,7 @@ export async function persistResearchSessionContext({api,session,proof}){
 
 export async function persistResearchSessionSearch({api,session,handle,proof}){
  const search=privateResearchSearchObservation({session,handle});
+ return serializeSearchWrite(session.session_id,async()=>{
  const {response,base,assertCurrent,signer}=await authority({api,session,proof});
  validateSessionSearch(search.observation,response);
  const context=await readSealedSessionRecord({api,base,branch:`learning/session-${response.session_id}`,name:'session.json',
@@ -56,4 +69,5 @@ export async function persistResearchSessionSearch({api,session,handle,proof}){
  if(refs.length>=100&&!refs.some(ref=>ref.ref===`refs/heads/${branch}`))fail('session_journal_limit');
  return persistSealedState({api,base,branch,name:'search.json',
   body:sessionSearchBody(search.search_id,search.observation),proof:signer,assertCurrent});
+ });
 }

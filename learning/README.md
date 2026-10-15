@@ -183,6 +183,13 @@ authenticated original bytes, including a racing signer's different JWT. The
 writer refuses missing context, copied handles, moved inputs and staged public
 research; it cannot create an interpretation, raw event or public packet.
 No existing CLI or workflow invokes the writer, and activation stays unchanged.
+Distinct search invocations receive code-owned UUIDs even when their queries,
+results and nullable provider request IDs are identical. Retrying an existing
+handle reuses its original invocation and artifact. Search writes are serialized
+within the single trusted writer process; the existing workflow-wide concurrency
+prevents overlapping processor runs. Any future service must queue through that
+writer rather than introducing parallel writer processes. This keeps the
+100-record check and creation atomic within the supported execution model.
 
 Normal active observation reconciliation can authenticate these historical
 records after publication or feedback corrections, without restoring stale

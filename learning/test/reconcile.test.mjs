@@ -861,3 +861,36 @@ test('concurrent journal writers reuse one authenticated context and search desp
  assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/session-')).length,1);
  assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.includes('/learning/search-')).length,1);assert.equal(searchCalls,1);
 });
+
+test('distinct identical searches with no provider request ID retain separate durable invocations',async()=>{
+ let calls=0;
+ const {s}=await verificationScenario({onReady:async s=>{
+  const session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:{id:'synthetic-search',search:async()=>{calls++;return {request_id:null,sources:[]};}}});
+  await persistResearchSessionContext({api:s.privateRepo.api,session,proof:s.args.proof});
+  const first=await observeResearchSessionSearch({session,query:'identical public query',preferenceIndexes:[]});
+  const second=await observeResearchSessionSearch({session,query:'identical public query',preferenceIndexes:[]});
+  assert.notEqual(first.handle.search_id,second.handle.search_id);
+  for(const handle of [first.handle,second.handle,first.handle])await persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof});
+ }});
+ const {body}=recordedObservation(s,await reconcile(s.args));assert.equal(body.session_journal.search_adapter_invocations_observed,2);
+ const ids=body.session_journal.searches.map(s=>s.observation.invocation_id);assert.equal(new Set(ids).size,2);assert.equal(calls,2);
+});
+
+test('concurrent distinct searches cannot exceed the last journal slot and unchanged retries still work at capacity',async()=>{
+ const s=await activeScenario();await reconcile(s.args);
+ const session=await openResearchSession({...s.args,request:await sessionRequest(s),searchProvider:{id:'synthetic-search',search:async()=>({request_id:null,sources:[]})}});
+ await persistResearchSessionContext({api:s.privateRepo.api,session,proof:s.args.proof});
+ let first;
+ for(let index=0;index<99;index++){
+  const {handle}=await observeResearchSessionSearch({session,query:'public capacity fixture',preferenceIndexes:[]});first??=handle;
+  await persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof});
+ }
+ const last=await observeResearchSessionSearch({session,query:'public capacity fixture',preferenceIndexes:[]});
+ const extra=await observeResearchSessionSearch({session,query:'public capacity fixture',preferenceIndexes:[]});
+ const result=await Promise.allSettled([last.handle,extra.handle].map(handle=>persistResearchSessionSearch({api:s.privateRepo.api,session,handle,proof:s.args.proof})));
+ assert.equal(result.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal(result.find(r=>r.status==='rejected').reason.code,'session_journal_limit');
+ assert.equal((await loadSessionSearchRefs(s.privateRepo.api,session.session_id)).length,100);
+ const writes=s.privateRepo.writes.length;await persistResearchSessionSearch({api:s.privateRepo.api,session,handle:first,proof:s.args.proof});
+ assert.equal(s.privateRepo.writes.length,writes);
+});
