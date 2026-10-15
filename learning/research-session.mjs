@@ -3,11 +3,13 @@
 // connector, publish research, or bypass a safety-denied operation.
 import fs from 'node:fs';
 import Ajv from 'ajv';
+import {randomUUID} from 'node:crypto';
 import {reconcile} from './reconcile.mjs';
 import {berlinResearchDate} from './handoff.mjs';
 import {GENRES} from './receipt.mjs';
 import {digest,stableJson} from './interpretation.mjs';
 import {LearningError} from './git-artifacts.mjs';
+import {describeResearchSession} from './session-journal.mjs';
 
 const validateRequest=new Ajv({strict:true,allErrors:false}).compile(JSON.parse(fs.readFileSync(new URL('./schemas/research-session-request.schema.json',import.meta.url),'utf8')));
 const sessions=new WeakMap();
@@ -71,11 +73,9 @@ export async function openResearchSession({api,publicApis,trustedRevision,reques
   await assertHeads(options,handoff.issued);
   await assertNotStaged(options,copied);
   if(copied.research_date!==berlinResearchDate(clock()))fail('stale_input');
-  const binding={schema_version:1,kind:'private_research_session',request:copied,
-    handoff_commit:handoff.commit,issuance_commit:handoff.issuance_commit,
-    issued:handoff.issued};
+  const {binding,session_id}=describeResearchSession({issued:handoff.issued,handoffCommit:handoff.commit,issuanceCommit:handoff.issuance_commit});
   const session=freeze({schema_version:1,kind:'private_research_session',genre:copied.genre,
-    research_date:copied.research_date,session_id:digest(stableJson(binding))});
+    research_date:copied.research_date,session_id});
   sessions.set(session,{options,request:freeze(copied),binding:freeze(structuredClone(binding)),
     provider:searchProvider===null?null:Object.freeze({id:searchProvider.id,search:searchProvider.search.bind(searchProvider)})});
   return session;
@@ -87,12 +87,8 @@ export async function openResearchSession({api,publicApis,trustedRevision,reques
 export async function privateResearchSessionResponse(session){
   const {binding}=recordFor(session);
   await recheckResearchSession(session);
-  return freeze(structuredClone({schema_version:1,kind:'private_research_context_response',
-    session_id:session.session_id,genre:session.genre,research_date:session.research_date,
-    handoff_commit:binding.handoff_commit,issuance_commit:binding.issuance_commit,
-    use_id:binding.issued.use_id,receipt_commit:binding.issued.receipt_commit,
-    source_heads:binding.issued.source_heads,context_hash:binding.issued.context_hash,
-    context:binding.issued.context}));
+  return freeze(structuredClone(describeResearchSession({issued:binding.issued,
+    handoffCommit:binding.handoff_commit,issuanceCommit:binding.issuance_commit}).response));
 }
 
 // Reopening recomputes current state after other genres may have published.
@@ -119,6 +115,7 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     ||Array.from(preferenceIndexes).some(i=>!Number.isInteger(i)||i<0||i>=preferenceCount))fail('invalid_search_request');
   const selectedIndexes=[...preferenceIndexes].sort((a,b)=>a-b);
   await recheckResearchSession(session);
+  const invocation_id=randomUUID();
   let result;
   try{result=structuredClone(await provider.search(query));}catch{fail('research_search_failed');}
   if(!validateSearchResult(result))fail('invalid_search_result');
@@ -127,13 +124,23 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     if(url.protocol!=='https:'||url.username||url.password||!url.hostname.includes('.'))fail('invalid_search_result');
   }
   await recheckResearchSession(session);
-  const body=freeze({schema_version:1,kind:'private_observed_research_search',session_id:session.session_id,
+  const body=freeze({schema_version:2,kind:'private_observed_research_search',invocation_id,session_id:session.session_id,
     use_id:binding.issued.use_id,context_hash:binding.issued.context_hash,provider_id:provider.id,
     query,preference_indexes:selectedIndexes,
     provider_request_id:result.request_id,sources:structuredClone(result.sources)});
   const handle=freeze({schema_version:1,kind:'private_research_search_handle',search_id:digest(stableJson(body))});
   searchRecords.set(handle,{session,body});
   return {handle,sources:freeze(structuredClone(result.sources))};
+}
+
+// Explicit private transport boundary; copied handles and records from another
+// session are refused. The durable journal writer cannot accept AI-authored JSON
+// in place of an observation made by the configured trusted search adapter.
+export function privateResearchSearchObservation({session,handle}){
+  recordFor(session);
+  const record=handle&&typeof handle==='object'?searchRecords.get(handle):null;
+  if(!record||record.session!==session)fail('unauthenticated_research_search');
+  return freeze(structuredClone({search_id:handle.search_id,observation:record.body}));
 }
 
 // Bind the session to the actual validated public packet before publication.
@@ -144,11 +151,7 @@ export async function verifyResearchSessionCommit({session,researchCommit,search
   const {options,request,binding}=recordFor(session);
   if(typeof researchCommit!=='string'||!/^[a-f0-9]{40}$/.test(researchCommit))fail('invalid_consumer_request');
   if(!Array.isArray(searches)||searches.length>100)fail('invalid_research_search_evidence');
-  const records=Array.from(searches,handle=>{
-    const record=handle&&typeof handle==='object'?searchRecords.get(handle):null;
-    if(!record||record.session!==session)fail('unauthenticated_research_search');
-    return {search_id:handle.search_id,...record.body};
-  });
+  const records=Array.from(searches,handle=>{const record=privateResearchSearchObservation({session,handle});return {search_id:record.search_id,...record.observation};});
   if(new Set(records.map(r=>r.search_id)).size!==records.length)fail('invalid_research_search_evidence');
   if(request.research_date!==berlinResearchDate(options.clock()))fail('stale_input');
   const verified=await reconcile({...options,dryRun:true,consumeGenre:request.genre,researchCommit});

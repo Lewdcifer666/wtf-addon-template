@@ -4,16 +4,18 @@ import {GENRES} from './receipt.mjs';
 
 const fail=()=>{throw new LearningError('invalid_observation_index');};
 const sha=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
-const validEntry=e=>e&&Object.keys(e).sort().join()==='branch,commit,genre,handoff_commit,research_commit,research_date,state'
+const validEntry=(e,version)=>e&&(Object.keys(e).sort().join()==='branch,commit,genre,handoff_commit,research_commit,research_date,state'
+ ||(version===2&&Object.keys(e).sort().join()==='branch,commit,genre,handoff_commit,journal_heads_hash,research_commit,research_date,session_id,state'
+ &&/^[a-f0-9]{64}$/.test(e.session_id)&&/^[a-f0-9]{64}$/.test(e.journal_heads_hash)&&e.state==='diagnostics_recorded'))
  &&GENRES.includes(e.genre)&&/^20\d\d-\d\d-\d\d$/.test(e.research_date)&&sha(e.handoff_commit)&&sha(e.research_commit)
  &&((e.state==='diagnostics_recorded'&&/^learning\/observation-[a-f0-9]{64}$/.test(e.branch)&&sha(e.commit))||(e.state==='ordering_unproven'&&e.branch===null&&e.commit===null));
 const id=e=>e.handoff_commit+':'+e.research_commit;
-export const emptyObservationIndex=(period='legacy')=>({schema_version:1,kind:'private_historical_observation_index',period,sequence:0,cursor:null,known_handoffs:[],completed:[]});
+export const emptyObservationIndex=(period='legacy')=>({schema_version:2,kind:'private_historical_observation_index',period,sequence:0,cursor:null,known_handoffs:[],completed:[]});
 function validateIndex(index){
- if(!index||Object.keys(index).sort().join()!=='completed,cursor,kind,known_handoffs,period,schema_version,sequence'||index.schema_version!==1||index.kind!=='private_historical_observation_index'||!/^20\d\d-(0[1-9]|1[0-2])$|^legacy$/.test(index.period)
+ if(!index||Object.keys(index).sort().join()!=='completed,cursor,kind,known_handoffs,period,schema_version,sequence'||![1,2].includes(index.schema_version)||index.kind!=='private_historical_observation_index'||!/^20\d\d-(0[1-9]|1[0-2])$|^legacy$/.test(index.period)
    ||!Number.isSafeInteger(index.sequence)||index.sequence<1||index.sequence>9999999999||(index.cursor!==null&&!sha(index.cursor))
    ||!Array.isArray(index.known_handoffs)||index.known_handoffs.length>10000||!index.known_handoffs.every(sha)||new Set(index.known_handoffs).size!==index.known_handoffs.length
-   ||!Array.isArray(index.completed)||index.completed.length>20000||!index.completed.every(validEntry)||new Set(index.completed.map(id)).size!==index.completed.length)fail();
+   ||!Array.isArray(index.completed)||index.completed.length>20000||!index.completed.every(e=>validEntry(e,index.schema_version))||new Set(index.completed.map(id)).size!==index.completed.length)fail();
 }
 
 // A self-declared checksum/AI marker cannot suppress pending work. Only a
@@ -39,7 +41,7 @@ export async function loadObservationIndex({api,base,proof,assertCurrent,period=
 }
 
 export async function saveObservationIndex({api,base,proof,previous,index,assertCurrent}){
- const normalized={...index,known_handoffs:[...index.known_handoffs].sort(),completed:[...index.completed].sort((a,b)=>id(a).localeCompare(id(b),'en'))};
+ const normalized={...index,schema_version:2,known_handoffs:[...index.known_handoffs].sort(),completed:[...index.completed].sort((a,b)=>id(a).localeCompare(id(b),'en'))};
  const withoutSequence=x=>({...x,sequence:0});
  if(stableJson(withoutSequence(normalized))===stableJson(withoutSequence(previous.index)))return;
  const body={...normalized,sequence:previous.largest_sequence+1};validateIndex(body);
