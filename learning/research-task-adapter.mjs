@@ -23,12 +23,12 @@ const validate=new Ajv({strict:true,allErrors:false}).compile({oneOf:[
 ]});
 const fail=code=>{throw new LearningError(code);};
 const recoverable=error=>error?.code==='github_request_failed'&&[408,429,500,502,503,504].includes(error.status)
- ||['proof_key_unavailable','proof_transport_failure'].includes(error?.code);
+ ||['transport_failure','proof_key_unavailable','proof_transport_failure'].includes(error?.code);
 const publicErrors=new Set(['invalid_task_call','private_task_access_held','task_session_limit','unknown_task_session',
  'task_request_conflict','task_search_unresolved','learning_inactive','invalid_consumer_request','invalid_handoff',
  'stale_input','research_already_staged','private_repository_required','invalid_search_request','search_provider_unavailable',
  'research_search_failed','invalid_search_result','session_journal_limit','session_context_not_persisted',
- 'github_request_failed','proof_credentials_required','proof_key_unavailable','proof_transport_failure',
+ 'github_request_failed','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure',
  'invalid_session_journal','invalid_observation_proof','immutable_artifact_mismatch','invalid_signed_artifact']);
 const safeError=error=>new LearningError(publicErrors.has(error?.code)?error.code:'private_task_failed');
 
@@ -46,7 +46,7 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
   if(entry.blocked)throw entry.blocked;
   try{
    entry.context=await persistResearchSessionContext({api,session:entry.session,proof});
-   if(!entry.restored||entry.unresolvedIntents){
+   {
     const recovered=await restoreResearchSessionSearches(entry.session);
     const searches=new Map(),anonymous=[];
     for(const search of recovered){
@@ -56,6 +56,9 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
      searches.set(search.task_request_id,{signature:stableJson({query:search.query,preference_indexes:search.preference_indexes}),
       observed:{handle:search.handle,sources:search.sources},persisted:{commit:search.commit},blocked:null});
     }
+    // Preserve an observed but not yet persisted result owned by this process.
+    // Reopening must not discard the only safe retry handle.
+    for(const [id,search] of entry.searches)if(!search.persisted&&!searches.has(id))searches.set(id,search);
     const prefix=`refs/heads/learning/task-intent-${entry.session.session_id}-`;
     const refs=await api.get(`/git/matching-refs/heads/learning/task-intent-${entry.session.session_id}-`);
     if(!Array.isArray(refs)||refs.length>100||new Set(refs.map(r=>r?.ref)).size!==refs.length
@@ -65,7 +68,6 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
     const complete=new Set([...searches.keys()].map(digest));
     entry.unresolvedIntents=refs.some(r=>!complete.has(r.ref.slice(prefix.length)));
     entry.searches=searches;entry.anonymous=anonymous;
-    entry.restored=true;
    }
    return await privateResearchSessionResponse(entry.session);
   }catch(error){if(!recoverable(error))entry.blocked=safeError(error);throw error;}
@@ -83,7 +85,7 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
    if(!entry){
     if(sessions.size>=6)fail('task_session_limit');
     const session=await openResearchSession({...authority,request});
-    entry={session,token:randomUUID(),searches:new Map(),anonymous:[],restored:false,unresolvedIntents:false,context:null,blocked:null};
+    entry={session,token:randomUUID(),searches:new Map(),anonymous:[],unresolvedIntents:false,context:null,blocked:null};
     sessions.set(entry.token,entry);requests.set(key,entry);
    }
    return contextResponse(entry,await writeContext(entry));
@@ -104,6 +106,7 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
   let search=entry.searches.get(request.request_id);
   if(search&&search.signature!==signature)fail('task_request_conflict');
   if(!search){
+   if(searchProvider===null)fail('search_provider_unavailable');
    if([...entry.searches.values()].some(s=>!s.persisted))fail('task_search_unresolved');
    const refs=await loadSessionSearchRefs(api,entry.session.session_id);
    if(refs.length>=100||entry.searches.size>=100)fail('session_journal_limit');
@@ -115,12 +118,17 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
     const intent=await persistResearchSessionTaskIntent({api,session:entry.session,proof,nonce:search.nonce,
      request:{request_id:request.request_id,query:request.query,preference_indexes:[...request.preference_indexes].sort((a,b)=>a-b)}});
     if(!intent.owned)fail('task_search_unresolved');
-   }catch(error){if(!recoverable(error))entry.blocked=search.blocked=safeError(error);throw error;}
+   }catch(error){
+    if(error.code==='task_search_unresolved'){
+     entry.unresolvedIntents=true;entry.searches.delete(request.request_id);
+    }else if(!recoverable(error))entry.blocked=search.blocked=safeError(error);
+    throw error;
+   }
    try{search.observed=await observeResearchSessionSearch({session:entry.session,query:request.query,
     preferenceIndexes:request.preference_indexes,taskRequestId:request.request_id});}
    // A provider error is terminal for this request; never try another provider
    // or automatically repeat an invocation whose result is unknown.
-   catch(error){entry.blocked=search.blocked=safeError(error);throw error;}
+   catch(error){if(!recoverable(error))entry.blocked=search.blocked=safeError(error);throw error;}
   }
   if(!search.persisted){
    try{search.persisted=await persistResearchSessionSearch({api,session:entry.session,handle:search.observed.handle,proof});}

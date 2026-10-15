@@ -246,6 +246,13 @@ validated provider recovery/idempotency mechanism. The intent remains intact.
 
 Recoverable GitHub transport failures or temporarily unavailable proof keys may
 resume the same in-process observed handle; the provider is not called again.
+This includes DNS/socket and interrupted-response failures, and failures during
+the post-search source recheck: completed local results stay private in memory
+until a currentness check and durable persistence succeed. Explicit reopening
+always reauthenticates late journal records while retaining safe local retry
+handles. Missing provider configuration is refused before any intent is written.
+HTTP authorization denials stay permanent; network normalization does not turn
+them into automatic retries.
 Provider failures and permanent write errors stop that session, and arbitrary
 error text is replaced with closed codes. The adapter creates no interpretation,
 raw feedback, public packet, PR or activation commit. Saved-task connection,

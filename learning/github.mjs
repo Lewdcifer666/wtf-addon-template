@@ -1,16 +1,21 @@
 import {LearningError} from './git-artifacts.mjs';
 export class GitHub {
-  constructor(repository,token,{writable=false}={}){
+  constructor(repository,token,{writable=false,fetcher=fetch}={}){
     if(!/^Lewdcifer666\/wtf-(?:scifi-feedback|(?:action|anime|fantasy|mystery|scifi|thriller)-stremio)$/.test(repository))throw new LearningError('unexpected_repository');
     if(!token)throw new LearningError('missing_credentials');
-    this.repository=repository;this.token=token;this.writable=writable;
+    this.repository=repository;this.token=token;this.writable=writable;this.fetcher=fetcher;
   }
   async request(method,route,body){
     if(!route.startsWith('/')||route.includes('://'))throw new LearningError('invalid_api_route');
     if(method!=='GET'&&(!this.writable||this.repository!=='Lewdcifer666/wtf-scifi-feedback'||!/^\/git\/(blobs|trees|commits|refs)$/.test(route)))throw new LearningError('unauthorized_write');
     for(let attempt=0;attempt<3;attempt++){
-      const response=await fetch(`https://api.github.com/repos/${this.repository}${route==='/'?'':route}`,{method,headers:{Authorization:`Bearer ${this.token}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
-      if(response.ok)return response.json();
+      let response;
+      try{response=await this.fetcher(`https://api.github.com/repos/${this.repository}${route==='/'?'':route}`,{method,headers:{Authorization:`Bearer ${this.token}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});}
+      catch{throw new LearningError('transport_failure');}
+      if(response.ok){
+        try{return await response.json();}
+        catch(error){throw new LearningError(error instanceof SyntaxError?'github_request_failed':'transport_failure');}
+      }
       if(method==='GET'&&response.status>=500&&attempt<2){await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));continue;}
       const error=new LearningError('github_request_failed');error.status=response.status;throw error;
     }

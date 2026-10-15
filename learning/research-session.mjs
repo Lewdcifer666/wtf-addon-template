@@ -14,6 +14,7 @@ import {describeResearchSession,readResearchSessionJournal} from './session-jour
 const validateRequest=new Ajv({strict:true,allErrors:false}).compile(JSON.parse(fs.readFileSync(new URL('./schemas/research-session-request.schema.json',import.meta.url),'utf8')));
 const sessions=new WeakMap();
 const searchRecords=new WeakMap();
+const taskSearches=new WeakMap();
 const validateSearchResult=new Ajv({strict:true,allErrors:false}).compile({
   type:'object',additionalProperties:false,required:['sources','request_id'],properties:{
     request_id:{type:['string','null'],minLength:1,maxLength:256},
@@ -115,6 +116,17 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     ||new Set(preferenceIndexes).size!==preferenceIndexes.length
     ||Array.from(preferenceIndexes).some(i=>!Number.isInteger(i)||i<0||i>=preferenceCount))fail('invalid_search_request');
   const selectedIndexes=[...preferenceIndexes].sort((a,b)=>a-b);
+  const signature=stableJson({query,preference_indexes:selectedIndexes});
+  let pending;
+  if(taskRequestId!==null){
+    if(!taskSearches.has(session))taskSearches.set(session,new Map());
+    pending=taskSearches.get(session);const previous=pending.get(taskRequestId);
+    if(previous){
+      if(previous.signature!==signature)fail('task_request_conflict');
+      await recheckResearchSession(session);return previous.result;
+    }
+    if(pending.size>=100)fail('session_journal_limit');
+  }
   await recheckResearchSession(session);
   const invocation_id=randomUUID();
   let result;
@@ -124,14 +136,18 @@ export async function observeResearchSessionSearch({session,query,preferenceInde
     let url;try{url=new URL(source.url);}catch{fail('invalid_search_result');}
     if(url.protocol!=='https:'||url.username||url.password||!url.hostname.includes('.'))fail('invalid_search_result');
   }
-  await recheckResearchSession(session);
   const body=freeze({schema_version:3,kind:'private_observed_research_search',invocation_id,task_request_id:taskRequestId,session_id:session.session_id,
     use_id:binding.issued.use_id,context_hash:binding.issued.context_hash,provider_id:provider.id,
     query,preference_indexes:selectedIndexes,
     provider_request_id:result.request_id,sources:structuredClone(result.sources)});
   const handle=freeze({schema_version:1,kind:'private_research_search_handle',search_id:digest(stableJson(body))});
   searchRecords.set(handle,{session,body});
-  return {handle,sources:freeze(structuredClone(result.sources))};
+  const observed=freeze({handle,sources:freeze(structuredClone(result.sources))});
+  // Retain a real completed invocation BEFORE the awaited final head check.
+  // Transient verification failures can retry its stable task request ID
+  // without invoking the provider again; stale evidence is never released.
+  if(pending)pending.set(taskRequestId,{signature,result:observed});
+  await recheckResearchSession(session);return observed;
 }
 
 // Explicit private transport boundary; copied handles and records from another

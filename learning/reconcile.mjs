@@ -18,6 +18,8 @@ import {githubObservationProof} from './observation-proof.mjs';
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
 const readLocal=name=>JSON.parse(fs.readFileSync(new URL(name,import.meta.url),'utf8'));
 const fail=code=>{throw new LearningError(code);};
+const recoverableTransport=error=>error?.code==='transport_failure'
+  ||error?.code==='github_request_failed'&&[408,429,500,502,503,504].includes(error.status);
 const validResearchDate=value=>typeof value==='string'&&/^20\d\d-\d\d-\d\d$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
 async function treeAt(api,commit){
   const tree=await api.get(`/git/trees/${commit.tree.sha}?recursive=1`);
@@ -119,7 +121,8 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
     activation=validateActivation(JSON.parse((await readBlob(api,tree.tree.find(e=>e.path==='learning/config/activation.json'))).toString('utf8')));
     sourceStage='invalid_public_policy';
     for(const genre of GENRES)profiles[genre]=await loadPublicProfile(publicApis[genre],genre,readLocal(`./config/${genre}.json`));
-  }catch{
+  }catch(error){
+    if(recoverableTransport(error))throw error;
     if(!dryRun)await persistImmutable(api,{base,...failureArtifact({packetCommit:null,sourceRevision:base.sha,engineFingerprint,code:sourceStage}),assertCurrent:async()=>{
       if((await api.get('/')).private!==true)fail('private_repository_required');
       if((await api.pinMain()).sha!==base.sha)fail('stale_input');
@@ -189,8 +192,8 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
   }catch(error){
     // The collector already persisted its closed per-handoff failures. Do not
     // misclassify them as interpretation/handoff construction failures.
-    if(error.code==='invalid_research_observation')throw error;
-    const controlErrors=['stale_input','immutable_artifact_mismatch','invalid_observation_index','invalid_observation_proof','proof_transport_failure','proof_credentials_required','proof_key_unavailable','invalid_signed_artifact','invalid_handoff_issuance'];
+    if(error.code==='invalid_research_observation'||recoverableTransport(error))throw error;
+    const controlErrors=['stale_input','immutable_artifact_mismatch','invalid_observation_index','invalid_observation_proof','transport_failure','proof_transport_failure','proof_credentials_required','proof_key_unavailable','invalid_signed_artifact','invalid_handoff_issuance'];
     const code=controlErrors.includes(error.code)?error.code:stage;
     if(!dryRun&&code!=='stale_input')await persistImmutable(api,{base,...failureArtifact({packetCommit,sourceRevision:base.sha,engineFingerprint,code}),assertCurrent});
     throw new LearningError(code);

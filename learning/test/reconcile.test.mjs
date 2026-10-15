@@ -7,6 +7,7 @@ import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretat
 import {inventoryFeedback} from '../inventory.mjs';
 import {GENRES} from '../receipt.mjs';
 import {fixtureObservationProof} from './fixtures/observation-proof.mjs';
+import {githubObservationProof} from '../observation-proof.mjs';
 import {buildReceipt} from '../receipt.mjs';
 import {loadVerifiedReceipt} from '../receipt-loader.mjs';
 import {prepareResearchUse} from '../research-use.mjs';
@@ -548,6 +549,7 @@ test('task adapter resumes a transient journal failure with the original search 
  await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code==='github_request_failed'&&!String(error).includes('PRIVATE_SENTINEL'));
  await assert.rejects(adapter.dispatch(taskSearch(context,'another-search')),/task_search_unresolved/);
  await assert.rejects(adapter.dispatch(taskCall('verify',{task_token:context.task_token,research_commit:'a'.repeat(40)})),/task_search_unresolved/);
+ assert.equal((await adapter.dispatch(taskCall('open',await sessionRequest(s)))).task_token,context.task_token);
  const recovered=await adapter.dispatch(taskSearch(context));assert(recovered.observation_commit);assert.equal(calls,1);
  const writes=s.privateRepo.writes.length;assert.deepEqual(await adapter.dispatch(taskSearch(context)),recovered);
  assert.equal(s.privateRepo.writes.length,writes);
@@ -713,6 +715,83 @@ test('task intent captures the code-owned nonce and request before asynchronous 
  s.privateRepo.api.get=async route=>{if(!changed){changed=true;options.nonce='INVALID';request.query='changed';}return get(route);};
  const record=await persistResearchSessionTaskIntent(options);assert.equal(record.owned,true);
  assert.equal(record.body.nonce,'11111111-1111-4111-8111-111111111111');assert.equal(record.body.query,'original public query');
+});
+
+test('GitHub network and body-read exceptions use closed recoverable codes without repeating writes or exposing tokens',async()=>{
+ for(const stage of ['fetch','body'])for(const method of ['get','post']){
+  let calls=0;const client=new GitHub('Lewdcifer666/wtf-scifi-feedback','SYNTHETIC_SECRET',{writable:true,fetcher:async()=>{
+   calls++;if(stage==='fetch')throw TypeError('SYNTHETIC_SECRET socket failed');
+   return {ok:true,json:async()=>{throw TypeError('SYNTHETIC_SECRET body interrupted');}};
+  }});
+  await assert.rejects(client[method]('/git/refs',{}),error=>error.code==='transport_failure'&&!String(error).includes('SYNTHETIC_SECRET'));
+  assert.equal(calls,1);
+ }
+ const denied=new GitHub('Lewdcifer666/wtf-scifi-feedback','SYNTHETIC_SECRET',{writable:true,fetcher:async()=>({ok:false,status:403})});
+ await assert.rejects(denied.post('/git/refs',{}),error=>error.code==='github_request_failed'&&error.status===403);
+});
+
+test('task adapter retains an observed handle across real GitHub and OIDC network exceptions',async()=>{
+ for(const transport of ['github','proof']){
+  const s=await activeScenario();await reconcile(s.args);let calls=0,failOnce=true;
+  const post=s.privateRepo.api.post,fixture=s.args.proof;
+  const unavailable=async()=>{throw TypeError('PRIVATE_SENTINEL socket failure');};
+  const brokenGit=new GitHub('Lewdcifer666/wtf-scifi-feedback','SYNTHETIC_SECRET',{writable:true,fetcher:unavailable});
+  const brokenProof=githubObservationProof({env:{ACTIONS_ID_TOKEN_REQUEST_URL:'https://pipelines.actions.githubusercontent.com/synthetic',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'SYNTHETIC_SECRET'},fetcher:unavailable});
+  if(transport==='github')s.privateRepo.api.post=async(route,body)=>{
+   if(failOnce&&route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/search-')){failOnce=false;return brokenGit.post(route,body);}
+   return post(route,body);
+  };
+  else s.args.proof={verify:fixture.verify,async sign(body,revision){
+   if(failOnce&&body.kind==='private_research_search_record'){failOnce=false;return brokenProof.sign(body,revision);}
+   return fixture.sign(body,revision);
+  }};
+  const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+   searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+  const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+  await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code===(transport==='github'?'transport_failure':'proof_transport_failure')&&!String(error).includes('PRIVATE_SENTINEL'));
+  const result=await adapter.dispatch(taskSearch(context));assert(result.observation_commit);assert.equal(calls,1);
+ }
+});
+
+test('missing search configuration creates no intent and a configured replacement worker can start cleanly',async()=>{
+ const s=await activeScenario();await reconcile(s.args);
+ const empty=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true}),request=taskCall('open',await sessionRequest(s));
+ const context=await empty.dispatch(request),writes=s.privateRepo.writes.length;
+ await assert.rejects(empty.dispatch(taskSearch(context)),/search_provider_unavailable/);
+ assert.equal([...s.privateRepo.refs.keys()].filter(name=>name.includes('/task-intent-')).length,0);
+ assert.equal(s.privateRepo.writes.length,writes);let calls=0;
+ const configured=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+  searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}});
+ const ready=await configured.dispatch(request);assert((await configured.dispatch(taskSearch(ready))).observation_commit);assert.equal(calls,1);
+});
+
+test('explicit reopening refreshes late durable results even if this worker opened before any intent existed',async()=>{
+ for(const attemptBeforeReopen of [false,true]){
+  const s=await activeScenario();await reconcile(s.args);let calls=0;
+  const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-task-search',async search(){calls++;return {request_id:null,sources:[]};}}};
+  const first=createPrivateResearchTaskAdapter(options),second=createPrivateResearchTaskAdapter(options),request=taskCall('open',await sessionRequest(s));
+  const a=await first.dispatch(request),b=await second.dispatch(request),saved=await first.dispatch(taskSearch(a));
+  if(attemptBeforeReopen)await assert.rejects(second.dispatch(taskSearch(b)),/task_search_unresolved/);
+  const fresh=await second.dispatch(request),recovered=await second.dispatch(taskSearch(fresh));
+  assert.equal(recovered.observation_commit,saved.observation_commit);assert.equal(calls,1);
+ }
+});
+
+test('post-provider head and complete-inventory network failures retain the original invocation for a safe retry',async()=>{
+ for(const stage of ['heads','inventory','http']){
+  const s=await activeScenario();await reconcile(s.args);let calls=0,returned=false,failOnce=true;
+  const get=s.privateRepo.api.get;s.privateRepo.api.get=async route=>{
+   if(returned&&failOnce&&(stage==='heads'?route==='/':route.startsWith('/git/blobs/'))){
+    failOnce=false;const error=Error('PRIVATE_SENTINEL temporary verification failure');
+    error.code=stage==='http'?'github_request_failed':'transport_failure';if(stage==='http')error.status=503;throw error;
+   }return get(route);
+  };
+  const adapter=createPrivateResearchTaskAdapter({...s.args,taskAccessAllowed:async()=>true,
+   searchProvider:{id:'synthetic-task-search',async search(){calls++;returned=true;return {request_id:null,sources:[]};}}});
+  const context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+  await assert.rejects(adapter.dispatch(taskSearch(context)),error=>error.code===(stage==='http'?'github_request_failed':'transport_failure'));
+  assert((await adapter.dispatch(taskSearch(context))).observation_commit);assert.equal(calls,1);
+ }
 });
 
 test('inactive or unpersisted learning blocks session opening without a fallback writer',async()=>{
