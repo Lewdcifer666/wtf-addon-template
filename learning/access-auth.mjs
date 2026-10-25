@@ -24,7 +24,9 @@ export function createAccessAuthenticator(config,{fetchImpl=globalThis.fetch,now
    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
    let response;
    try{
-    response=await fetchImpl(certs,{method:'GET',redirect:'error',credentials:'omit',
+    // Workers supports manual/follow, not error. Manual plus the status check
+    // below refuses redirects without following them to another destination.
+    response=await fetchImpl(certs,{method:'GET',redirect:'manual',credentials:'omit',
      headers:{Accept:'application/json'},signal:controller.signal});
     if(response.status!==200||response.redirected||Number(response.headers.get('content-length'))>keyLimit)throw Error('access_keys_unavailable');
     const chunks=[];let bytes=0;
@@ -60,8 +62,10 @@ export function createAccessAuthenticator(config,{fetchImpl=globalThis.fetch,now
    if(typeof token!=='string'||token.length>6144||! /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))return false;
    const header=decodeProtectedHeader(token);
    if(header.alg!=='RS256'||typeof header.kid!=='string'||!header.kid.length||header.kid.length>256||
-    Object.keys(header).some(name=>!['alg','typ','kid'].includes(name))||header.typ!=='JWT')return false;
-   const {payload}=await jwtVerify(token,resolveKey,{algorithms:['RS256'],typ:'JWT',issuer,audience,subject,
+    Object.keys(header).some(name=>!['alg','typ','kid'].includes(name))||header.typ!==undefined&&header.typ!=='JWT')return false;
+   // Cloudflare's live Access assertions can omit RFC 7519's optional typ.
+   // Explicit alternate types stay denied; signed app/owner claims remain required.
+   const {payload}=await jwtVerify(token,resolveKey,{algorithms:['RS256'],issuer,audience,subject,
     requiredClaims:['exp','iat','email','type'],clockTolerance:30,currentDate:new Date(now())});
    const seconds=now()/1000;
    return payload.email===email&&payload.type==='app'&&Number.isSafeInteger(payload.iat)&&Number.isSafeInteger(payload.exp)&&

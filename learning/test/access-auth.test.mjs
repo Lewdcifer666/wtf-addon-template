@@ -38,7 +38,7 @@ test('Access verifies signature, fixed issuer/audience/subject/email and fresh i
  let reads=0;
  const verify=createAccessAuthenticator(config,{now:()=>baseTime,fetchImpl:async(url,options)=>{
   reads++;assert.equal(url,config.issuer+'/cdn-cgi/access/certs');
-  assert.equal(options.method,'GET');assert.equal(options.redirect,'error');assert.equal(options.credentials,'omit');
+  assert.equal(options.method,'GET');assert.equal(options.redirect,'manual');assert.equal(options.credentials,'omit');
   assert.deepEqual(options.headers,{Accept:'application/json'});assert(options.signal instanceof AbortSignal);
   return keyResponse();
  }});
@@ -63,6 +63,20 @@ test('untrusted JWT headers cannot select endpoints, algorithms or inline keys',
  const hmac=await new SignJWT({}).setProtectedHeader({alg:'HS256',typ:'JWT',kid:'first'}).sign(new Uint8Array(32));
  for(const value of [undefined,'',unsigned,hmac,'x'.repeat(6145),'e30.e30.eA, duplicate'])assert.equal(await verify(value),false);
  assert.equal(reads,0);
+});
+
+test('Cloudflare assertions without optional typ retain every signature, owner and app-claim check',async()=>{
+ const header={typ:undefined};
+ const verify=createAccessAuthenticator(config,{now:()=>baseTime,fetchImpl:async()=>keyResponse()});
+ assert.equal(await verify(await token({header})),true);
+ for(const claims of [{iss:'https://other.cloudflareaccess.com'},{aud:['b'.repeat(64)]},{sub:'other'},
+  {email:'other@example.invalid'},{type:'org'},{exp:Math.floor(baseTime/1000)-31},
+  {nbf:Math.floor(baseTime/1000)+31},{iat:Math.floor(baseTime/1000)+31}]){
+  assert.equal(await verify(await token({header,claims})),false);
+ }
+ for(const name of ['iss','aud','sub','email','type','iat','exp'])assert.equal(await verify(await token({header,remove:[name]})),false,name);
+ assert.equal(await verify(await token({header,key:second.privateKey})),false);
+ for(const typ of ['not-jwt','at+jwt','org',null,1])assert.equal(await verify(await token({header:{typ}})),false);
 });
 
 test('key fetch is shared, bounded and cached; rotation and expiry never reuse stale or unavailable keys',async()=>{
@@ -113,7 +127,7 @@ test('loopback Access mode authenticates MCP initialization, discovery and healt
   return originalFetch(url,options);
  });
  const host=await startLocalResearchMcpHost({access:config}),client=new Client({name:'synthetic-access-client',version:'1'});
- const valid=await token(),headers={'Cf-Access-Jwt-Assertion':valid};
+ const valid=await token({header:{typ:undefined}}),headers={'Cf-Access-Jwt-Assertion':valid};
  try{
   assert.equal((await originalFetch(host.url,{method:'POST'})).status,401);
   assert.equal((await originalFetch(host.url,{method:'POST',headers:{Authorization:'Bearer '+'x'.repeat(43)}})).status,401);

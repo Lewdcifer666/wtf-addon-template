@@ -9,10 +9,10 @@ import {startLocalResearchMcpHost} from '../research-mcp-host.mjs';
 const access={issuer:'https://synthetic-gateway.cloudflareaccess.com',audience:'b'.repeat(64),subject:'synthetic-owner',email:'owner@example.invalid'};
 const origin='https://wtf-private-research-gateway.synthetic.workers.dev';
 const pair=await generateKeyPair('RS256'),key={...await exportJWK(pair.publicKey),alg:'RS256',use:'sig',kid:'synthetic'};
-async function token(claims={}){
+async function token(claims={},header={}){
  const seconds=Math.floor(Date.now()/1000);
  return new SignJWT({iss:access.issuer,aud:[access.audience],sub:access.subject,email:access.email,type:'app',iat:seconds,exp:seconds+3600,...claims})
-  .setProtectedHeader({alg:'RS256',typ:'JWT',kid:'synthetic'}).sign(pair.privateKey);
+  .setProtectedHeader({alg:'RS256',typ:'JWT',kid:'synthetic',...header}).sign(pair.privateKey);
 }
 const jwt=await token(),headers={'Cf-Access-Jwt-Assertion':jwt,'Content-Type':'application/json'};
 const rpc={jsonrpc:'2.0',id:'stable-request-id',method:'tools/list'};
@@ -39,6 +39,17 @@ test('origin verifies Access owner identity before any VPC request, without bear
   const response=await connection.fetch(input);assert.equal(response.status,401);
   assert.deepEqual(await response.json(),{error:'private_gateway_unauthorized'});
  }assert.equal(calls,0);
+});
+
+test('gateway accepts absent optional typ only with valid signed owner app claims',async()=>{
+ let calls=0;const connection=gateway({async fetch(){calls++;return answer();}});
+ const assertion=await token({},{typ:undefined});
+ assert.equal((await connection.fetch(request(undefined,{headers:{...headers,'Cf-Access-Jwt-Assertion':assertion}}))).status,200);
+ for(const claims of [{sub:'other'},{email:'other@example.invalid'},{type:'org'}]){
+  const denied=await token(claims,{typ:undefined});
+  assert.equal((await connection.fetch(request(undefined,{headers:{...headers,'Cf-Access-Jwt-Assertion':denied}}))).status,401);
+ }
+ assert.equal(calls,1);
 });
 
 test('gateway rejects browser origins, alternate routes, encoded, malformed and oversized requests before forwarding',async()=>{
