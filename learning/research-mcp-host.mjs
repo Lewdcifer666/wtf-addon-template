@@ -4,6 +4,7 @@ import {createServer} from 'node:http';
 import {createHash,timingSafeEqual} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 import Ajv from 'ajv';
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -102,8 +103,19 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,port
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const args=process.argv.slice(2);
- if(args.length!==2||args[0]!=='--port'||!/^\d{1,5}$/.test(args[1])){console.error('private-mcp: usage node learning/research-mcp-host.mjs --port PORT');process.exitCode=1;}
- else startLocalResearchMcpHost({bearerToken:process.env.PRIVATE_RESEARCH_MCP_TOKEN,port:Number(args[1])})
+ const local=args.length===2&&args[0]==='--port'&&/^\d{1,5}$/.test(args[1]);
+ const access=args.length===4&&args[0]==='--access-config'&&args[2]==='--port'&&/^\d{1,5}$/.test(args[3]);
+ if(!local&&!access){console.error('private-mcp: usage --port PORT or --access-config FILE --port PORT');process.exitCode=1;}
+ else Promise.resolve().then(()=>{
+  let options={bearerToken:process.env.PRIVATE_RESEARCH_MCP_TOKEN,port:Number(local?args[1]:args[3])};
+  if(access){
+   const info=fs.lstatSync(args[1]);if(!info.isFile()||info.isSymbolicLink()||info.size>4096)throw Error('invalid_access_file');
+   const raw=fs.readFileSync(args[1]),text=raw.toString('utf8');
+   if(raw.length>4096||!Buffer.from(text,'utf8').equals(raw))throw Error('invalid_access_file');
+   options={...options,access:JSON.parse(text)};
+  }
+  return startLocalResearchMcpHost(options);
+ })
   .then(host=>{console.log('private-mcp: local transport ready; adapter held');
    for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>{void host.close().then(()=>process.exit(0));});})
   .catch(()=>{console.error('private-mcp: host_start_failed');process.exitCode=1;});
