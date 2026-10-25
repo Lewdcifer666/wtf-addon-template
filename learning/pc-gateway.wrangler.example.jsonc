@@ -1,0 +1,21 @@
+// Review and copy to a private local deployment file after setup authorization.
+// No usable account, identity, service binding, or public route is configured.
+{
+  "name": "wtf-private-research-gateway",
+  "main": "pc-gateway.mjs",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {"enabled": false},
+  "vpc_services": [{"binding": "PRIVATE_RESEARCH", "service_id": "00000000-0000-0000-0000-000000000000"}],
+  "vars": {
+    "PRIVATE_GATEWAY_ENABLED": "false",
+    "PRIVATE_GATEWAY_ORIGIN": "REPLACE_WITH_ACCESS_PROTECTED_WORKERS_DEV_ORIGIN",
+    "PRIVATE_PC_PORT": "6505",
+    "ACCESS_ISSUER": "REPLACE_WITH_TEAM_ISSUER",
+    "ACCESS_AUDIENCE": "REPLACE_WITH_APP_AUDIENCE",
+    "ACCESS_OWNER_SUBJECT": "REPLACE_WITH_VERIFIED_OWNER_SUBJECT",
+    "ACCESS_OWNER_EMAIL": "REPLACE_WITH_VERIFIED_OWNER_EMAIL"
+  }
+}

@@ -1,5 +1,6 @@
 // Caller identity only. This is never a replacement for GitHub OIDC provenance.
 import {createLocalJWKSet,decodeProtectedHeader,jwtVerify,errors} from 'jose';
+import {Buffer} from 'node:buffer';
 
 const keyLimit=64*1024,cacheMs=5*60*1000,cooldownMs=30000;
 const invalid=()=>Error('invalid_private_access_config');

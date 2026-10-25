@@ -439,7 +439,8 @@ No request, identity claim, JWT or raw exception is logged or echoed.
 
 This is an origin-authentication building block, not a deployed OAuth provider.
 It creates no tunnel, credential, installation or persistent service. The CLI
-remains local bearer-only with a held adapter. Even a valid Access identity
+supports local bearer or a bounded server-owned Access JSON file, always with a
+held adapter. Even a valid Access identity
 leaves the default adapter held, cannot mint GitHub OIDC provenance, and does
 not activate learning or publish. Account/hostname/Access availability, cloud
 task OAuth/tool availability and the trusted signing runtime still require
@@ -448,6 +449,12 @@ independent verification and the existing deployment/cutover decisions.
 References: [Cloudflare token validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/),
 [application identity claims](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/),
 [Managed OAuth](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/managed-oauth/).
+
+The domain-free frontend in `pc-gateway.mjs` forwards only authenticated MCP
+traffic to a single private Workers VPC Service on the selected PC. It stores no
+feedback or credentials, never signs or publishes, and never retries an uncertain
+backend outcome. Its example config disables public/preview routes and processing
+by default. See [the concrete setup and remaining approval gates](PC_CONNECTION_SETUP.md).
 
 Overall acceptance requires new genuine captured feedback, automatic interpreted
 aggregation, actual subsequent research use/effect, and supersession/retraction
