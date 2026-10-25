@@ -416,6 +416,39 @@ tasks without changing their times, enabled states or rotator. Verify a complete
 newly computed receipt, intentionally enable private learned research through a
 validated activation-policy PR, and verify the resulting fresh receipt.
 
+### PC origin authentication (code only)
+
+`startLocalResearchMcpHost` accepts either the existing local `bearerToken` or
+an explicit `access` object with exactly `issuer`, `audience`, `subject`, `email`.
+The latter pins one Cloudflare team HTTPS domain, one application's AUD tag and
+the exact owner's authenticated subject/email. Configuration is server-owned;
+none of it is supplied by a task or inferred from an unverified JWT. Both modes
+still bind only loopback and reject nonlocal Host and all Origin headers. A
+future reviewed tunnel must explicitly set the local origin Host. Access mode
+does not accept the local bearer token as a fallback.
+
+The origin verifies the `Cf-Access-Jwt-Assertion` signature using pinned jose
+6.2.12 and public RS256 keys fetched only from the configured team's fixed
+`/cdn-cgi/access/certs` URL. It requires current application-token claims and the
+owner's exact subject/email; global-session and service identities are refused.
+Duplicate assertions, arbitrary key URLs, invalid tokens and unavailable keys
+fail closed before initialization, discovery, health or task dispatch. Key
+responses have a 64 KiB limit and five-second timeout covering the body; fetches
+are shared, cached for five minutes and rate-limited even after failures.
+No request, identity claim, JWT or raw exception is logged or echoed.
+
+This is an origin-authentication building block, not a deployed OAuth provider.
+It creates no tunnel, credential, installation or persistent service. The CLI
+remains local bearer-only with a held adapter. Even a valid Access identity
+leaves the default adapter held, cannot mint GitHub OIDC provenance, and does
+not activate learning or publish. Account/hostname/Access availability, cloud
+task OAuth/tool availability and the trusted signing runtime still require
+independent verification and the existing deployment/cutover decisions.
+
+References: [Cloudflare token validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/),
+[application identity claims](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/),
+[Managed OAuth](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/managed-oauth/).
+
 Overall acceptance requires new genuine captured feedback, automatic interpreted
 aggregation, actual subsequent research use/effect, and supersession/retraction
 observations. Synthetic tests and shadow computations do not satisfy those gates.

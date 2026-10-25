@@ -9,6 +9,7 @@ import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {CallToolRequestSchema,ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
 import {createPrivateResearchTaskAdapter,researchTaskCallSchema,privateTaskErrorCode} from './research-task-adapter.mjs';
+import {createAccessAuthenticator} from './access-auth.mjs';
 
 const descriptions={
  open:'Open current private learning context and persist its private provenance. Requires an authorized active deployment. Never use for a held operation.',
@@ -47,13 +48,19 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
  server.onerror=()=>{};return server;
 }
 
-export async function startLocalResearchMcpHost({bearerToken,adapter,port=0}={}){
- if(typeof bearerToken!=='string'||!/^[A-Za-z0-9_-]{43,128}$/.test(bearerToken))throw Error('private_host_credentials_required');
+export async function startLocalResearchMcpHost({bearerToken,access,adapter,port=0}={}){
+ if(access!==undefined&&bearerToken!==undefined)throw Error('ambiguous_private_host_auth');
+ if(access===undefined&&(typeof bearerToken!=='string'||!/^[A-Za-z0-9_-]{43,128}$/.test(bearerToken)))throw Error('private_host_credentials_required');
  if(!Number.isInteger(port)||port<0||port>65535)throw Error('invalid_private_host_port');
  const installedAdapter=adapter??createPrivateResearchTaskAdapter({});
  if(typeof installedAdapter.dispatch!=='function')throw Error('invalid_private_adapter');
- const expected=createHash('sha256').update('Bearer '+bearerToken).digest();
- const authorized=req=>{
+ const accessAuth=access===undefined?null:createAccessAuthenticator(access);
+ const expected=accessAuth?null:createHash('sha256').update('Bearer '+bearerToken).digest();
+ const authorized=async req=>{
+  if(accessAuth){
+   const assertions=req.rawHeaders.filter((_,index)=>index%2===0&&req.rawHeaders[index].toLowerCase()==='cf-access-jwt-assertion');
+   return assertions.length===1&&await accessAuth(req.headers['cf-access-jwt-assertion']);
+  }
   const header=req.headers.authorization;
   return typeof header==='string'&&header.length<=256&&timingSafeEqual(expected,createHash('sha256').update(header).digest());
  };
@@ -62,7 +69,7 @@ export async function startLocalResearchMcpHost({bearerToken,adapter,port=0}={})
   // Direct callers must be local and authenticate even for initialization/list.
   const localPort=req.socket.localPort;
   if(![`127.0.0.1:${localPort}`,`localhost:${localPort}`].includes(req.headers.host)||req.headers.origin){end(403,'private_host_origin_denied');return;}
-  if(!authorized(req)){end(401,'private_host_unauthorized');return;}
+  if(!await authorized(req)){end(401,'private_host_unauthorized');return;}
   if(req.url==='/healthz'&&req.method==='GET'){
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({schema_version:1,transport:'ready',learning_activation:'not_asserted',publication_capability:false}));return;
   }
