@@ -65,6 +65,20 @@ test('untrusted JWT headers cannot select endpoints, algorithms or inline keys',
  assert.equal(reads,0);
 });
 
+test('Cloudflare assertions without optional typ retain every signature, owner and app-claim check',async()=>{
+ const header={typ:undefined};
+ const verify=createAccessAuthenticator(config,{now:()=>baseTime,fetchImpl:async()=>keyResponse()});
+ assert.equal(await verify(await token({header})),true);
+ for(const claims of [{iss:'https://other.cloudflareaccess.com'},{aud:['b'.repeat(64)]},{sub:'other'},
+  {email:'other@example.invalid'},{type:'org'},{exp:Math.floor(baseTime/1000)-31},
+  {nbf:Math.floor(baseTime/1000)+31},{iat:Math.floor(baseTime/1000)+31}]){
+  assert.equal(await verify(await token({header,claims})),false);
+ }
+ for(const name of ['iss','aud','sub','email','type','iat','exp'])assert.equal(await verify(await token({header,remove:[name]})),false,name);
+ assert.equal(await verify(await token({header,key:second.privateKey})),false);
+ for(const typ of ['not-jwt','at+jwt','org',null,1])assert.equal(await verify(await token({header:{typ}})),false);
+});
+
 test('key fetch is shared, bounded and cached; rotation and expiry never reuse stale or unavailable keys',async()=>{
  let time=baseTime,reads=0,available=0,broken=false;
  const verify=createAccessAuthenticator(config,{now:()=>time,fetchImpl:async()=>{
@@ -113,7 +127,7 @@ test('loopback Access mode authenticates MCP initialization, discovery and healt
   return originalFetch(url,options);
  });
  const host=await startLocalResearchMcpHost({access:config}),client=new Client({name:'synthetic-access-client',version:'1'});
- const valid=await token(),headers={'Cf-Access-Jwt-Assertion':valid};
+ const valid=await token({header:{typ:undefined}}),headers={'Cf-Access-Jwt-Assertion':valid};
  try{
   assert.equal((await originalFetch(host.url,{method:'POST'})).status,401);
   assert.equal((await originalFetch(host.url,{method:'POST',headers:{Authorization:'Bearer '+'x'.repeat(43)}})).status,401);
