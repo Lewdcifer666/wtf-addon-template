@@ -6,9 +6,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
 import Ajv from 'ajv';
-import {Server} from '@modelcontextprotocol/sdk/server/index.js';
-import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import {CallToolRequestSchema,ListToolsRequestSchema} from '@modelcontextprotocol/sdk/types.js';
+import {Server,createMcpHandler,isLegacyRequest,WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/server';
 import {createPrivateResearchTaskAdapter,researchTaskCallSchema,privateTaskErrorCode} from './research-task-adapter.mjs';
 import {createAccessAuthenticator} from './access-auth.mjs';
 
@@ -31,9 +29,10 @@ const failure=code=>reply({schema_version:1,error:code},true);
 export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter({})){
  if(typeof adapter?.dispatch!=='function')throw Error('invalid_private_adapter');
  const server=new Server({name:'wtf-private-research',version:'1.0.0'},
-  {capabilities:{tools:{}},instructions:'Private learning tools only. A hold or denial means stop; never retry using a different tool, ID or writer. Keep all context/results private. Tools cannot stage AI packets, publish, change activation or prove a recommendation effect.'});
- server.setRequestHandler(ListToolsRequestSchema,async()=>({tools:structuredClone(tools)}));
- server.setRequestHandler(CallToolRequestSchema,async({params},{requestId})=>{
+  {supportedProtocolVersions:['2026-07-28','2025-11-25','2025-06-18','2025-03-26','2024-11-05','2024-10-07'],
+   capabilities:{tools:{}},instructions:'Private learning tools only. A hold or denial means stop; never retry using a different tool, ID or writer. Keep all context/results private. Tools cannot stage AI packets, publish, change activation or prove a recommendation effect.'});
+ server.setRequestHandler('tools/list',async()=>({tools:structuredClone(tools)}));
+ server.setRequestHandler('tools/call',async({params},ctx)=>{
   const validate=validators.get(params.name);if(!validate||!validate(params.arguments))return failure('invalid_task_call');
   const operation=params.name.slice('private_research_'.length);
   try{
@@ -41,7 +40,7 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
    const response=reply(result);
    // Text and structuredContent both carry the value; count escaped JSON and
    // the RPC envelope too, not merely the adapter's unduplicated object.
-   if(Buffer.byteLength(JSON.stringify({jsonrpc:'2.0',id:requestId,result:response}),'utf8')>1024*1024)return failure('private_task_failed');
+   if(Buffer.byteLength(JSON.stringify({jsonrpc:'2.0',id:ctx.mcpReq.id,result:response}),'utf8')>1024*1024)return failure('private_task_failed');
    return response;
   }catch(error){return failure(privateTaskErrorCode(error));}
  });
@@ -55,6 +54,10 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,port
  if(!Number.isInteger(port)||port<0||port>65535)throw Error('invalid_private_host_port');
  const installedAdapter=adapter??createPrivateResearchTaskAdapter({});
  if(typeof installedAdapter.dispatch!=='function')throw Error('invalid_private_adapter');
+ // Official per-request entry serves modern discovery and legacy initialization.
+ // Authentication and the private dispatcher remain outside its protocol routing.
+ // These handlers emit no progress/logging messages, so auto returns JSON.
+ const handler=createMcpHandler(()=>createResearchMcpServer(installedAdapter),{legacy:'reject',responseMode:'auto',onerror:()=>{}});
  const accessAuth=access===undefined?null:createAccessAuthenticator(access);
  const expected=accessAuth?null:createHash('sha256').update('Bearer '+bearerToken).digest();
  const authorized=async req=>{
@@ -90,15 +93,38 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,port
   if(!body||typeof body!=='object'||Array.isArray(body)){end(400,'invalid_private_host_request');return;}
   // Bound the echoed ID even for SDK-generated errors and initialization.
   if(body.id!==undefined&&!(typeof body.id==='string'&&body.id.length<=128||typeof body.id==='number'&&Number.isSafeInteger(body.id))){end(400,'invalid_private_host_request');return;}
-  const server=createResearchMcpServer(installedAdapter),transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
-  res.on('close',()=>{void transport.close();void server.close();});
-  try{await server.connect(transport);await transport.handleRequest(req,res,body);}
-  catch{if(!res.headersSent)end(500,'private_host_request_failed');else res.end();}
+  const controller=new AbortController(),abort=()=>controller.abort();let legacyServer,legacyTransport;
+  res.on('close',abort);
+  try{
+   // Forward only protocol headers. Credentials have already been verified above.
+   const headers={'Content-Type':'application/json',Accept:'application/json, text/event-stream'};
+   if(req.headers['mcp-protocol-version'])headers['MCP-Protocol-Version']=req.headers['mcp-protocol-version'];
+   for(const name of ['Mcp-Method','Mcp-Name']){
+    const value=req.headers[name.toLowerCase()];
+    if(value!==undefined){if(typeof value!=='string'||! /^[\x20-\x7e]{1,256}$/.test(value)){end(400,'invalid_private_host_request');return;}headers[name]=value;}
+   }
+   const request=new Request(`http://127.0.0.1:${localPort}/mcp`,{
+    method:'POST',headers,body:JSON.stringify(body),signal:controller.signal});
+   let response;
+   if(await isLegacyRequest(request,body)){
+    // Preserve JSON-only legacy behavior; the SDK default legacy leg uses SSE.
+    legacyServer=createResearchMcpServer(installedAdapter);
+    legacyTransport=new WebStandardStreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
+    await legacyServer.connect(legacyTransport);
+    response=await legacyTransport.handleRequest(request,{parsedBody:body});
+   }else response=await handler.fetch(request,{parsedBody:body});
+   const chunks=[];let size=0;
+   for await(const chunk of response.body??[]){size+=chunk.length;if(size>1024*1024){end(500,'private_host_response_limit');return;}chunks.push(chunk);}
+   const outgoing={'Cache-Control':'no-store'};
+   for(const name of ['content-type','allow','mcp-protocol-version'])if(response.headers.has(name))outgoing[name]=response.headers.get(name);
+   res.writeHead(response.status,outgoing).end(Buffer.concat(chunks));
+  }catch{if(!res.headersSent)end(500,'private_host_request_failed');else res.end();}
+  finally{res.off('close',abort);await legacyTransport?.close();await legacyServer?.close();}
  });
  http.requestTimeout=30000;http.headersTimeout=10000;
  await new Promise((resolve,reject)=>{http.once('error',reject);http.listen({host:'127.0.0.1',port},resolve);});
  return Object.freeze({url:`http://127.0.0.1:${http.address().port}/mcp`,
-  close:async()=>{http.closeAllConnections();await new Promise((resolve,reject)=>http.close(error=>error?reject(error):resolve()));}});
+  close:async()=>{http.closeAllConnections();await handler.close();await new Promise((resolve,reject)=>http.close(error=>error?reject(error):resolve()));}});
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

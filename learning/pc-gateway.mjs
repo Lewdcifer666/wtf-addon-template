@@ -60,6 +60,12 @@ export function createPrivatePcGateway({access,publicOrigin,port,binding}={},dep
    if(!health)headers['Content-Type']='application/json';
    const protocol=request.headers.get('mcp-protocol-version');
    if(protocol){if(!/^\d{4}-\d{2}-\d{2}$/.test(protocol))return closed(400,'private_gateway_request_denied');headers['MCP-Protocol-Version']=protocol;}
+   // Modern MCP mirrors method/tool identity in these standard headers. The
+   // official origin SDK checks them against the unchanged body before dispatch.
+   for(const name of ['Mcp-Method','Mcp-Name']){
+    const value=request.headers.get(name);
+    if(value!==null){if(! /^[\x20-\x7e]{1,256}$/.test(value))return closed(400,'private_gateway_request_denied');headers[name]=value;}
+   }
    // One attempt only. An ambiguous backend outcome never triggers a replay.
    upstream=await binding.fetch(target+(health?'/healthz':'/mcp'),{method:health?'GET':'POST',headers,
     body:health?undefined:bytes,redirect:'manual',signal:controller.signal});
@@ -67,8 +73,22 @@ export function createPrivatePcGateway({access,publicOrigin,port,binding}={},dep
    if(Number(upstream.headers.get('content-length'))>limit)throw Error('upstream_limit');
    const response=await boundedBody(upstream.body,controller.signal);
    if(upstream.status===202&&!health&&rpc.id===undefined&&response.length===0)return new Response(null,{status:202,headers:{'Cache-Control':'no-store'}});
-   if(upstream.status!==200||!/^application\/json(?:\s*;|$)/i.test(upstream.headers.get('content-type')||''))throw Error('upstream_denied');
+   if(!/^application\/json(?:\s*;|$)/i.test(upstream.headers.get('content-type')||''))throw Error('upstream_denied');
    const value=jsonBody(response);
+   // Preserve protocol negotiation/rejection statuses, not raw backend errors.
+   // A 5xx is still an uncertain outcome and never becomes a retry/downgrade hint.
+   if(!health&&rpc.id!==undefined&&value.jsonrpc==='2.0'&&value.id===rpc.id&&
+    (upstream.status===400&&[-32020,-32021,-32022,-32602].includes(value.error?.code)||
+     upstream.status===404&&value.error?.code===-32601)){
+    const error={code:value.error.code,message:'Private MCP protocol request rejected'};
+    if(error.code===-32022){
+     const allowed=new Set(['2026-07-28','2025-11-25','2025-06-18','2025-03-26','2024-11-05','2024-10-07']);
+     const supported=value.error.data?.supported;
+     if(Array.isArray(supported)&&supported.length&&supported.length<=allowed.size&&supported.every(version=>allowed.has(version)))error.data={supported:[...new Set(supported)]};
+    }
+    return Response.json({jsonrpc:'2.0',id:rpc.id,error},{status:upstream.status,headers:{'Cache-Control':'no-store'}});
+   }
+   if(upstream.status!==200)throw Error('upstream_denied');
    if(health){
     // Health advertises transport only, never an assertion about learning.
     if(value.schema_version!==1||value.transport!=='ready'||value.learning_activation!=='not_asserted'||value.publication_capability!==false)throw Error('upstream_denied');

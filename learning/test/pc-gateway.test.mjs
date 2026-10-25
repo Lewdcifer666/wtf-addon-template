@@ -3,6 +3,7 @@ import {test,mock} from 'node:test';
 import {generateKeyPair,exportJWK,SignJWT} from 'jose';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {Client as ModernClient,StreamableHTTPClientTransport as ModernTransport} from '@modelcontextprotocol/client';
 import worker,{createPrivatePcGateway} from '../pc-gateway.mjs';
 import {startLocalResearchMcpHost} from '../research-mcp-host.mjs';
 
@@ -65,6 +66,7 @@ test('gateway rejects browser origins, alternate routes, encoded, malformed and 
   [request(JSON.stringify({...rpc,id:'x'.repeat(129)})),400],
   [request('x'.repeat(1024*1024+1)),413],
   [request('{}',{headers:{...headers,'Content-Length':'1048577'}}),413],
+  [request('{}',{headers:{...headers,'Mcp-Method':'x'.repeat(257)}}),400],
   [request(JSON.stringify(rpc),{headers:{...headers,'MCP-Protocol-Version':'PRIVATE_SENTINEL'}}),400]];
  for(const [input,status] of cases)assert.equal((await connection.fetch(input)).status,status);
  assert.equal(calls,0);
@@ -93,6 +95,18 @@ test('uncertain, redirected or corrupt backend outcomes never replay or leak bac
   let calls=0;const connection=gateway({async fetch(){calls++;return make();}});
   const response=await connection.fetch(request());assert.equal(response.status,502);assert.equal(calls,1);
   assert.deepEqual(await response.json(),{error:'private_gateway_upstream_pending'});
+ }
+});
+
+test('protocol errors keep their status and identity with closed messages and no private backend detail',async()=>{
+ for(const [status,code] of [[400,-32020],[400,-32021],[400,-32022],[400,-32602],[404,-32601]]){
+  let calls=0;
+  const connection=gateway({async fetch(){calls++;return Response.json({jsonrpc:'2.0',id:rpc.id,error:{code,message:'PRIVATE_SENTINEL',
+   data:{supported:['2026-07-28','2025-11-25'],private:'PRIVATE_SENTINEL'}}},{status});}});
+  const response=await connection.fetch(request());assert.equal(response.status,status);assert.equal(calls,1);
+  const value=await response.json();assert.equal(value.id,rpc.id);assert.equal(value.error.code,code);
+  assert(!JSON.stringify(value).includes('PRIVATE_SENTINEL'));
+  if(code===-32022)assert.deepEqual(value.error.data,{supported:['2026-07-28','2025-11-25']});else assert.equal(value.error.data,undefined);
  }
 });
 
@@ -127,17 +141,29 @@ test('deadline covers stalled backend response bodies and preserves ambiguous ou
  }finally{abort.abort();context.mock.timers.reset();}
 });
 
-test('official MCP client crosses the gateway into real loopback HTTP while learning remains held',async()=>{
+for(const modern of [false,true])test(`official ${modern?'2026 discovery':'2025 initialization'} client crosses the gateway into real loopback HTTP while learning remains held`,async()=>{
  const originalFetch=globalThis.fetch;
  const fetchMock=mock.method(globalThis,'fetch',async(url,options)=>url===access.issuer+'/cdn-cgi/access/certs'?Response.json({keys:[key]}):originalFetch(url,options));
  const host=await startLocalResearchMcpHost({access}),port=Number(new URL(host.url).port);let forwards=0;
  const connection=gateway({async fetch(url,options){forwards++;assert.equal(new URL(url).origin,`http://127.0.0.1:${port}`);return originalFetch(url,options);}},{port});
- const client=new Client({name:'synthetic-gateway-client',version:'1'});
+ const ClientType=modern?ModernClient:Client,TransportType=modern?ModernTransport:StreamableHTTPClientTransport;
+ const client=new ClientType({name:'synthetic-gateway-client',version:'1'},modern?{versionNegotiation:{mode:{pin:'2026-07-28'}}}:{});
  try{
-  await client.connect(new StreamableHTTPClientTransport(new URL(origin+'/mcp'),{
+  await client.connect(new TransportType(new URL(origin+'/mcp'),{
    requestInit:{headers:{'Cf-Access-Jwt-Assertion':jwt}},fetch:async(url,options)=>connection.fetch(new Request(url,options))}));
+  if(modern)assert.equal(client.getProtocolEra(),'modern');
   assert.equal((await client.listTools()).tools.length,4);
+  if(modern){
+   const params={_meta:{'io.modelcontextprotocol/protocolVersion':'2026-07-28','io.modelcontextprotocol/clientCapabilities':{}},
+    name:'private_research_open',arguments:{}};
+   for(const mirrored of [{'Mcp-Method':'tools/list','Mcp-Name':'private_research_open'},
+    {'Mcp-Method':'tools/call','Mcp-Name':'private_research_search'}]){
+    const response=await connection.fetch(new Request(origin+'/mcp',{method:'POST',headers:{...headers,
+     'MCP-Protocol-Version':'2026-07-28',...mirrored},body:JSON.stringify({jsonrpc:'2.0',id:'mismatch',method:'tools/call',params})}));
+    assert.equal(response.status,400);assert.equal((await response.json()).error.code,-32020);
+   }
+  }
   const result=await client.callTool({name:'private_research_open',arguments:{schema_version:1,genre:'scifi',research_date:'2026-10-25',private_revision:'a'.repeat(40),public_revision:'b'.repeat(40)}});
-  assert.equal(result.isError,true);assert.equal(result.structuredContent.error,'private_task_access_held');assert(forwards>=4);
+  assert.equal(result.isError,true);assert.equal(result.structuredContent.error,'private_task_access_held');assert(forwards>=(modern?3:4));
  }finally{await client.close();await host.close();fetchMock.mock.restore();}
 });
