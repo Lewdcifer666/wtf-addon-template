@@ -38,7 +38,7 @@ test('Access verifies signature, fixed issuer/audience/subject/email and fresh i
  let reads=0;
  const verify=createAccessAuthenticator(config,{now:()=>baseTime,fetchImpl:async(url,options)=>{
   reads++;assert.equal(url,config.issuer+'/cdn-cgi/access/certs');
-  assert.equal(options.method,'GET');assert.equal(options.redirect,'error');assert.equal(options.credentials,'omit');
+  assert.equal(options.method,'GET');assert.equal(options.redirect,'manual');assert.equal(options.credentials,'omit');
   assert.deepEqual(options.headers,{Accept:'application/json'});assert(options.signal instanceof AbortSignal);
   return keyResponse();
  }});

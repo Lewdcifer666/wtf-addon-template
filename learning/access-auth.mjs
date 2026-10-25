@@ -24,7 +24,9 @@ export function createAccessAuthenticator(config,{fetchImpl=globalThis.fetch,now
    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
    let response;
    try{
-    response=await fetchImpl(certs,{method:'GET',redirect:'error',credentials:'omit',
+    // Workers supports manual/follow, not error. Manual plus the status check
+    // below refuses redirects without following them to another destination.
+    response=await fetchImpl(certs,{method:'GET',redirect:'manual',credentials:'omit',
      headers:{Accept:'application/json'},signal:controller.signal});
     if(response.status!==200||response.redirected||Number(response.headers.get('content-length'))>keyLimit)throw Error('access_keys_unavailable');
     const chunks=[];let bytes=0;
