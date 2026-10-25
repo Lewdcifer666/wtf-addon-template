@@ -80,6 +80,19 @@ Rollback first holds/disables this gateway and stops its local tunnel/service;
 preserve packets, immutable attempts and private evidence. Do not touch the TV
 relay, public addon protection/history or held legacy PRs.
 
+## Protocol compatibility
+
+The HTTP host uses the pinned official v2 server entry for the 2026-07-28
+`server/discover` flow and preserves JSON-only legacy initialization on the same
+endpoint. The gateway and origin forward only the bounded standard
+`MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; the SDK checks their
+agreement with the unchanged RPC body before dispatch. No tool declares custom
+`Mcp-Param-*` mirrors. Old and modern official clients are development-only test
+dependencies; neither caller authentication nor the default hold changes with
+protocol negotiation. Test both versions through the real loopback HTTP path and
+gateway before deployment. A successful owner browser health check alone does
+not establish ChatGPT action discovery or actual saved-task use.
+
 ## Remaining learning gates
 
 This gateway forwards transport; it cannot interpret feedback, stage AI packets,
