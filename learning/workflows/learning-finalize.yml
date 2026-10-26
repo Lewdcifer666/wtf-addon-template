@@ -46,6 +46,7 @@ jobs:
   reconcile:
     if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && (github.event_name != 'workflow_dispatch' || (inputs.consume_genre == 'none' && !inputs.provenance_probe && inputs.task_request == '' && inputs.interpretation_request == ''))
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       id-token: write
@@ -84,6 +85,14 @@ jobs:
           else
             node learning/reconcile.mjs
           fi
+      - name: Prepare complete current private interpretation input when explicitly enabled
+        if: vars.PRIVATE_INTERPRETATION_WORKER_ENABLED == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
+          PRIVATE_INTERPRETATION_WORKER_ENABLED: ${{ vars.PRIVATE_INTERPRETATION_WORKER_ENABLED }}
+        run: node learning/prepare-interpretation.mjs
   consume:
     if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.event_name == 'workflow_dispatch' && inputs.consume_genre != 'none' && !inputs.provenance_probe && inputs.task_request == '' && inputs.interpretation_request == ''
     runs-on: ubuntu-latest

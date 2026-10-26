@@ -31,6 +31,7 @@ import {createInterpretationBrokerAdapter} from '../interpretation-broker.mjs';
 import {executeInterpretationWorker,readInterpretationWorkerResult,validateInterpretationWorkerCall,interpretationWorkerHash} from '../interpretation-worker.mjs';
 import {executeInterpretationWireWorker,interpretationTransportPlan,interpretationPartBranch,interpretationWireHash} from '../interpretation-transport.mjs';
 import {readPrivateInterpretationStatus} from '../interpretation-readiness.mjs';
+import {preparePrivateInterpretation} from '../prepare-interpretation.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -1842,4 +1843,52 @@ test('interruption after the original ticket but before its token alias resumes 
  assert.equal(s.privateRepo.refs.get(`refs/heads/learning/task-token-${ticket.body.task_token}`).object.sha,ticket.commit);
  assert.equal([...s.privateRepo.refs.keys()].filter(ref=>ref.includes('/task-ticket-')).length,1);
  assert.equal([...s.privateRepo.refs.keys()].filter(ref=>ref.includes('/task-token-')).length,1);
+});
+
+test('trusted preparation defaults held before any private read, Git write or signing',async()=>{
+ let touched=0;const proxy=new Proxy({},{get(){touched++;throw Error('MUST_NOT_TOUCH');}});
+ await assert.rejects(preparePrivateInterpretation({api:proxy,proof:proxy}),/private_interpretation_access_held/);assert.equal(touched,0);
+});
+
+test('trusted feedback preparation persists complete AI input only and unchanged recovery neither reloads raw blobs nor signs again',async()=>{
+ const {s,base}=await largeInterpretationScenario(),real=fixtureObservationProof();let signatures=0;
+ s.args.api.writable=true;
+ const proof={verify:(...args)=>real.verify(...args),sign:(...args)=>{signatures++;return real.sign(...args);}},options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ const first=await preparePrivateInterpretation(options);assert.equal(first.state,'interpretation_input_prepared');assert(first.pages>1);assert.equal(first.reused,false);
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.startsWith('refs/heads/interpretation/')||ref.includes('/receipt-')));
+ const writes=s.privateRepo.writes.length,signed=signatures,rawOids=new Set(s.privateRepo.trees.get(base.tree.sha).tree.filter(e=>e.path.endsWith('.json')).map(e=>e.sha)),get=s.privateRepo.api.get;
+ s.privateRepo.api.get=async route=>{if(route.startsWith('/git/blobs/')&&rawOids.has(route.split('/').at(-1)))throw Error('MUST_NOT_RELOAD_RAW');return get(route);};
+ const retry=await preparePrivateInterpretation(options);assert.equal(retry.reused,true);assert.equal(retry.pages,first.pages);assert.equal(s.privateRepo.writes.length,writes);assert.equal(signatures,signed);
+});
+
+test('interrupted private input preparation resumes the original descriptor and preserves all completed pages',async()=>{
+ const s=scenario(),post=s.privateRepo.api.post,proof=fixtureObservationProof();let once=true;
+ s.args.api.writable=true;
+ const options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ const descriptorCall={schema_version:1,operation:'request',request:{source_revision:s.args.trustedRevision}},descriptorKey=interpretationWorkerHash(descriptorCall);
+ s.privateRepo.api.post=async(route,body)=>{if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/interpretation-result-')&&!body.ref.endsWith(descriptorKey)&&once){once=false;throw Object.assign(Error('INTERRUPTED_PAGE'),{code:'transport_failure'});}return post(route,body);};
+ await assert.rejects(preparePrivateInterpretation(options),/INTERRUPTED_PAGE/);
+ const original=s.privateRepo.refs.get('refs/heads/learning/interpretation-result-'+descriptorKey).object.sha;
+ const done=await preparePrivateInterpretation(options);assert.equal(done.state,'interpretation_input_prepared');
+ assert.equal(s.privateRepo.refs.get('refs/heads/learning/interpretation-result-'+descriptorKey).object.sha,original);
+});
+
+test('a completed preparation receipt prevents recreating a lost descriptor or page',async()=>{
+ for(const lost of ['request','page']){
+  const s=scenario(),proof=fixtureObservationProof(),options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+  s.args.api.writable=true;
+  await preparePrivateInterpretation(options);
+  const requestCall={schema_version:1,operation:'request',request:{source_revision:s.args.trustedRevision}},base=await s.args.api.pinMain();
+  const request=await readInterpretationWorkerResult({api:s.args.api,base,call:requestCall,proof,assertCurrent:async()=>{}});
+  const call=lost==='request'?requestCall:{schema_version:1,operation:'page',request:{source_revision:base.sha,request_id:request.body.result.request_id,page_index:0}};
+  s.privateRepo.refs.delete('refs/heads/learning/interpretation-result-'+interpretationWorkerHash(call));const writes=s.privateRepo.writes.length;
+  await assert.rejects(preparePrivateInterpretation(options),/immutable_artifact_mismatch/);assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('private input preparation runs only after ordinary reconciliation, is bounded, opt-in and skipped for dry runs',()=>{
+ const workflow=fs.readFileSync(new URL('../workflows/learning-finalize.yml',import.meta.url),'utf8'),job=workflow.slice(workflow.indexOf('  reconcile:'),workflow.indexOf('  consume:'));
+ assert(job.indexOf('node learning/prepare-interpretation.mjs')>job.indexOf('node learning/reconcile.mjs'));
+ assert(job.includes("vars.PRIVATE_INTERPRETATION_WORKER_ENABLED == 'true'"));assert(job.includes("!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"));
+ assert(job.includes('timeout-minutes: 5'));assert(job.includes('timeout-minutes: 15'));assert(job.includes('persist-credentials: false'));assert(job.includes('package-manager-cache: false'));
 });
