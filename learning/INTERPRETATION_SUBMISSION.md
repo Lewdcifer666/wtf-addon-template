@@ -87,6 +87,15 @@ five tools. Interpretation requires both server-owned
 interpretation. Both permissions are rechecked on every call and before releasing
 cached results; health does not enter either adapter.
 
+The pure read-only `private_interpretation_status({})` resolves the current
+private source and authenticates its existing staged packet plus signed
+submission. It needs no GitHub connector call, raw-feedback inventory, journal
+write or workflow. A daily task must call it first: unchanged accepted state
+needs no new AI interpretation. An unsigned/partial staged branch is explicitly
+unverified, never permission to overwrite it or generate a replacement packet.
+Proof/source errors stop rather than masquerading as missing feedback. It makes
+no assertion about learning activation or recommendation effects.
+
 The read-only PC client can fetch only fixed metadata, immutable Git objects and
 the exact interpretation/result refs needed for verification. Git writes and
 OIDC signing stay inside trusted Actions. MCP annotations disclose private

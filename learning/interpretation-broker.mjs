@@ -5,6 +5,7 @@ import {PROOF_REPOSITORY} from './observation-proof.mjs';
 import {validateInterpretationWorkerCall,interpretationWorkerHash,readInterpretationWorkerResult} from './interpretation-worker.mjs';
 import {brokerCallFamily} from './broker-request-store.mjs';
 import {interpretationTransportPlan,interpretationWireHash,readInterpretationPart,interpretationPartBranch} from './interpretation-transport.mjs';
+import {readPrivateInterpretationStatus} from './interpretation-readiness.mjs';
 const fail=code=>{throw new LearningError(code);};
 const isRoot=entry=>brokerCallFamily(entry.call)==='interpretation'&&!['part','assemble'].includes(entry.call.operation);
 
@@ -66,6 +67,10 @@ export function createInterpretationBrokerAdapter({api,proof,store,dispatchWorke
  const serialized=fn=>{const next=queue.then(fn);queue=next.catch(()=>{});return next;};
  return Object.freeze({
   persistsTaskBookkeeping:true,
+  status(input={}){
+   if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length)fail('invalid_interpretation_task_call');
+   return serialized(()=>readPrivateInterpretationStatus({api,proof,interpretationAccessAllowed}));
+  },
   dispatch(input){const snapshot=validateInterpretationWorkerCall(input);return serialized(async()=>{
    await allowed();
    const first=(await store.pending()).find(isRoot);

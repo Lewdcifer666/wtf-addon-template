@@ -105,6 +105,16 @@ before installing persistent execution or renewing remote-access grants.
 
 ## Cutover and acceptance
 
+Before a genuinely new research opening, the trusted worker recomputes and
+persists the complete current deterministic receipt/handoffs. Another genre's
+publication therefore cannot leave the next task waiting solely for the hourly
+job. This writer exists only inside the bounded main Actions worker; read-only
+session consumers and the PC client remain read-only. It cannot infer missing
+interpretation, activate policy or issue context after research staging.
+Existing results/tickets are authenticated and recovered without refreshing or
+replacing their frozen session; stale/ambiguous searches remain unresolved under
+their original identity. The caller's hold is checked before derived writes.
+
 First validate this code and permissions through normal reviewed PRs. Installing
 a held host or testing health cannot authorize private context/feedback access.
 Do not set access/worker/learning gates merely to demonstrate a response. An
