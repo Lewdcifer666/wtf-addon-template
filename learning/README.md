@@ -1,5 +1,11 @@
 # Private feedback learning engine
 
+The separately reviewed, default-disabled persistent PC transport is specified
+in [PC_HELD_RUNTIME.md](PC_HELD_RUNTIME.md). Its closed operator plan, Windows
+single-instance supervisor and explicit installer run only the held connection;
+they do not mount the App key/journal or permit GitHub egress/private tasks.
+Adding this source does not install a Windows task or renew an access window.
+
 This directory contains shared code and synthetic tests, never user feedback.
 It is separate from the public addon generator. `generate-learning.mjs --target`
 vendors it only into a verified private `wtf-scifi-feedback` checkout on a review
