@@ -29,6 +29,7 @@ import {createResearchBrokerAdapter} from '../research-broker.mjs';
 import {createBrokerRequestStore} from '../broker-request-store.mjs';
 import {createInterpretationBrokerAdapter} from '../interpretation-broker.mjs';
 import {executeInterpretationWorker,readInterpretationWorkerResult,validateInterpretationWorkerCall,interpretationWorkerHash} from '../interpretation-worker.mjs';
+import {executeInterpretationWireWorker,interpretationTransportPlan,interpretationPartBranch,interpretationWireHash} from '../interpretation-transport.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -1516,6 +1517,7 @@ test('interpretation context and page transport are private sealed records, neve
  await executeInterpretationWorker({...options,call});
  const base=await s.privateRepo.api.pinMain(),manifest=await readInterpretationWorkerResult({api:s.args.api,base,call,proof,assertCurrent:async()=>{}});
  assert(!stableJson(manifest.body.result).includes('PRIVATE_SENTINEL'));
+ assert(manifest.body.result.instructions.includes('private_interpretation_submit'));assert(!manifest.body.result.instructions.includes('Do not stage, publish or activate anything.'));
  const page={schema_version:1,operation:'page',request:{source_revision:base.sha,request_id:manifest.body.result.request_id,page_index:0}};
  await executeInterpretationWorker({...options,call:page});
  const data=await readInterpretationWorkerResult({api:s.args.api,base,call:page,proof,assertCurrent:async()=>{}});
@@ -1593,7 +1595,7 @@ async function interpretationBrokerScenario(){
  const s=scenario(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'wtf-interpretation-broker-')),proof=fixtureObservationProof();
  const store=()=>createBrokerRequestStore({directory,privateDirectoryVerified:true});let dispatches=0,enabled=true;
  const options={api:{...s.args.api,writable:false,post:async()=>{throw Error('PC has no Git writer');}},proof,store:store(),
-  interpretationAccessAllowed:async()=>enabled,dispatchWorker:async call=>{dispatches++;await executeInterpretationWorker({...s.args,call,proof,interpretationAccessAllowed:async()=>true});}};
+  interpretationAccessAllowed:async()=>enabled,dispatchWorker:async call=>{dispatches++;await executeInterpretationWireWorker({...s.args,call,proof,interpretationAccessAllowed:async()=>true});}};
  return {s,options,store,dispatches:()=>dispatches,setAccess:value=>{enabled=value;},close(){
   assert(path.isAbsolute(directory)&&path.basename(directory).startsWith('wtf-interpretation-broker-'));fs.rmSync(directory,{recursive:true,force:true});
  }};
@@ -1662,4 +1664,96 @@ test('interpretation access revoked during final repository reads cannot release
   f.options.api.get=async route=>{const value=await get(route);if(route==='/'&&++count===2)f.setAccess(false);return value;};
   await assert.rejects(broker.dispatch(call),/private_interpretation_access_held/);assert.equal(f.dispatches(),1);
  }finally{f.close();}
+});
+
+async function largeInterpretationScenario(){
+ const s=scenario(),additions={};
+ for(let i=1;i<500;i++){const event={...s.event,feedback_id:'synthetic-'+String(i).padStart(4,'0'),imdb_id:'tt'+(999900000+i),feedback:'I want more mystery. '+ 'é'.repeat(450)};
+  additions[`data/feedback/2026-10-01/${event.feedback_id}.json`]=stableJson(event);}
+ s.privateRepo.branch('main',additions);const base=await s.privateRepo.api.pinMain();s.args.trustedRevision=base.sha;
+ const source=inventoryFeedback({commit:base,tree:s.privateRepo.trees.get(base.tree.sha),blobs:s.privateRepo.blobs}),request=interpretationRequest(source);
+ const packet={schema_version:1,source_revision:base.sha,request_id:request.request_id,interpretations:source.records.map(record=>({feedback_id:record.event.feedback_id,
+  raw_blob_oid:record.blob_oid,status:'interpreted',statements:[{category:'concept',aspect:'mystery',meaning:'wanted_more',scope:'content_preference',quote:record.event.feedback,confidence:'high'}]}))};
+ const call=validateInterpretationWorkerCall({schema_version:1,operation:'submit',request:{source_revision:base.sha,request_id:request.request_id,packet}});
+ return {s,base,call,plan:interpretationTransportPlan(call)};
+}
+
+test('large complete interpretations reassemble and validate before any OIDC signing or learning; all bytes and events survive',async()=>{
+ const {s,base,call,plan}=await largeInterpretationScenario();assert.equal(plan.inline,false);assert(Buffer.byteLength(stableJson(call))>512*1024);
+ let signatures=0;const genuine=fixtureObservationProof(),proof={verify:(...a)=>genuine.verify(...a),sign:(...a)=>{signatures++;return genuine.sign(...a);}};
+ const options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ for(const part of plan.parts){const result=await executeInterpretationWireWorker({...options,call:part});assert.equal(result.state,'interpretation_part_staged');}
+ assert.equal(signatures,0);assert(![...s.privateRepo.refs.keys()].some(ref=>ref.startsWith('refs/heads/interpretation/')));
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.includes('/receipt-')));
+ const result=await executeInterpretationWireWorker({...options,call:plan.assembly});assert.equal(result.reconciliation.state,'computed_inactive');assert(signatures>0);
+ const saved=await readInterpretationWorkerResult({api:s.args.api,base,call,proof,assertCurrent:async()=>{}});
+ assert.equal(saved.body.call.request.packet.interpretations.length,500);assert.equal(stableJson(saved.body.call),stableJson(call));
+ const writes=s.privateRepo.writes.length;await executeInterpretationWireWorker({...options,call:plan.assembly});assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('an incomplete or altered multipart transport never becomes a signed interpretation or gets silently repaired',async()=>{
+ const {s,call,plan}=await largeInterpretationScenario();let signatures=0;const genuine=fixtureObservationProof(),proof={verify:(...a)=>genuine.verify(...a),sign:(...a)=>{signatures++;return genuine.sign(...a);}};
+ const options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ await executeInterpretationWireWorker({...options,call:plan.parts[0]});
+ await assert.rejects(executeInterpretationWireWorker({...options,call:plan.assembly}),/private_interpretation_pending/);assert.equal(signatures,0);
+ const changed=structuredClone(plan.parts[0]),bytes=Buffer.from(changed.request.data_base64,'base64');bytes[0]^=1;changed.request.data_base64=bytes.toString('base64');
+ const writes=s.privateRepo.writes.length;await assert.rejects(executeInterpretationWireWorker({...options,call:changed}),/immutable_artifact_mismatch/);assert.equal(s.privateRepo.writes.length,writes);
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.startsWith('refs/heads/interpretation/')));assert.equal(signatures,0);
+});
+
+test('the read-only PC broker resumes multipart submission across restarts using the same parts and one shared dispatch slot',async()=>{
+ const {s,call,plan}=await largeInterpretationScenario(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'wtf-interpretation-parts-')),proof=fixtureObservationProof();
+ try{
+  let dispatches=0;const store=()=>createBrokerRequestStore({directory,privateDirectoryVerified:true});
+  const options={api:{...s.args.api,writable:false,post:async()=>{throw Error('No PC Git writer');}},proof,interpretationAccessAllowed:async()=>true,
+   dispatchWorker:async wire=>{dispatches++;await executeInterpretationWireWorker({...s.args,call:wire,proof,interpretationAccessAllowed:async()=>true});}};
+  let broker=createInterpretationBrokerAdapter({...options,store:store()}),result;
+  for(let i=0;i<=plan.parts.length+1;i++){
+   try{result=await broker.dispatch(call);break;}catch(error){assert.equal(error.code,'private_interpretation_pending');}
+   if(i===1)broker=createInterpretationBrokerAdapter({...options,store:store()});
+  }
+  assert.equal(result?.staged,true);assert.equal(result.activation_changed,false);assert.equal(dispatches,plan.parts.length+1);assert.equal((await store().pending()).length,0);
+  const writes=s.privateRepo.writes.length;await broker.dispatch(call);assert.equal(s.privateRepo.writes.length,writes);assert.equal(dispatches,plan.parts.length+1);
+ }finally{assert(path.basename(directory).startsWith('wtf-interpretation-parts-'));fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('a missing completed multipart artifact remains unresolved instead of dispatching a replacement part',async()=>{
+ const {s,call,plan}=await largeInterpretationScenario(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'wtf-interpretation-parts-')),proof=fixtureObservationProof();
+ try{
+  let dispatches=0;const store=createBrokerRequestStore({directory,privateDirectoryVerified:true});
+  const broker=createInterpretationBrokerAdapter({api:{...s.args.api,writable:false},store,proof,interpretationAccessAllowed:async()=>true,
+   dispatchWorker:async wire=>{dispatches++;await executeInterpretationWireWorker({...s.args,call:wire,proof,interpretationAccessAllowed:async()=>true});}});
+  await assert.rejects(broker.dispatch(call),/private_interpretation_pending/);await assert.rejects(broker.dispatch(call),/private_interpretation_pending/);
+  const {data_base64,...first}=plan.parts[0].request;s.privateRepo.refs.delete('refs/heads/'+interpretationPartBranch(first));
+  const before=dispatches;await assert.rejects(broker.dispatch(call),/immutable_artifact_mismatch/);assert.equal(dispatches,before);
+ }finally{assert(path.basename(directory).startsWith('wtf-interpretation-parts-'));fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('unsigned transport bytes with forged quotes cannot become OIDC evidence even after every part arrives',async()=>{
+ const {s,call}=await largeInterpretationScenario();call.request.packet.interpretations[0].statements[0].quote='FORGED QUOTE';const plan=interpretationTransportPlan(call);let signatures=0;
+ const options={...s.args,proof:{sign(){signatures++;throw Error('MUST_NOT_SIGN');}},interpretationAccessAllowed:async()=>true};
+ for(const part of plan.parts)await executeInterpretationWireWorker({...options,call:part});
+ await assert.rejects(executeInterpretationWireWorker({...options,call:plan.assembly}),/invalid_interpretation/);assert.equal(signatures,0);
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.startsWith('refs/heads/interpretation/')));
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.includes('/interpretation-result-')||ref.includes('/receipt-')));
+});
+
+test('large validation reuses transport parts but cannot stage an interpretation or trigger aggregation',async()=>{
+ const {s,call,plan}=await largeInterpretationScenario(),proof=fixtureObservationProof(),options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ for(const part of plan.parts)await executeInterpretationWireWorker({...options,call:part});
+ const validate={...call,operation:'validate'},validationPlan=interpretationTransportPlan(validate);
+ assert.deepEqual(validationPlan.parts,plan.parts);
+ const result=await executeInterpretationWireWorker({...options,call:validationPlan.assembly});assert.equal(result.state,'completed');
+ const record=await readInterpretationWorkerResult({api:s.args.api,base:await s.args.api.pinMain(),call:validate,proof,assertCurrent:async()=>{}});
+ assert.equal(record.body.result.validated,true);assert.equal(record.body.result.staged,false);
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.startsWith('refs/heads/interpretation/')||ref.includes('/receipt-')));
+});
+
+test('concurrent identical transport workers preserve one immutable part and recover a lost write acknowledgement',async()=>{
+ const {s,plan}=await largeInterpretationScenario(),options={...s.args,call:plan.parts[0],proof:{sign(){throw Error('Unsigned transport cannot sign');}},interpretationAccessAllowed:async()=>true};
+ const results=await Promise.all([executeInterpretationWireWorker(options),executeInterpretationWireWorker(options)]);assert.equal(results[0].commit,results[1].commit);
+ const second={...options,call:plan.parts[1]},post=s.privateRepo.api.post;let lost=false;
+ s.privateRepo.api.post=async(route,body)=>{const value=await post(route,body);if(route==='/git/refs'&&body.ref.includes('/interpretation-part-')&&!lost){lost=true;throw Object.assign(Error('ACK_LOST'),{code:'transport_failure'});}return value;};
+ await assert.rejects(executeInterpretationWireWorker(second),/ACK_LOST/);const writes=s.privateRepo.writes.length;
+ const recovered=await executeInterpretationWireWorker(second);assert.equal(recovered.reused,true);assert.equal(s.privateRepo.writes.length,writes);
 });

@@ -33,8 +33,8 @@ export function validateInterpretationWorkerCall(input){
  if(input.operation==='page')request.page_index=input.request.page_index;
  if(input.request.packet)request.packet=canonicalPacket(input.request.packet);
  const call={schema_version:1,operation:input.operation,request};
- // Stay below GitHub's65,535-character input limit INCLUDING outer JSON escaping.
- if(Buffer.byteLength(JSON.stringify({ref:'main',inputs:{dry_run:false,interpretation_request:stableJson(call)}}))>60000)fail('interpretation_submission_limit');
+ // The PC transport splits large complete packets; never truncate their events.
+ if(Buffer.byteLength(stableJson(call))>1024*1024)fail('interpretation_submission_limit');
  return call;
 }
 export const interpretationWorkerHash=input=>digest(stableJson(validateInterpretationWorkerCall(input)));
@@ -98,7 +98,7 @@ export async function readInterpretationWorkerResult({api,base,call:input,proof,
  if(api.repository!==PROOF_REPOSITORY||metadata?.full_name!==PROOF_REPOSITORY||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
  if(base?.sha!==call.request.source_revision)fail('stale_input');
  const ref=await api.optional(`/git/ref/heads/${branch}`);if(!ref)return null;
- const raw=await readArtifactJson(api,ref,'interpretation-result.json',{maxBytes:512*1024}),record=raw.value;
+ const raw=await readArtifactJson(api,ref,'interpretation-result.json',{maxBytes:2*1024*1024}),record=raw.value;
  if(raw.parent!==base.sha||!exact(record,['body','proof']))fail('invalid_interpretation_record');
  const body=record.body;
  if(!exact(body,['schema_version','kind','request_hash','source_revision','call','result'])||body.schema_version!==1
@@ -130,7 +130,9 @@ export async function executeInterpretationWorker({api,publicApis,trustedRevisio
  const adapter=createPrivateInterpretationTaskAdapter({api,trustedRevision,interpretationAccessAllowed});
  const validationCall=call.operation==='submit'?{...call,operation:'validate'}:call;
  // ALWAYS recompute current source validation, including when a result exists.
- const prepared=await adapter.dispatch(validationCall);
+ let prepared=await adapter.dispatch(validationCall);
+ if(call.operation==='request')prepared={...prepared,instructions:prepared.instructions.replace('Do not stage, publish or activate anything.',
+  'Return the complete packet through private_interpretation_submit for trusted private validation and staging. Do not write GitHub files yourself, publish, change activation or claim a learning effect.')};
  let saved=await readInterpretationWorkerResult({api,base,call,proof,assertCurrent}),reused=Boolean(saved);
  if(saved&&call.operation!=='submit'&&stableJson(saved.body.result)!==stableJson(prepared))fail('invalid_interpretation_record');
  if(!saved){
@@ -142,7 +144,7 @@ export async function executeInterpretationWorker({api,publicApis,trustedRevisio
     interpretation_commit:staged.commit,validated:true,staged:true,activation_changed:false};
   }
   const body={schema_version:1,kind:'private_interpretation_task_result',request_hash:interpretationWorkerHash(call),source_revision:trustedRevision,call,result};
-  if(Buffer.byteLength(stableJson(body))>384*1024)fail('interpretation_submission_limit');
+  if(Buffer.byteLength(stableJson(body))>2*1024*1024-32768)fail('interpretation_submission_limit');
   await assertCurrent();
   await persistSealedState({api,base,branch:`learning/interpretation-result-${body.request_hash}`,name:'interpretation-result.json',body,proof,assertCurrent});
   saved=await readInterpretationWorkerResult({api,base,call,proof,assertCurrent});if(!saved)fail('invalid_interpretation_record');
@@ -180,7 +182,8 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{writable:true,cacheImmutable:true});
   const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,process.env.GH_TOKEN,{cacheImmutable:true})]));
   const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
-  const result=await executeInterpretationWorker({api,publicApis,trustedRevision:process.env.LEARNING_TRUSTED_SHA,call,proof,interpretationAccessAllowed:async()=>true});
+  const {executeInterpretationWireWorker}=await import('./interpretation-transport.mjs');
+  const result=await executeInterpretationWireWorker({api,publicApis,trustedRevision:process.env.LEARNING_TRUSTED_SHA,call,proof,interpretationAccessAllowed:async()=>true});
   console.log(JSON.stringify({state:result.state,reused:result.reused,reconciliation:result.reconciliation?.state??null}));
  }).catch(error=>{console.error(JSON.stringify({state:'pending',code:interpretationWorkerError(error)}));process.exitCode=1;});
 }

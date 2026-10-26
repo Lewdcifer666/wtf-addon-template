@@ -7,12 +7,12 @@ import {randomUUID} from 'node:crypto';
 import {LearningError} from './git-artifacts.mjs';
 import {stableJson,digest} from './interpretation.mjs';
 import {validateWorkerCall,workerRequestHash} from './research-worker.mjs';
-import {validateInterpretationWorkerCall,interpretationWorkerHash} from './interpretation-worker.mjs';
+import {validateInterpretationWireCall,interpretationWireHash} from './interpretation-transport.mjs';
 const fail=()=>{throw new LearningError('invalid_task_journal');};
 const hash=s=>/^[a-f0-9]{64}$/.test(s??'');
-export const brokerCallFamily=call=>['request','page','validate','submit'].includes(call?.operation)?'interpretation':'research';
-const validateCall=call=>brokerCallFamily(call)==='interpretation'?validateInterpretationWorkerCall(call):validateWorkerCall(call);
-export const brokerCallHash=call=>brokerCallFamily(call)==='interpretation'?interpretationWorkerHash(call):workerRequestHash(call);
+export const brokerCallFamily=call=>['request','page','validate','submit','part','assemble'].includes(call?.operation)?'interpretation':'research';
+const validateCall=call=>brokerCallFamily(call)==='interpretation'?validateInterpretationWireCall(call):validateWorkerCall(call);
+export const brokerCallHash=call=>brokerCallFamily(call)==='interpretation'?interpretationWireHash(call):workerRequestHash(call);
 const identity=call=>digest(stableJson(call.operation==='search'
  ?{operation:'search',task_token:call.request.task_token,request_id:call.request.request_id}
  :call.operation==='submit'?{operation:'submit',source_revision:call.request.source_revision,request_id:call.request.request_id}:call));
@@ -30,7 +30,7 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
  const file=(name)=>{if(!/^[a-f0-9]{64}-(?:request|complete|dispatch-[1-3])\.json$/.test(name))fail();return path.join(root,name);};
  const read=(name)=>{
   const p=file(name);let stat;try{stat=fs.lstatSync(p);}catch(e){if(e.code==='ENOENT')return null;throw e;}
-  if(!stat.isFile()||stat.isSymbolicLink()||stat.size<1||stat.size>96*1024)fail();
+  if(!stat.isFile()||stat.isSymbolicLink()||stat.size<1||stat.size>2*1024*1024)fail();
   const raw=fs.readFileSync(p),text=raw.toString('utf8');if(!Buffer.from(text).equals(raw))fail();
   let value;try{value=JSON.parse(text);}catch{fail();}return value;
  };
