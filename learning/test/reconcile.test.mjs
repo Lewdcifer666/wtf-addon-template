@@ -93,6 +93,13 @@ async function stage(s,extra={}){
 test('persisted queue resumes from a staged packet, creates inactive receipt, and reuses unchanged retry',async()=>{
  const s=scenario(),before=stableJson(s.privateRepo.filesAt(s.privateRepo.initialSha));
  const pending=await reconcile(s.args);assert.equal(pending.state,'awaiting_interpretation');assert.equal(pending.required_interpretations,1);
+ const requestRef=[...s.privateRepo.refs.values()].find(r=>r.ref.startsWith('refs/heads/learning/request-'));
+ const taskRequest=JSON.parse(s.privateRepo.filesAt(requestRef.object.sha)['learning-output/request.json']);
+ assert.equal(taskRequest.task_contract.request_id,pending.request_id);
+ assert.equal(taskRequest.task_contract.required_interpretations,1);
+ assert.equal(taskRequest.task_contract.page_count,1);
+ assert.equal(taskRequest.task_contract.packet_path,taskRequest.packet_path);
+ assert(!stableJson(taskRequest.task_contract).includes('PRIVATE_SENTINEL'));
  assert.equal(s.privateRepo.refs.size,2);await stage(s);
  const finished=await reconcile(s.args);assert.equal(finished.state,'computed_inactive');const writes=s.privateRepo.writes.length;
  const retry=await reconcile(s.args);assert.equal(retry.receipt,finished.receipt);assert.equal(s.privateRepo.writes.length,writes);

@@ -125,6 +125,28 @@ References: [Wikipedia search API](https://www.mediawiki.org/wiki/API:Search),
 
 ## Evidence and interpretation
 
+`interpretation-task.mjs` supplies the read-only preparation side of the required
+AI interpretation adapter. A closed request/page/validate interface defaults to
+an independent denied access gate, before any GitHub read. When explicitly wired
+by a future trusted host, every call reloads one complete authenticated private
+Git tree at the exact trusted main revision, resolves the full correction and
+retraction graph, and rechecks privacy, the hold and main before releasing data.
+It never reads a caller-selected event subset or imports fetched source code.
+
+Only surviving text needing interpretation is paged, without truncation, into
+responses bounded to128KiB with deterministic hashes. The AI receives exact text,
+raw-blob identity and canonical structured-aspect precedence, without ratings,
+title identities or superseded/retracted text. New reconciliation requests carry
+the matching task descriptor, not the raw text. Historical requests retain their
+original bytes. Full packet validation requires complete current-event coverage
+and exact-source quotes; success reports `staged:false` and cannot write a branch,
+sign evidence, dispatch a workflow, change policy or activate learning.
+
+This source is not a new exposed MCP method, saved-task edit, enabled worker or
+live interpretation. Bounded authenticated submission/staging and actual saved
+task consumption are still required. The running held transport stays pinned to
+its separately reviewed installed image; engine generation never updates it.
+
 `inventory.mjs` verifies one complete recursive Git tree, exact blob hashes,
 declared raw-event paths and the complete supersession graph. Schema 1/2/3,
 independent-tip tie breaking, identity improvements and retractions retain the
