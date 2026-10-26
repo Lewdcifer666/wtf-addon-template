@@ -1254,18 +1254,20 @@ test('bounded worker persists a stable external ticket and reuses complete resul
 });
 
 test('keyless provider is wired through the trusted worker, signed intent and recovered search result',async()=>{
+ for(const query of ['science mystery public reviews','science\nmystery\tpublic reviews']){
  const s=await activeScenario();await reconcile(s.args);const open=taskCall('open',await sessionRequest(s));let calls=0;
  const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:createPublicSearchProvider({fetcher:async(url)=>{
-  calls++;assert.equal(new URL(url).hostname,'en.wikipedia.org');assert.equal(new URL(url).searchParams.get('srsearch'),'science mystery public reviews');
+  calls++;assert.equal(new URL(url).hostname,'en.wikipedia.org');assert.equal(new URL(url).searchParams.get('srsearch'),query);
   return new Response(JSON.stringify({batchcomplete:true,query:{search:[{pageid:1,ns:0,title:'Synthetic review'}]}}),{headers:{'content-type':'application/json'}});
  }})};
- await executeResearchWorker({...options,call:open});const context=(await workerRead(s,open)).body.result,call=taskSearch(context);
+ await executeResearchWorker({...options,call:open});const context=(await workerRead(s,open)).body.result,call=taskSearch(context,'search-1',query);
  await executeResearchWorker({...options,call});const result=(await workerRead(s,call)).body.result;
  assert.equal(result.sources[0].url,'https://en.wikipedia.org/?curid=1');assert.equal(calls,1);
  const writes=s.privateRepo.writes.length;await executeResearchWorker({...options,call});
  assert.equal(calls,1);assert.equal(s.privateRepo.writes.length,writes);
  const changed=taskSearch(context,'search-1','changed query');await assert.rejects(executeResearchWorker({...options,call:changed}),/task_request_conflict/);
  assert.equal(calls,1);
+ }
 });
 
 test('worker recovery after result persistence failure never repeats an already observed search',async()=>{

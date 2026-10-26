@@ -22,8 +22,18 @@ for(const kind of ['wikipedia','tvmaze'])test(`${kind} uses one fixed anonymous 
 
 test('invalid queries or a caller-selected destination cannot start any request',async()=>{
  let calls=0;const provider=createPublicSearchProvider({fetcher:async()=>{calls++;return json(wikipedia);}});
- for(const q of ['', ' ',null,{},'a'.repeat(2001),'film\nPRIVATE_SENTINEL','\ud800'])await assert.rejects(provider.search(q),{code:'invalid_search_request'});
+ for(const q of ['', ' ',null,{},'a'.repeat(2001),'\ud800'])await assert.rejects(provider.search(q),{code:'invalid_search_request'});
  assert.equal(calls,0);assert.throws(()=>createPublicSearchProvider({kind:'https://evil.invalid'}),{code:'search_provider_unavailable'});
+});
+
+test('every valid session query is encoded as data without post-intent whitespace restrictions',async()=>{
+ for(const kind of ['wikipedia','tvmaze'])for(const query of ['science\nmystery\tfilm','film\r\nreview','film\u0000review']){
+  let calls=0;const provider=createPublicSearchProvider({kind,fetcher:async(url)=>{
+   calls++;assert.equal(new URL(url).searchParams.get(kind==='wikipedia'?'srsearch':'q'),query);
+   assert(!/[\r\n\t\u0000]/.test(url));return json(kind==='wikipedia'?wikipedia:tvmaze);
+  }});
+  assert.equal((await provider.search(query)).sources.length,1);assert.equal(calls,1);
+ }
 });
 
 test('zero findings require an explicit valid provider result',async()=>{

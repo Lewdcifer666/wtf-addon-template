@@ -12,7 +12,10 @@ export function createPublicSearchProvider({kind='wikipedia',fetcher=fetch,timeo
  if(!['wikipedia','tvmaze'].includes(kind)||typeof fetcher!=='function'||!Number.isInteger(timeoutMs)||timeoutMs<10||timeoutMs>20000)fail('search_provider_unavailable');
  let queue=Promise.resolve();
  async function search(query){
-  if(!validText(query,2000)||!query.trim())fail('invalid_search_request');
+  // Match the session/intent query contract exactly. URLSearchParams encodes
+  // whitespace and control characters as data; a stricter post-intent filter
+  // would strand an immutable intent without ever contacting the provider.
+  if(typeof query!=='string'||query.length>2000||!query.trim()||Buffer.from(query,'utf8').toString('utf8')!==query)fail('invalid_search_request');
   const url=new URL(kind==='wikipedia'?'https://en.wikipedia.org/w/api.php':'https://api.tvmaze.com/search/shows');
   if(kind==='wikipedia'){
    for(const [key,value]of Object.entries({action:'query',format:'json',formatversion:'2',list:'search',srsearch:query,
