@@ -549,6 +549,12 @@ feedback or credentials, never signs or publishes, and never retries an uncertai
 backend outcome. Its example config disables public/preview routes and processing
 by default. See [the concrete setup and remaining approval gates](PC_CONNECTION_SETUP.md).
 
+The closed [private interpretation submission](INTERPRETATION_SUBMISSION.md)
+worker now connects validated interpretation packets to deterministic
+reconciliation in the same bounded trusted-main job. Its separate enable gate
+defaults off. It has no live MCP/saved-task connection and does not change the
+installed held runtime or authorize a learning cutover.
+
 Overall acceptance requires new genuine captured feedback, automatic interpreted
 aggregation, actual subsequent research use/effect, and supersession/retraction
 observations. Synthetic tests and shadow computations do not satisfy those gates.

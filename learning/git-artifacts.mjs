@@ -14,9 +14,11 @@ export function requirePacketDiff(comparison,sourceRevision,packetPath){
 // Creation is atomic and never updates an existing ref, commit or artifact.
 function artifactNames(branch,files){
   const worker=/^learning\/task-(?:(?:ticket|result)-[a-f0-9]{64}|token-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/.test(branch);
-  if(!worker&&!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance|session)-[a-f0-9]{64}|(?:search|task-intent)-[a-f0-9]{64}-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
+  const interpretation=/^learning\/interpretation-result-[a-f0-9]{64}$/.test(branch);
+  if(!worker&&!interpretation&&!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance|session)-[a-f0-9]{64}|(?:search|task-intent)-[a-f0-9]{64}-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
   const names=Object.keys(files).sort();
   if(worker&&(names.length!==1||names[0]!==(/^learning\/task-result-/.test(branch)?'task-result.json':'task-ticket.json')))throw new LearningError('unsafe_artifact_path');
+  if(interpretation&&(names.length!==1||names[0]!=='interpretation-result.json'))throw new LearningError('unsafe_artifact_path');
   if(!names.length||names.some(name=>!name.endsWith('.json')||!/^[a-z0-9/-]+\.json$/.test(name)||name.includes('..')))throw new LearningError('unsafe_artifact_path');
   return names;
 }

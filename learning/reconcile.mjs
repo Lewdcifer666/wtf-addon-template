@@ -104,7 +104,9 @@ async function loadObservationInputs({api,publicApis,base,receipt,currentProfile
   return {source,packet,packetCommit:packetCommit.sha,trustedRevision:base.sha,engineFingerprint:historicalFingerprint,profiles,activation};
 }
 
-export async function reconcile({api,publicApis,trustedRevision,dryRun=false,consumeGenre=null,researchCommit=null,researchDate=null,clock=()=>new Date(),proof=null,observationBudget=6}){
+export async function reconcile({api,publicApis,trustedRevision,dryRun=false,consumeGenre=null,researchCommit=null,researchDate=null,clock=()=>new Date(),proof=null,observationBudget=6,accessAllowed=async()=>true}){
+  const checkAccess=async()=>{if(typeof accessAllowed!=='function'||await accessAllowed()!==true)fail('private_task_access_held');};
+  await checkAccess();
   if(consumeGenre!==null&&(!dryRun||!GENRES.includes(consumeGenre)))fail('invalid_consumer_request');
   if(researchCommit!==null&&(consumeGenre===null||!/^[a-f0-9]{40}$/.test(researchCommit)))fail('invalid_consumer_request');
   if(researchDate!==null&&(researchCommit===null||!validResearchDate(researchDate)))fail('invalid_consumer_request');
@@ -126,16 +128,20 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
   }catch(error){
     if(recoverableTransport(error))throw error;
     if(!dryRun)await persistImmutable(api,{base,...failureArtifact({packetCommit:null,sourceRevision:base.sha,engineFingerprint,code:sourceStage}),assertCurrent:async()=>{
+      await checkAccess();
       if((await api.get('/')).private!==true)fail('private_repository_required');
       if((await api.pinMain()).sha!==base.sha)fail('stale_input');
+      await checkAccess();
     }});
     throw new LearningError(sourceStage);
   }
   const assertCurrent=async()=>{
+    await checkAccess();
     const repo=await api.get('/');
     if(repo.private!==true||repo.full_name!==PRIVATE)fail('private_repository_required');
     if((await api.pinMain()).sha!==base.sha)fail('stale_input');
     for(const genre of GENRES)if((await publicApis[genre].pinMain()).sha!==profiles[genre].revision)fail('stale_input');
+    await checkAccess();
   };
   if(consumeGenre!==null&&activation.research_learning_enabled!==true)fail('learning_inactive');
   const requestFiles={'request.json':stableJson({...request,state:'awaiting_interpretation',packet_path:`learning-inbox/${source.source_revision}/${request.request_id}.json`,
@@ -196,7 +202,7 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
     // The collector already persisted its closed per-handoff failures. Do not
     // misclassify them as interpretation/handoff construction failures.
     if(error.code==='invalid_research_observation'||recoverableTransport(error))throw error;
-    const controlErrors=['stale_input','immutable_artifact_mismatch','invalid_observation_index','invalid_observation_proof','transport_failure','proof_transport_failure','proof_credentials_required','proof_key_unavailable','invalid_signed_artifact','invalid_handoff_issuance'];
+    const controlErrors=['stale_input','private_task_access_held','immutable_artifact_mismatch','invalid_observation_index','invalid_observation_proof','transport_failure','proof_transport_failure','proof_credentials_required','proof_key_unavailable','invalid_signed_artifact','invalid_handoff_issuance'];
     const code=controlErrors.includes(error.code)?error.code:stage;
     if(!dryRun&&code!=='stale_input')await persistImmutable(api,{base,...failureArtifact({packetCommit,sourceRevision:base.sha,engineFingerprint,code}),assertCurrent});
     throw new LearningError(code);
