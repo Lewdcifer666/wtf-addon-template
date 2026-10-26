@@ -152,7 +152,9 @@ for(const modern of [false,true])test(`official ${modern?'2026 discovery':'2025 
   await client.connect(new TransportType(new URL(origin+'/mcp'),{
    requestInit:{headers:{'Cf-Access-Jwt-Assertion':jwt}},fetch:async(url,options)=>connection.fetch(new Request(url,options))}));
   if(modern)assert.equal(client.getProtocolEra(),'modern');
-  assert.equal((await client.listTools()).tools.length,4);
+  assert.equal((await client.listTools()).tools.length,5);
+  assert.deepEqual((await client.callTool({name:'private_research_health',arguments:{}})).structuredContent,
+   {schema_version:1,transport:'ready',learning_activation:'not_asserted',publication_capability:false});
   if(modern){
    const params={_meta:{'io.modelcontextprotocol/protocolVersion':'2026-07-28','io.modelcontextprotocol/clientCapabilities':{}},
     name:'private_research_open',arguments:{}};

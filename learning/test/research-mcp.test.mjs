@@ -16,7 +16,7 @@ async function memoryClient(adapter){
 test('official MCP client initializes, discovers honest side effects and receives the default hold without any repository access',async()=>{
  const connection=await memoryClient();
  try{
-  const {tools}=await connection.client.listTools();assert.equal(tools.length,4);
+  const {tools}=await connection.client.listTools();assert.equal(tools.length,5);
   assert.equal(tools.find(t=>t.name==='private_research_open').annotations.readOnlyHint,false);
   assert.equal(tools.find(t=>t.name==='private_research_search').annotations.readOnlyHint,false);
   assert.equal(tools.find(t=>t.name==='private_research_context').annotations.readOnlyHint,true);
