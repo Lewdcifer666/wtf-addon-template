@@ -56,7 +56,13 @@ reviewed and explicitly authorized learning/runtime transition.
 ## Configuration and stopping
 
 The protected directory must be the current owner's resolved
-`%LOCALAPPDATA%\WTFStremioPrivate\connection`, outside Git and without junctions.
+`%USERPROFILE%\WTFStremioPrivate\connection`, outside Git, MSIX app caches and
+junctions. Packaged Codex can redirect AppData into its package cache, which may
+disappear on app uninstall and differs from an ordinary logon task's environment.
+The installer resolves the actual path with Node before any copies or task
+registration and requires the exact stable profile directory. Package-cache
+paths are rejected by the runtime schema. Preparing this location never permits
+an automatic service start or a broader credential/identity grant.
 Windows ACLs must allow only the owner and SYSTEM; the installer checks them.
 The closed config pins the access JSON hash, source revision and four exact image
 IDs. A changed config/identity/image stops the running supervisor; it is not

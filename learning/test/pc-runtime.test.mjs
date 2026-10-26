@@ -16,7 +16,8 @@ const kernelRules=(firewall,family)=>firewall.split('\n').filter(l=>l.startsWith
 test('held runtime configuration is closed, image-pinned, local and incapable of private task activation',()=>{
  const good=config();assert.equal(validateHeldRuntimeConfig(good).task_access_enabled,false);
  for(const change of [{task_access_enabled:true},{remote_service_enabled:'true'},{directory:'\\\\server\\share\\WTFStremioPrivate\\connection'},
-  {directory:'C:\\repo,inject\\WTFStremioPrivate\\connection'},{directory:'C:\\temp'},{source_revision:'main'},
+  {directory:'C:\\repo,inject\\WTFStremioPrivate\\connection'},{directory:'C:\\temp'},
+  {directory:'C:\\Users\\Synthetic\\AppData\\Local\\Packages\\Synthetic\\LocalCache\\Local\\WTFStremioPrivate\\connection'},{source_revision:'main'},
   {images:{...good.images,app:'node:latest'}},{images:{...good.images,extra:'sha256:'+'a'.repeat(64)}},{command:'untrusted'}])assert.throws(()=>validateHeldRuntimeConfig({...good,...change}));
  for(const change of [{email:'other@example.invalid'},{issuer:'https://evil.invalid'},{audience:'*'},{subject:'* owner'},{key:'synthetic'}])
   assert.throws(()=>validateRuntimeAccess({...access,...change},good.access_sha256));
@@ -139,6 +140,8 @@ test('Windows installer requires an explicit held grant and pinned commit manife
  assert(source.includes('--check --config'));assert(source.includes('--run-approved-runtime --config'));
  assert(source.includes("':.learning-engine-manifest.json'"));assert(source.includes('git -C $taskSource show'));
  assert(source.includes('-LogonType Interactive -RunLevel Limited'));assert(source.includes('-MultipleInstances IgnoreNew'));
+ assert(source.includes('$env:USERPROFILE'));assert(!source.includes('$env:LOCALAPPDATA'));
+ assert(source.includes('fs.realpathSync.native(process.argv[1])'));assert(source.includes('taskRoot -ne $taskExpectedRoot'));
  assert(source.indexOf('ShouldProcess(')<source.indexOf('Register-ScheduledTask -TaskName'));
  assert(!/-ExecutionPolicy\s+(?:Bypass|Unrestricted)|-RunLevel\s+Highest|-Password\b|Register-ScheduledTask[^\r\n]*-Force\b|runtime-app\.private-key\.pem/i.test(source));
 });
