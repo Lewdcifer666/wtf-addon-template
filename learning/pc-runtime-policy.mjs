@@ -17,6 +17,7 @@ export function validateHeldRuntimeConfig(input){
   ||c.schema_version!==1||typeof c.remote_service_enabled!=='boolean'||c.task_access_enabled!==false||!uuid(c.deployment_id)||!sha(c.source_revision)
   ||typeof c.directory!=='string'||!path.win32.isAbsolute(c.directory)||c.directory.startsWith('\\\\')||/[\r\n,"\x00]/.test(c.directory)
   ||path.win32.normalize(c.directory)!==c.directory||!c.directory.toLowerCase().endsWith('\\wtfstremioprivate\\connection')
+  ||/\\appdata\\local\\packages\\/i.test(c.directory)
   ||!/^[a-f0-9]{64}$/.test(c.access_sha256??'')||!exact(c.images,['app','tools','connector','namespace'])
   ||Object.values(c.images).some(v=>typeof v!=='string'||!/^sha256:[a-f0-9]{64}$/.test(v)))fail();
  return Object.freeze(c);

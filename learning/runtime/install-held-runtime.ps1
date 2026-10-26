@@ -9,7 +9,12 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $ApprovePersistentHeldTransport -or $ApprovedRevision -notmatch '^[a-f0-9]{40}$') { throw 'Explicit reviewed persistent-transport decision required' }
-$taskRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'WTFStremioPrivate/connection'))
+$taskNodeCandidate = (Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
+$taskNode = (& $taskNodeCandidate --input-type=module -e "import fs from 'node:fs'; console.log(fs.realpathSync.native(process.argv[1]));" $taskNodeCandidate).Trim()
+if ($LASTEXITCODE -ne 0 -or -not [IO.Path]::IsPathRooted($taskNode) -or -not (Test-Path -LiteralPath $taskNode -PathType Leaf)) { throw 'One resolved installed Node executable required' }
+$taskExpectedRoot = [IO.Path]::GetFullPath((Join-Path $env:USERPROFILE 'WTFStremioPrivate/connection'))
+$taskRoot = (& $taskNode --input-type=module -e "import fs from 'node:fs'; console.log(fs.realpathSync.native(process.argv[1]));" $taskExpectedRoot).Trim()
+if ($LASTEXITCODE -ne 0 -or $taskRoot -ne $taskExpectedRoot) { throw 'Stable canonical owner-profile directory required; no package-cache redirection' }
 $taskSource = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $taskConfig = Join-Path $taskRoot 'runtime.json'
 $taskOwner = [Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -45,7 +50,6 @@ foreach ($taskName in $taskFiles) {
 }
 $taskName = 'WTF Stremio Private Held Runtime'
 if (Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction SilentlyContinue) { throw 'Existing task must be reviewed; never overwrite it' }
-$taskNode = (Get-Command node.exe -CommandType Application).Source
 $taskCode = Join-Path $taskRoot ('runtime-code/' + $ApprovedRevision)
 if ((Test-Path -LiteralPath (Join-Path $taskRoot 'runtime-code')) -and ((Get-Item -LiteralPath (Join-Path $taskRoot 'runtime-code')).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Version directory must not be a junction' }
 if (Test-Path -LiteralPath $taskCode) { throw 'Existing installed code is preserved; review before replacing' }
