@@ -9,7 +9,9 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if (-not $ApprovePersistentHeldTransport -or $ApprovedRevision -notmatch '^[a-f0-9]{40}$') { throw 'Explicit reviewed persistent-transport decision required' }
-$taskNode = (Get-Command node.exe -CommandType Application).Source
+$taskNodeCandidate = (Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
+$taskNode = (& $taskNodeCandidate --input-type=module -e "import fs from 'node:fs'; console.log(fs.realpathSync.native(process.argv[1]));" $taskNodeCandidate).Trim()
+if ($LASTEXITCODE -ne 0 -or -not [IO.Path]::IsPathRooted($taskNode) -or -not (Test-Path -LiteralPath $taskNode -PathType Leaf)) { throw 'One resolved installed Node executable required' }
 $taskExpectedRoot = [IO.Path]::GetFullPath((Join-Path $env:USERPROFILE 'WTFStremioPrivate/connection'))
 $taskRoot = (& $taskNode --input-type=module -e "import fs from 'node:fs'; console.log(fs.realpathSync.native(process.argv[1]));" $taskExpectedRoot).Trim()
 if ($LASTEXITCODE -ne 0 -or $taskRoot -ne $taskExpectedRoot) { throw 'Stable canonical owner-profile directory required; no package-cache redirection' }

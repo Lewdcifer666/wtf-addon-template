@@ -142,6 +142,8 @@ test('Windows installer requires an explicit held grant and pinned commit manife
  assert(source.includes('-LogonType Interactive -RunLevel Limited'));assert(source.includes('-MultipleInstances IgnoreNew'));
  assert(source.includes('$env:USERPROFILE'));assert(!source.includes('$env:LOCALAPPDATA'));
  assert(source.includes('fs.realpathSync.native(process.argv[1])'));assert(source.includes('taskRoot -ne $taskExpectedRoot'));
+ assert(source.includes('Get-Command node.exe -CommandType Application | Select-Object -First 1'));
+ assert(source.includes('One resolved installed Node executable required'));
  assert(source.indexOf('ShouldProcess(')<source.indexOf('Register-ScheduledTask -TaskName'));
  assert(!/-ExecutionPolicy\s+(?:Bypass|Unrestricted)|-RunLevel\s+Highest|-Password\b|Register-ScheduledTask[^\r\n]*-Force\b|runtime-app\.private-key\.pem/i.test(source));
 });
