@@ -9,7 +9,7 @@ import {berlinResearchDate} from './handoff.mjs';
 import {GENRES} from './receipt.mjs';
 import {digest,stableJson} from './interpretation.mjs';
 import {LearningError} from './git-artifacts.mjs';
-import {describeResearchSession,readResearchSessionJournal} from './session-journal.mjs';
+import {describeResearchSession,readResearchSessionJournal,assertSessionTaskIntentsResolved} from './session-journal.mjs';
 
 const validateRequest=new Ajv({strict:true,allErrors:false}).compile(JSON.parse(fs.readFileSync(new URL('./schemas/research-session-request.schema.json',import.meta.url),'utf8')));
 const sessions=new WeakMap();
@@ -95,8 +95,10 @@ export async function privateResearchSessionResponse(session){
 // Reopening recomputes current state after other genres may have published.
 // A stale result fails; this reader never mints a replacement receipt/handoff.
 export async function recheckResearchSession(session){
-  const {options,request}=recordFor(session);
-  const fresh=await openResearchSession({...options,request});
+  const {options,request,verificationCommit}=recordFor(session);
+  const fresh=verificationCommit
+    ?await recoverResearchSessionForVerification({...options,request,researchCommit:verificationCommit})
+    :await openResearchSession({...options,request});
   if(fresh.session_id!==session.session_id)fail('stale_input');
   return session;
 }
@@ -107,7 +109,8 @@ export async function recheckResearchSession(session){
 // another writer/provider. These records prove that this adapter invoked its
 // configured search function, not that an AI claim or causal effect is true.
 export async function observeResearchSessionSearch({session,query,preferenceIndexes,taskRequestId=null}){
-  const {provider,binding}=recordFor(session);
+  const {provider,binding,verificationCommit}=recordFor(session);
+  if(verificationCommit)fail('research_already_staged');
   if(!provider)fail('search_provider_unavailable');
   const preferenceCount=binding.issued.context.preferences.length;
   if((taskRequestId!==null&&(typeof taskRequestId!=='string'||!/^[a-zA-Z0-9._-]{1,64}$/.test(taskRequestId)))
@@ -183,7 +186,8 @@ export async function restoreResearchSessionSearches(session){
 // handle. This proves input provenance and candidate diagnostics only; it does
 // NOT assert that the AI used the brief or that recommendations changed.
 export async function verifyResearchSessionCommit({session,researchCommit,searches=[]}){
-  const {options,request,binding}=recordFor(session);
+  const {options,request,binding,verificationCommit}=recordFor(session);
+  if(verificationCommit&&verificationCommit!==researchCommit)fail('stale_input');
   if(typeof researchCommit!=='string'||!/^[a-f0-9]{40}$/.test(researchCommit))fail('invalid_consumer_request');
   if(!Array.isArray(searches)||searches.length>100)fail('invalid_research_search_evidence');
   const records=Array.from(searches,handle=>{const record=privateResearchSearchObservation({session,handle});return {search_id:record.search_id,...record.observation};});
@@ -200,4 +204,34 @@ export async function verifyResearchSessionCommit({session,researchCommit,search
   return freeze({schema_version:1,kind:'private_research_session_verification',session_id:session.session_id,
     trace:structuredClone(verified.trace),searches:structuredClone(records),
     search_adapter_invocations_observed:records.length,actual_context_use_verified:false,behavioral_effect_observed:false});
+}
+
+// A bounded worker may finish after staging or restart before verification.
+// Reconstruct only a VERIFICATION session from a fully authenticated actual
+// packet, its original handoff/ordering certificate and signed pre-packet
+// journal. This cannot open a new search or mint a fresh receipt/context.
+export async function recoverResearchSessionForVerification({api,publicApis,trustedRevision,request,researchCommit,clock=()=>new Date(),proof=null}){
+ if(!validateRequest(request)||!validDate(request.research_date)||request.private_revision!==trustedRevision
+  ||!/^[a-f0-9]{40}$/.test(researchCommit??'')||request.research_date!==berlinResearchDate(clock()))fail('invalid_consumer_request');
+ const copied=structuredClone(request),options={api,publicApis,trustedRevision,clock,proof};
+ const verified=await reconcile({...options,dryRun:true,consumeGenre:copied.genre,researchCommit,researchDate:copied.research_date});
+ if(verified.state!=='research_verified'||verified.handoff.issued.source_heads.public[copied.genre]!==copied.public_revision)fail('stale_input');
+ const handoff=verified.handoff;
+ const assertCurrent=async()=>{
+  await assertHeads(options,handoff.issued);
+  const ref=await publicApis[copied.genre].optional(`/git/ref/heads/research/${copied.research_date}-${copied.genre}`);
+  if(ref?.ref!==`refs/heads/research/${copied.research_date}-${copied.genre}`||ref.object?.sha!==researchCommit
+   ||copied.research_date!==berlinResearchDate(clock()))fail('stale_input');
+ };
+ const base=await api.pinMain();
+ const journal=await readResearchSessionJournal({api,base,issued:handoff.issued,handoffCommit:handoff.commit,
+  issuanceCommit:handoff.issuance_commit,proof,assertCurrent});
+ if(!journal)fail('session_context_not_persisted');
+ const described=describeResearchSession({issued:handoff.issued,handoffCommit:handoff.commit,issuanceCommit:handoff.issuance_commit});
+ await assertSessionTaskIntentsResolved({api,base,response:described.response,journal,proof,assertCurrent});
+ await assertCurrent();
+ const {binding,session_id}=describeResearchSession({issued:handoff.issued,handoffCommit:handoff.commit,issuanceCommit:handoff.issuance_commit});
+ const session=freeze({schema_version:1,kind:'private_research_session',genre:copied.genre,research_date:copied.research_date,session_id});
+ sessions.set(session,{options,request:freeze(copied),binding:freeze(structuredClone(binding)),provider:null,verificationCommit:researchCommit});
+ return session;
 }

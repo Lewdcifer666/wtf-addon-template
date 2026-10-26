@@ -92,6 +92,35 @@ export async function loadSessionSearchRefs(api,session_id){
  return refs;
 }
 
+// Verification after a worker restart must not silently omit an unresolved
+// pre-search intent. Ref metadata may block, but only sealed matching records
+// can establish completion. Anonymous legacy observations keep their semantics.
+export async function assertSessionTaskIntentsResolved({api,base,response,journal,proof,assertCurrent}){
+ const prefix=`refs/heads/learning/task-intent-${response.session_id}-`;
+ const load=async()=>{
+  const refs=await api.get(`/git/matching-refs/heads/learning/task-intent-${response.session_id}-`);
+  if(!Array.isArray(refs)||refs.length>100||new Set(refs.map(r=>r?.ref)).size!==refs.length
+   ||refs.some(r=>!r?.ref?.startsWith(prefix)||!/^[a-f0-9]{64}$/.test(r.ref.slice(prefix.length))||!sha(r.object?.sha)))fail();
+  return refs;
+ };
+ const refs=await load(),searches=(journal.searches??[]).map(s=>s.observation).filter(o=>o.task_request_id!==null&&o.task_request_id!==undefined);
+ const complete=new Map(searches.map(s=>[digest(s.task_request_id),s]));
+ if(refs.some(r=>!complete.has(r.ref.slice(prefix.length))))throw new LearningError('task_search_unresolved');
+ if(refs.length!==searches.length)fail();
+ for(const ref of refs){
+  const observation=complete.get(ref.ref.slice(prefix.length));
+  const record=await readSealedSessionRecord({api,base,branch:ref.ref.slice('refs/heads/'.length),name:'intent.json',proof,assertCurrent,ref});
+  const body=record?.body;
+  if(!exact(body,['schema_version','kind','session_id','request_id','query','preference_indexes','nonce'])
+   ||!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(body.nonce??'')
+   ||body.schema_version!==1||body.kind!=='private_task_search_intent'||body.session_id!==response.session_id
+   ||body.request_id!==observation.task_request_id||body.query!==observation.query
+   ||stableJson(body.preference_indexes)!==stableJson(observation.preference_indexes))fail();
+ }
+ await assertCurrent();
+ if(stableJson((await load()).map(r=>[r.ref,r.object.sha]).sort())!==stableJson(refs.map(r=>[r.ref,r.object.sha]).sort()))fail();
+}
+
 // Called only AFTER the collector authenticated/recomputed the original active
 // receipt, handoff, issuance proof and actual public packet. Missing context is
 // not a successful use. A prepared context alone proves no delivery or search.

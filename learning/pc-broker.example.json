@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "task_access_enabled": false,
+  "access": {
+    "issuer": "https://YOUR-TEAM.cloudflareaccess.com",
+    "audience": "REPLACE-WITH-EXACT-APP-AUDIENCE",
+    "subject": "REPLACE-WITH-EXACT-OWNER-SUBJECT",
+    "email": "REPLACE-WITH-EXACT-OWNER-EMAIL"
+  },
+  "github_app": null,
+  "request_directory": null,
+  "private_directory_verified": false
+}

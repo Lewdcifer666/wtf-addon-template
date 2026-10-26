@@ -20,8 +20,8 @@ unchanged. Computed inactive receipts do not prove an automatic learning cutover
 
 ## PC transport and deployment boundary
 
-`research-mcp-host.mjs` exposes the existing closed open/context/search/verify
-dispatcher through the official MCP SDK, pinned to 1.32.1. The host binds only
+`research-mcp-host.mjs` exposes health and the closed open/context/search/verify
+dispatcher through the official MCP server SDK, pinned to 2.4.0. The host binds only
 127.0.0.1, requires a separate random bearer credential even for initialization,
 rejects browser origins and unexpected Host headers, limits JSON bodies/results
 to 1 MiB and returns closed error codes without raw request/exception logging.
@@ -55,6 +55,67 @@ replay of a denied operation. Existing holds remain authoritative. No live searc
 provider is configured and no actual task use or recommendation effect is claimed.
 Public addon generation uses a separate Ajv-only skeleton lock, keeping this
 private SDK and its dependency graph out of all public addon packages.
+
+### Bounded task worker and private PC broker (deployment still disabled)
+
+`research-broker-host.mjs` is the explicit future PC entry point. Its example
+config has `task_access_enabled:false`; the original held host/CLI stays held.
+Active broker configuration additionally requires the server-owned
+`PRIVATE_RESEARCH_BROKER_ALLOWED=true` gate. Each call rechecks its config hold.
+No installer, autostart, credential, App registration or network rule is created.
+See [the full runtime deployment boundary](BOUNDED_RUNTIME.md).
+
+The PC persists closed request intents in a private, operator-verified directory.
+It submits only a fixed private workflow on `main`, and reads authenticated result
+records. It cannot write Git objects or sign learning evidence. A separate private
+GitHub App, if explicitly approved/installed, supplies automatically renewed
+one-hour API tokens restricted to Contents read and Actions write for the private
+repository. Its private key authenticates GitHub API requests only. Evidence still
+requires GitHub's original trusted-main workflow OIDC; no local substitute key.
+
+The `task-worker` job is disabled unless the independent repository variable
+`PRIVATE_RESEARCH_WORKER_ENABLED` is explicitly true and dispatch specifies a
+closed `task_request` with `dry_run:false`. It checks out freshly pinned trusted
+main, installs/tests only trusted code without caches, has a five-minute timeout
+and uses the existing non-cancelling repository-wide reconciliation concurrency.
+The request is read as data from GitHub's event file, never interpolated into
+shell code or an automatically printed environment declaration. A task cannot
+select a repository, code revision, writer, output path, provider or signer.
+
+Local atomic request/dispatch records preserve unfinished work across restarts.
+Only one dispatch is outstanding; a later batch reads its sealed result before
+submitting another, avoiding GitHub's single-pending-job cancellation behavior.
+An unchanged retry keeps its original request identity. Automatic re-dispatch
+is bounded to three reservations, at least ten minutes apart; unresolved work
+remains on disk after that bound. Completed hints affect queue scheduling only:
+every response re-authenticates the complete Git graph/OIDC and fresh source heads.
+The pending queue is checked every30seconds only in an explicitly enabled host;
+an empty journal causes no GitHub request. This changes no saved task schedules.
+
+Each bounded worker reopens the original pinned session from its sealed ticket.
+Signed search intents prevent repeating a provider invocation after an ambiguous
+outcome. Signed completed searches can recover without calling the provider again.
+Post-staging verification reconstructs a verification-only session from the actual
+validated packet and original sealed pre-packet context; it cannot start searches
+and refuses every unresolved intent. Tickets, results and original logs are immutable.
+No response claims that AI used a brief or that a recommendation effect occurred.
+
+Free, keyless providers use the fixed public Wikipedia full-text search and TVmaze
+show-title search endpoints. The bounded worker currently selects Wikipedia;
+TVmaze is an available trusted-code adapter for series-title research. Neither is
+a general web search replacement or a change to the genre's research standards.
+AI research still needs independent corroboration, canonical identities and all
+existing provenance/DNA rules; Thriller's source requirement remains unchanged.
+Only public search terms go to these services, never raw feedback, full context,
+preference mappings, task tokens or credentials. Results retain source titles/URLs
+and honestly use null when no provider request ID is exposed. HTTP/parse failures
+are pending failures, never zero findings. No redirects, retries, alternate
+provider or credential are used to recover an uncertain invocation.
+
+References: [Wikipedia search API](https://www.mediawiki.org/wiki/API:Search),
+[API etiquette](https://www.mediawiki.org/wiki/API:Etiquette),
+[TVmaze public API](https://www.tvmaze.com/api),
+[GitHub installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app).
 
 ## Evidence and interpretation
 
