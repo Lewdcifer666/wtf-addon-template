@@ -10,11 +10,17 @@ import {createInterpretationBrokerAdapter} from '../interpretation-broker.mjs';
 import {createBrokerGitHub} from '../broker-github.mjs';
 import {createResearchMcpServer} from '../research-mcp-host.mjs';
 import {startResearchBrokerHost} from '../research-broker-host.mjs';
+import {interpretationWorkerError} from '../interpretation-worker.mjs';
 const revision='a'.repeat(40),request={schema_version:1,operation:'request',request:{source_revision:revision}};
 const submit={schema_version:1,operation:'submit',request:{source_revision:revision,request_id:'b'.repeat(64),packet:{schema_version:1,source_revision:revision,request_id:'b'.repeat(64),interpretations:[{feedback_id:'synthetic',raw_blob_oid:'c'.repeat(40),status:'no_signal',statements:[]}]}}};
 const research={schema_version:1,operation:'open',request:{schema_version:1,genre:'scifi',research_date:'2026-10-12',private_revision:revision,public_revision:'d'.repeat(40)}};
 const directory=()=>fs.mkdtempSync(path.join(os.tmpdir(),'wtf-interpretation-journal-'));
 const close=root=>{assert(path.isAbsolute(root)&&path.basename(root).startsWith('wtf-interpretation-journal-'));fs.rmSync(root,{recursive:true,force:true});};
+
+test('permanent private journal conflicts and corruption stay distinguishable from pending work',()=>{
+ for(const code of ['task_request_conflict','invalid_task_journal','immutable_artifact_mismatch'])assert.equal(interpretationWorkerError({code,message:'PRIVATE_SENTINEL'}),code);
+ assert.equal(interpretationWorkerError(Error('PRIVATE_SENTINEL')),'private_interpretation_pending');
+});
 
 test('both task families share one durable dispatch slot and changed private submissions conflict rather than replacing the packet',async()=>{
  const root=directory();try{

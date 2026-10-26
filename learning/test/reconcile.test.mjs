@@ -1648,6 +1648,8 @@ test('authenticated MCP interpretation submission reaches inactive deterministic
   const packet=await interpretationCall(f.s),pending=await client.callTool({name:'private_interpretation_submit',arguments:packet.request});assert.equal(pending.structuredContent.error,'private_interpretation_pending');
   const result=await client.callTool({name:'private_interpretation_submit',arguments:packet.request});assert.equal(result.structuredContent.staged,true);assert.equal(result.structuredContent.activation_changed,false);
   assert.equal(f.dispatches(),2);assert([...f.s.privateRepo.refs.keys()].some(ref=>ref.includes('/receipt-')));
+  const changed=structuredClone(packet.request);changed.packet.interpretations[0].statements[0].meaning='uncertain';
+  const conflict=await client.callTool({name:'private_interpretation_submit',arguments:changed});assert.equal(conflict.structuredContent.error,'task_request_conflict');assert.equal(f.dispatches(),2);
   const stopped=await client.callTool({name:'private_research_open',arguments:(await sessionRequest(f.s))});assert.equal(stopped.structuredContent.error,'private_task_access_held');
  }finally{await client.close();await host.close();f.close();}
 });
