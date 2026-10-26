@@ -27,12 +27,23 @@ uncertain response as pending. The interpretation broker durably retains the
 original request and recovers its signed result before considering another
 dispatch. This dispatcher alone is not a durable queue or an authenticated host.
 
-The complete encoded workflow-dispatch body has a conservative 60000-byte bound,
-including outer JSON escaping. Oversized packets fail before dispatch without
-truncation. Private feedback pages are separately bounded at128KiB. This inline
-submission transport does not yet support larger complete interpretation packets;
-they require a reviewed chunk/assembly transport, never omitted feedback or a
-partial packet presented as complete.
+The complete encoded workflow-dispatch body has a conservative60000-byte bound,
+including outer JSON escaping. Complete task calls up to1MiB use inline transport
+when they fit; larger submissions are split into fixed40KiB byte parts and one
+assembly request. Each dispatched body remains below the bound. The AI still
+submits one complete closed packet; internal part/assembly methods are not MCP
+tools and do not let the AI choose a writer or path. Private feedback pages remain
+bounded at128KiB. Larger-than-contract calls fail before dispatch without
+truncation; no event is dropped to make a packet fit.
+
+Parts are unsigned, untrusted private transport on fixed immutable refs, never
+learning evidence. They carry a canonical packet hash, byte count, part count,
+source revision and request identity. Assembly reads every part, checks the full
+Git graphs and exact concatenated bytes/hash/UTF-8/canonical JSON, then performs
+complete current inventory, provenance and quote validation. Only after that may
+the existing worker stage a real interpretation, mint a genuine OIDC receipt and
+run deterministic aggregation. Incomplete, conflicting or altered parts stay
+unresolved; they cannot become a partial interpretation or arbitrary signed data.
 
 ## Trusted execution and recovery
 
@@ -91,6 +102,14 @@ artifacts cannot regenerate evidence. A changed submission for the same source
 and request conflicts with its retained original; it cannot silently replace it.
 Stale/exhausted/corrupt requests remain unresolved. Each family polls its own
 pending work fairly while sharing the dispatch limit.
+
+Multipart requests use that same lease one part at a time. The original complete
+packet and each internal attempt survive a PC restart; successful parts are read
+back and reused, never overwritten. Missing previously completed parts block
+recovery rather than allowing regeneration. The PC caches only already verified
+immutable graphs and commit identities to avoid quadratic payload downloads;
+mutable refs, privacy, source and access are checked fresh. After a PC restart,
+graphs are verified again; local completion hints alone are never authority.
 
 Interpretation submissions contain personal quotes. The journal therefore holds
 private normalized evidence as well as search requests and must remain outside
