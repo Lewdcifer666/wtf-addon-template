@@ -27,6 +27,7 @@ import {createPublicSearchProvider} from '../public-search.mjs';
 import {recoverResearchSessionForVerification,restoreResearchSessionSearches} from '../research-session.mjs';
 import {createResearchBrokerAdapter} from '../research-broker.mjs';
 import {createBrokerRequestStore} from '../broker-request-store.mjs';
+import {executeInterpretationWorker,readInterpretationWorkerResult,validateInterpretationWorkerCall,interpretationWorkerHash} from '../interpretation-worker.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -1479,4 +1480,110 @@ test('a missing formerly completed result cannot trigger regeneration of frozen 
   f.s.privateRepo.refs.delete(`refs/heads/learning/task-result-${workerRequestHash(call)}`);
   await assert.rejects(broker.dispatch(call),/immutable_artifact_mismatch/);assert.equal(f.dispatches(),1);
  }finally{f.close();}
+});
+
+async function interpretationCall(s,operation='submit'){
+ const commit=await s.privateRepo.api.pinMain(),tree=s.privateRepo.trees.get(commit.tree.sha);
+ const source=inventoryFeedback({commit,tree,blobs:s.privateRepo.blobs}),request=interpretationRequest(source);
+ const packet={schema_version:1,source_revision:commit.sha,request_id:request.request_id,interpretations:[{feedback_id:s.event.feedback_id,
+  raw_blob_oid:source.records[0].blob_oid,status:'interpreted',statements:[{category:'concept',aspect:'mystery',meaning:'wanted_more',
+   scope:'content_preference',quote:'I want more mystery',confidence:'high'}]}]};
+ return {schema_version:1,operation,request:operation==='request'?{source_revision:commit.sha}:{source_revision:commit.sha,request_id:request.request_id,packet}};
+}
+test('interpretation worker default hold precedes source reads, signing and Git writes',async()=>{
+ const s=scenario(),call=await interpretationCall(s);s.privateRepo.api.get=async()=>{throw Error('MUST_NOT_READ');};
+ await assert.rejects(executeInterpretationWorker({...s.args,call,proof:fixtureObservationProof()}),/private_interpretation_access_held/);
+ assert.equal(s.privateRepo.writes.length,0);
+});
+test('private interpretation submission automatically enters deterministic inactive reconciliation and retries reuse it',async()=>{
+ const s=scenario(),call=await interpretationCall(s),proof=fixtureObservationProof();
+ const before=stableJson(s.privateRepo.filesAt(s.privateRepo.initialSha));
+ const options={...s.args,call,proof,interpretationAccessAllowed:async()=>true};
+ const first=await executeInterpretationWorker(options);
+ assert.equal(first.state,'interpretation_staged');assert.equal(first.reconciliation.state,'computed_inactive');
+ const source=await s.privateRepo.api.pinMain(),saved=await readInterpretationWorkerResult({api:s.args.api,base:source,call,proof,assertCurrent:async()=>{}});
+ assert.equal(saved.body.result.staged,true);assert.equal(saved.body.result.activation_changed,false);
+ assert([...s.privateRepo.refs.keys()].some(r=>r.includes('/receipt-')));
+ const writes=s.privateRepo.writes.length,retry=await executeInterpretationWorker(options);
+ assert.equal(retry.reused,true);assert.equal(retry.commit,first.commit);assert.equal(s.privateRepo.writes.length,writes);
+ assert.equal(stableJson(s.privateRepo.filesAt(s.privateRepo.initialSha)),before);
+ assert.equal((await s.privateRepo.api.pinMain()).sha,s.privateRepo.initialSha);
+ assert(!stableJson(first).includes('PRIVATE_SENTINEL'));
+});
+test('interpretation context and page transport are private sealed records, never invented staging',async()=>{
+ const s=scenario(),proof=fixtureObservationProof(),call=await interpretationCall(s,'request'),options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ await executeInterpretationWorker({...options,call});
+ const base=await s.privateRepo.api.pinMain(),manifest=await readInterpretationWorkerResult({api:s.args.api,base,call,proof,assertCurrent:async()=>{}});
+ assert(!stableJson(manifest.body.result).includes('PRIVATE_SENTINEL'));
+ const page={schema_version:1,operation:'page',request:{source_revision:base.sha,request_id:manifest.body.result.request_id,page_index:0}};
+ await executeInterpretationWorker({...options,call:page});
+ const data=await readInterpretationWorkerResult({api:s.args.api,base,call:page,proof,assertCurrent:async()=>{}});
+ assert(data.body.result.events[0].text.includes('PRIVATE_SENTINEL'));
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.startsWith('refs/heads/interpretation/')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/receipt-')));
+});
+test('invalid quotes, incomplete interpretations and injected destinations never stage or sign data',async()=>{
+ for(const alter of [c=>c.request.packet.interpretations=[],c=>c.request.packet.interpretations[0].statements[0].quote='FORGED QUOTE',c=>c.destination='main']){
+  const s=scenario(),call=await interpretationCall(s);alter(call);let signatures=0;
+  await assert.rejects(executeInterpretationWorker({...s.args,call,proof:{sign(){signatures++;}},interpretationAccessAllowed:async()=>true}),/invalid_interpretation/);
+  assert.equal(signatures,0);assert.equal(s.privateRepo.writes.length,0);
+ }
+});
+test('a lost packet ref acknowledgement recovers the same persisted packet without a second ref write',async()=>{
+ const s=scenario(),call=await interpretationCall(s),post=s.privateRepo.api.post;let packetWrites=0;
+ s.privateRepo.api.post=async(route,body)=>{
+  const result=await post(route,body);
+  if(route==='/git/refs'&&body.ref===`refs/heads/interpretation/${s.privateRepo.initialSha}`){packetWrites++;if(packetWrites===1)throw Object.assign(Error('ACK_LOST'),{code:'transport_failure'});}
+  return result;
+ };
+ const result=await executeInterpretationWorker({...s.args,call,proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>true});
+ assert.equal(result.state,'interpretation_staged');assert.equal(packetWrites,1);
+});
+test('interrupted result persistence retains the staged packet and resumes the same submission',async()=>{
+ const s=scenario(),call=await interpretationCall(s),post=s.privateRepo.api.post;let once=true;
+ s.privateRepo.api.post=async(route,body)=>{
+  if(route==='/git/refs'&&body.ref===`refs/heads/learning/interpretation-result-${interpretationWorkerHash(call)}`&&once){once=false;throw Object.assign(Error('INTERRUPTED'),{code:'transport_failure'});}
+  return post(route,body);
+ };
+ const options={...s.args,call,proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>true};
+ await assert.rejects(executeInterpretationWorker(options),/INTERRUPTED/);
+ const staged=s.privateRepo.refs.get(`refs/heads/interpretation/${s.privateRepo.initialSha}`).object.sha;
+ await executeInterpretationWorker(options);
+ assert.equal(s.privateRepo.refs.get(`refs/heads/interpretation/${s.privateRepo.initialSha}`).object.sha,staged);
+});
+test('frozen completed interpretation cannot be regenerated when its original packet disappears',async()=>{
+ const s=scenario(),call=await interpretationCall(s),options={...s.args,call,proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>true};
+ await executeInterpretationWorker(options);const writes=s.privateRepo.writes.length;
+ s.privateRepo.refs.delete(`refs/heads/interpretation/${s.privateRepo.initialSha}`);
+ await assert.rejects(executeInterpretationWorker(options),/invalid_interpretation_record/);
+ assert.equal(s.privateRepo.writes.length,writes);
+});
+test('conflicting valid interpretation stays unresolved without overwriting frozen packet or artifacts',async()=>{
+ const s=scenario(),call=await interpretationCall(s),options={...s.args,call,proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>true};
+ await executeInterpretationWorker(options);const writes=s.privateRepo.writes.length,changed=structuredClone(call);
+ changed.request.packet.interpretations[0].statements[0].meaning='uncertain';
+ await assert.rejects(executeInterpretationWorker({...options,call:changed}),/immutable_artifact_mismatch/);
+ assert.equal(s.privateRepo.writes.length,writes);
+});
+test('changed source rejects a stale private submission and changed public policy recomputes aggregation on retry',async()=>{
+ const s=scenario(),call=await interpretationCall(s),options={...s.args,call,proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>true};
+ await executeInterpretationWorker(options);
+ const receipts=()=>[...s.privateRepo.refs.keys()].filter(r=>r.includes('/receipt-')).length,before=receipts();
+ const profile=JSON.parse(s.publicRepos.action.filesAt(s.publicRepos.action.initialSha)['data/taste-profile.json']);profile.dna_baseline.weights.action_density=2;
+ s.publicRepos.action.branch('main',{'data/taste-profile.json':stableJson(profile)});
+ await executeInterpretationWorker(options);assert.equal(receipts(),before+1);
+ s.privateRepo.branch('main',{'data/revision-marker.json':'{}'});
+ await assert.rejects(executeInterpretationWorker(options),/stale_input/);
+});
+test('caller access revocation stops automatic aggregation before its derived writes',async()=>{
+ const s=scenario(),call=await interpretationCall(s);let enabled=true;const read=s.publicApis.action.get;
+ s.publicApis.action.get=async route=>{enabled=false;return read(route);};
+ await assert.rejects(executeInterpretationWorker({...s.args,call,proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>enabled}),/private_task_access_held/);
+ assert([...s.privateRepo.refs.keys()].some(r=>r.startsWith('refs/heads/interpretation/')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/receipt-')));
+ assert(![...s.privateRepo.refs.keys()].some(r=>r.includes('/request-')));
+});
+test('ordinary reconciliation can enforce a caller hold before reading private metadata',async()=>{
+ const s=scenario();s.privateRepo.api.get=async()=>{throw Error('MUST_NOT_READ');};
+ await assert.rejects(reconcile({...s.args,accessAllowed:async()=>false}),/private_task_access_held/);
 });

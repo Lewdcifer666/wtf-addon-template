@@ -33,6 +33,10 @@ on:
         description: Closed private task JSON; bounded worker requires explicit deployment enable and dry_run false
         type: string
         default: ''
+      interpretation_request:
+        description: Closed private interpretation JSON; separate worker enable and dry_run false required
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -40,7 +44,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   reconcile:
-    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && (github.event_name != 'workflow_dispatch' || (inputs.consume_genre == 'none' && !inputs.provenance_probe && inputs.task_request == ''))
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && (github.event_name != 'workflow_dispatch' || (inputs.consume_genre == 'none' && !inputs.provenance_probe && inputs.task_request == '' && inputs.interpretation_request == ''))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -81,7 +85,7 @@ jobs:
             node learning/reconcile.mjs
           fi
   consume:
-    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.event_name == 'workflow_dispatch' && inputs.consume_genre != 'none' && !inputs.provenance_probe && inputs.task_request == ''
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.event_name == 'workflow_dispatch' && inputs.consume_genre != 'none' && !inputs.provenance_probe && inputs.task_request == '' && inputs.interpretation_request == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -130,7 +134,7 @@ jobs:
             node learning/reconcile.mjs --consume "$CONSUME_GENRE"
           fi
   provenance-probe:
-    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.provenance_probe && inputs.consume_genre == 'none' && inputs.task_request == ''
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.provenance_probe && inputs.consume_genre == 'none' && inputs.task_request == '' && inputs.interpretation_request == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -163,7 +167,7 @@ jobs:
           LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
         run: node learning/reconcile.mjs --probe-proof
   task-worker:
-    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.task_request != '' && inputs.consume_genre == 'none' && !inputs.provenance_probe && !inputs.dry_run && vars.PRIVATE_RESEARCH_WORKER_ENABLED == 'true'
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.task_request != '' && inputs.interpretation_request == '' && inputs.consume_genre == 'none' && !inputs.provenance_probe && !inputs.dry_run && vars.PRIVATE_RESEARCH_WORKER_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -198,3 +202,39 @@ jobs:
           LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
           PRIVATE_RESEARCH_WORKER_ENABLED: ${{ vars.PRIVATE_RESEARCH_WORKER_ENABLED }}
         run: node learning/research-worker.mjs
+  interpretation-worker:
+    if: github.repository == 'Lewdcifer666/wtf-scifi-feedback' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.interpretation_request != '' && inputs.task_request == '' && inputs.consume_genre == 'none' && !inputs.provenance_probe && !inputs.dry_run && vars.PRIVATE_INTERPRETATION_WORKER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Pin trusted main for one private interpretation task
+        id: trusted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$REPOSITORY" --jq .private)" = true
+          revision=$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.trusted.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Verify trusted interpretation and reconciliation code
+        run: npm test
+      - name: Validate, stage and deterministically reconcile private interpretation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEARNING_TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
+          PRIVATE_INTERPRETATION_WORKER_ENABLED: ${{ vars.PRIVATE_INTERPRETATION_WORKER_ENABLED }}
+        run: node learning/interpretation-worker.mjs

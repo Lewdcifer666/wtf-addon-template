@@ -112,9 +112,11 @@ interpretation and deterministic recomputation, then real saved-task availabilit
 feedback supersession/retraction, signed search recovery, subsequent research use
 and observed recommendation effects. No timestamp renewal or fabricated feedback.
 
-This worker consumes already validated interpretation state. It does not add an
-AI interpretation submission tool or connect the saved tasks; those remain
-separate required integration/hold-resolution work and must not be counted done.
+The research worker consumes already validated interpretation state. A separate,
+default-disabled [interpretation worker](INTERPRETATION_SUBMISSION.md) can validate
+and stage a complete private packet and invoke deterministic reconciliation.
+Neither worker connects the saved tasks or installs an authenticated PC broker;
+those remain separate required integration and hold-resolution work.
 
 Keep original task times/states/rotator, all six catalogs and historical bytes.
 Use the existing publication/reconciliation architecture after a genuine packet
