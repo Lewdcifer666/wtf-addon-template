@@ -5,6 +5,7 @@ import {stableJson} from './interpretation.mjs';
 import {GENRES} from './receipt.mjs';
 import {PROOF_REPOSITORY} from './observation-proof.mjs';
 import {validateWorkerCall,workerRequestHash,readWorkerRecord,assertWorkerHeads} from './research-worker.mjs';
+import {brokerCallFamily} from './broker-request-store.mjs';
 const fail=code=>{throw new LearningError(code);};
 
 export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker,clock=()=>new Date(),taskAccessAllowed=async()=>false}={}){
@@ -52,14 +53,14 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
    // Read back the current outstanding result before submitting another job.
    // This never repeats a provider call or trusts the local completion hint.
-   const first=(await store.pending())[0];
+   const first=(await store.pending()).find(entry=>brokerCallFamily(entry.call)==='research');
    if(first&&first.request_hash!==workerRequestHash(snapshot))try{await run(first.call,{submit:false});}catch{}
    return run(snapshot);
   });},
   reconcilePending({limit=1}={}){return serialized(async()=>{
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
    if(!Number.isInteger(limit)||limit<1||limit>20)fail('invalid_task_call');
-   const entries=await store.pending(),counts={completed:0,pending:0,unresolved:0};
+   const entries=(await store.pending()).filter(entry=>brokerCallFamily(entry.call)==='research'),counts={completed:0,pending:0,unresolved:0};
    // Requests remain persisted after every result/error, including old policy.
    const batch=entries.length?Array.from({length:Math.min(limit,entries.length)},(_,i)=>entries[(cursor+i)%entries.length]):[];
    cursor=entries.length?(cursor+batch.length)%entries.length:0;

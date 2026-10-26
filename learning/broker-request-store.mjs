@@ -1,4 +1,5 @@
-// Private PC request journal, never feedback or returned learned context.
+// Private PC request journal; interpretation submissions contain personal quotes.
+// Never log it, put it in Git, or return it through health/discovery.
 // Deployment must verify owner/SYSTEM-only ACLs before selecting this directory.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -6,10 +7,15 @@ import {randomUUID} from 'node:crypto';
 import {LearningError} from './git-artifacts.mjs';
 import {stableJson,digest} from './interpretation.mjs';
 import {validateWorkerCall,workerRequestHash} from './research-worker.mjs';
+import {validateInterpretationWorkerCall,interpretationWorkerHash} from './interpretation-worker.mjs';
 const fail=()=>{throw new LearningError('invalid_task_journal');};
 const hash=s=>/^[a-f0-9]{64}$/.test(s??'');
+export const brokerCallFamily=call=>['request','page','validate','submit'].includes(call?.operation)?'interpretation':'research';
+const validateCall=call=>brokerCallFamily(call)==='interpretation'?validateInterpretationWorkerCall(call):validateWorkerCall(call);
+export const brokerCallHash=call=>brokerCallFamily(call)==='interpretation'?interpretationWorkerHash(call):workerRequestHash(call);
 const identity=call=>digest(stableJson(call.operation==='search'
- ?{operation:'search',task_token:call.request.task_token,request_id:call.request.request_id}:call));
+ ?{operation:'search',task_token:call.request.task_token,request_id:call.request.request_id}
+ :call.operation==='submit'?{operation:'submit',source_revision:call.request.source_revision,request_id:call.request.request_id}:call));
 export function createBrokerRequestStore({directory,privateDirectoryVerified=false}={}){
  if(privateDirectoryVerified!==true||typeof directory!=='string'||!path.isAbsolute(directory))fail();
  const named=path.resolve(directory),info=fs.lstatSync(named);
@@ -24,7 +30,7 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
  const file=(name)=>{if(!/^[a-f0-9]{64}-(?:request|complete|dispatch-[1-3])\.json$/.test(name))fail();return path.join(root,name);};
  const read=(name)=>{
   const p=file(name);let stat;try{stat=fs.lstatSync(p);}catch(e){if(e.code==='ENOENT')return null;throw e;}
-  if(!stat.isFile()||stat.isSymbolicLink()||stat.size<1||stat.size>32768)fail();
+  if(!stat.isFile()||stat.isSymbolicLink()||stat.size<1||stat.size>96*1024)fail();
   const raw=fs.readFileSync(p),text=raw.toString('utf8');if(!Buffer.from(text).equals(raw))fail();
   let value;try{value=JSON.parse(text);}catch{fail();}return value;
  };
@@ -41,7 +47,8 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
  const requestAt=name=>{
   const value=read(name);if(!value)return null;
   if(Object.keys(value).sort().join()!=='call,request_hash,schema_version'||value.schema_version!==1
-   ||value.request_hash!==workerRequestHash(value.call)||name!==identity(value.call)+'-request.json')fail();
+   ||value.request_hash!==brokerCallHash(value.call)||name!==identity(value.call)+'-request.json')fail();
+  validateCall(value.call);
   return value;
  };
  const attempts=key=>{
@@ -61,7 +68,7 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
  };
  return Object.freeze({
   async reserve(input){
-   const call=validateWorkerCall(input),name=identity(call)+'-request.json',value={schema_version:1,request_hash:workerRequestHash(call),call};
+   const call=validateCall(input),name=identity(call)+'-request.json',value={schema_version:1,request_hash:brokerCallHash(call),call};
    once(name,value);const saved=requestAt(name);
    if(stableJson(saved)!==stableJson(value))throw new LearningError('task_request_conflict');
    return saved;

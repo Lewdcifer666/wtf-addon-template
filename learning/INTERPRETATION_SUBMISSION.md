@@ -23,9 +23,9 @@ Nothing writes main, public data, activation or profile weights.
 
 Requests use the fixed main `learning-finalize.yml` workflow. The dispatcher
 validates before obtaining credentials, makes one bounded POST, and treats an
-uncertain response as pending. The host must durably retain that original request
-and recover its signed result before deciding whether any further dispatch is
-safe. This dispatcher alone is not a durable queue or an authenticated task host.
+uncertain response as pending. The interpretation broker durably retains the
+original request and recovers its signed result before considering another
+dispatch. This dispatcher alone is not a durable queue or an authenticated host.
 
 The complete encoded workflow-dispatch body has a conservative 60000-byte bound,
 including outer JSON escaping. Oversized packets fail before dispatch without
@@ -67,9 +67,40 @@ timestamp-renewed taste snapshot.
 
 ## Remaining deployment work
 
-This code does not expose new MCP tools, connect saved ChatGPT tasks, install a PC
-broker image, mount the App key/journal, broaden network access or enable any
-worker. Durable host request transport and actual saved-task consumption must be
-connected and reviewed before cutover. Existing holds and denied operations stay
-held. Completion still requires explicitly authorized recomputation and genuine
-new feedback affecting subsequent research, including correction and retraction.
+The source host can expose `private_interpretation_request`, `page`, `validate`
+and `submit`, only when a separately enabled interpretation adapter is explicitly
+installed. Ordinary held/legacy host configuration still advertises its original
+five tools. Interpretation requires both server-owned
+`interpretation_access_enabled:true` and
+`PRIVATE_INTERPRETATION_BROKER_ALLOWED=true`. Research authorization cannot enable
+interpretation. Both permissions are rechecked on every call and before releasing
+cached results; health does not enter either adapter.
+
+The read-only PC client can fetch only fixed metadata, immutable Git objects and
+the exact interpretation/result refs needed for verification. Git writes and
+OIDC signing stay inside trusted Actions. MCP annotations disclose private
+bookkeeping; submission returns staged state rather than an invented learning
+effect. The encrypted connection and owner authentication requirements are
+unchanged.
+
+Research and interpretation use one protected journal and one outstanding
+dispatch lease, not competing independent workflow queues. Original requests,
+attempts and completion hints survive PC replacement. At most three reservations,
+ten minutes apart, are permitted under the same identity. Missing completed
+artifacts cannot regenerate evidence. A changed submission for the same source
+and request conflicts with its retained original; it cannot silently replace it.
+Stale/exhausted/corrupt requests remain unresolved. Each family polls its own
+pending work fairly while sharing the dispatch limit.
+
+Interpretation submissions contain personal quotes. The journal therefore holds
+private normalized evidence as well as search requests and must remain outside
+Git, under the approved owner/SYSTEM-only directory, never logged or published.
+No returned feedback pages or learned contexts are stored there. A future journal
+mount decision must explicitly cover these private submissions.
+
+This code does not update the installed held image, connect saved ChatGPT tasks,
+mount the App key/journal, broaden network access or enable a worker. The contained
+runtime policy/packaging and actual saved-task consumption still require review
+before cutover. Existing holds and denied operations stay held. Completion
+requires explicitly authorized recomputation and genuine new feedback affecting
+subsequent research, including correction and retraction.
