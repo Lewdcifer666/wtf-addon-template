@@ -16,13 +16,18 @@ const descriptions={
  search:'Run a public-source search through the configured provider and persist private evidence. Reuse the same request ID for unchanged retries; stop on a hold or denial.',
  verify:'Verify this session against an already staged public research commit. Does not stage, publish or claim a learning effect.'
 };
+const transportHealth=()=>({schema_version:1,transport:'ready',learning_activation:'not_asserted',publication_capability:false});
+const healthName='private_research_health';
 const specs=researchTaskCallSchema().oneOf;
-const tools=specs.map(spec=>{
+const tools=[{name:healthName,
+ description:'Read authenticated transport readiness while learning is held. Takes no arguments; reads no feedback or context, persists nothing and never activates learning or publication.',
+ inputSchema:{type:'object',properties:{},additionalProperties:false},
+ annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},...specs.map(spec=>{
  const operation=spec.properties.operation.const;
  return {name:`private_research_${operation}`,description:descriptions[operation],inputSchema:spec.properties.request,
   annotations:{readOnlyHint:['context','verify'].includes(operation),destructiveHint:false,
    idempotentHint:true,openWorldHint:operation==='search'}};
-});
+})];
 const validators=new Map(tools.map(tool=>[tool.name,new Ajv({strict:true,allErrors:false}).compile(tool.inputSchema)]));
 const reply=(value,isError=false)=>({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value,...(isError?{isError:true}:{})});
 const failure=code=>reply({schema_version:1,error:code},true);
@@ -30,10 +35,13 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
  if(typeof adapter?.dispatch!=='function')throw Error('invalid_private_adapter');
  const server=new Server({name:'wtf-private-research',version:'1.0.0'},
   {supportedProtocolVersions:['2026-07-28','2025-11-25','2025-06-18','2025-03-26','2024-11-05','2024-10-07'],
-   capabilities:{tools:{}},instructions:'Private learning tools only. A hold or denial means stop; never retry using a different tool, ID or writer. Keep all context/results private. Tools cannot stage AI packets, publish, change activation or prove a recommendation effect.'});
+   capabilities:{tools:{}},instructions:'Use private_research_health for authenticated connection tests while learning is held. Health does not authorize research operations. A hold or denial means stop; never retry using a different tool, ID or writer. Keep all context/results private. Tools cannot stage AI packets, publish, change activation or prove a recommendation effect.'});
  server.setRequestHandler('tools/list',async()=>({tools:structuredClone(tools)}));
  server.setRequestHandler('tools/call',async({params},ctx)=>{
-  const validate=validators.get(params.name);if(!validate||!validate(params.arguments))return failure('invalid_task_call');
+  const args=params.name===healthName&&params.arguments===undefined?{}:params.arguments;
+  const validate=validators.get(params.name);if(!validate||!validate(args))return failure('invalid_task_call');
+  // This transport-only tool deliberately never enters the private task adapter.
+  if(params.name===healthName)return reply(transportHealth());
   const operation=params.name.slice('private_research_'.length);
   try{
    const result=await adapter.dispatch({schema_version:1,operation,request:structuredClone(params.arguments)});
@@ -75,7 +83,7 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,port
   if(![`127.0.0.1:${localPort}`,`localhost:${localPort}`].includes(req.headers.host)||req.headers.origin){end(403,'private_host_origin_denied');return;}
   if(!await authorized(req)){end(401,'private_host_unauthorized');return;}
   if(req.url==='/healthz'&&req.method==='GET'){
-   res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({schema_version:1,transport:'ready',learning_activation:'not_asserted',publication_capability:false}));return;
+   res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(transportHealth()));return;
   }
   if(req.url!=='/mcp'){end(404,'private_host_not_found');return;}
   if(req.method!=='POST'){end(405,'private_host_method_denied');return;}

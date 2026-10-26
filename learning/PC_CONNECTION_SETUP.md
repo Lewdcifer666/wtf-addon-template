@@ -72,7 +72,10 @@ authentication cannot mint the existing GitHub OIDC evidence provenance.
 7. After concrete deployment/access approval, enable only this gateway route.
    Verify signed owner access, rejection of unsigned/wrong-identity requests,
    fixed VPC destination and no public origin route. Verify actual ChatGPT OAuth,
-   discovery of the four tools and the default hold. Then verify actual saved-task
+   discovery of the five tools. Call only `private_research_health` with `{}` to
+   check authenticated reachability while held; do not open a private context for
+   a connection test. Its transport result reads no feedback, dispatches no task,
+   persists nothing and makes no claim that learning is active. Then verify actual saved-task
    availability without changing schedules/states or replaying denied work.
 
 Use `pc-gateway.wrangler.example.jsonc` as a reviewed template, not live config.

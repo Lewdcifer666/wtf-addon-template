@@ -438,6 +438,10 @@ are shared, cached for five minutes and rate-limited even after failures.
 No request, identity claim, JWT or raw exception is logged or echoed.
 
 This is an origin-authentication building block, not a deployed OAuth provider.
+The argument-free `private_research_health` tool returns only transport readiness
+and makes no assertion that learning is active. It uses the same authentication
+as all other tools, reads no private context and never dispatches a task or
+persists provenance. Use it for held connection tests instead of opening a task.
 It creates no tunnel, credential, installation or persistent service. The CLI
 supports local bearer or a bounded server-owned Access JSON file, always with a
 held adapter. Even a valid Access identity

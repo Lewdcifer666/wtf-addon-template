@@ -19,7 +19,7 @@ test('modern discovery and listing work without initialization and never enter t
   assert(found.result.supportedVersions.includes(version));assert.deepEqual(found.result.capabilities,{tools:{}});
   assert.equal(found.result._meta['io.modelcontextprotocol/serverInfo'].name,'wtf-private-research');
   const listing=await rpc('tools/list');assert.equal(listing.status,200);
-  const result=await listing.json();assert.equal(result.result.resultType,'complete');assert.equal(result.result.tools.length,4);
+  const result=await listing.json();assert.equal(result.result.resultType,'complete');assert.equal(result.result.tools.length,5);
   assert.equal(calls,0);
  }finally{await host.close();}
 });

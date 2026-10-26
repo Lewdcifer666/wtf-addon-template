@@ -136,7 +136,7 @@ test('loopback Access mode authenticates MCP initialization, discovery and healt
   const health=await originalFetch(host.url.replace('/mcp','/healthz'),{headers});
   assert.equal(health.status,200);assert.equal((await health.json()).publication_capability,false);
   await client.connect(new StreamableHTTPClientTransport(new URL(host.url),{requestInit:{headers}}));
-  assert.equal((await client.listTools()).tools.length,4);
+  assert.equal((await client.listTools()).tools.length,5);
   const result=await client.callTool({name:'private_research_open',arguments:{schema_version:1,genre:'scifi',research_date:'2026-10-25',private_revision:'a'.repeat(40),public_revision:'b'.repeat(40)}});
   assert.equal(result.structuredContent.error,'private_task_access_held');assert.equal(certReads,1);
  }finally{await client.close();await host.close();fetchMock.mock.restore();}
