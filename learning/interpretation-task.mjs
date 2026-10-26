@@ -80,6 +80,7 @@ export function createPrivateInterpretationTaskAdapter({api,trustedRevision,inte
   const metadata=await api.get('/');
   if(api.repository!==PRIVATE||metadata?.full_name!==PRIVATE||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
   if((await api.pinMain()).sha!==revision)fail('stale_input');
+  if(await interpretationAccessAllowed()!==true)fail('private_interpretation_access_held');
  };
  async function dispatch(input){
   if(await interpretationAccessAllowed()!==true)fail('private_interpretation_access_held');
@@ -103,6 +104,7 @@ export function createPrivateInterpretationTaskAdapter({api,trustedRevision,inte
   }
   await assertCurrent(trustedRevision);
   if(Buffer.byteLength(stableJson(result))>pageLimit)fail('interpretation_response_limit');
+  if(await interpretationAccessAllowed()!==true)fail('private_interpretation_access_held');
   return structuredClone(result);
  }
  return Object.freeze({async dispatch(input){
