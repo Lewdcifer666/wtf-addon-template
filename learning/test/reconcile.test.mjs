@@ -27,6 +27,7 @@ import {createPublicSearchProvider} from '../public-search.mjs';
 import {recoverResearchSessionForVerification,restoreResearchSessionSearches} from '../research-session.mjs';
 import {createResearchBrokerAdapter} from '../research-broker.mjs';
 import {createBrokerRequestStore} from '../broker-request-store.mjs';
+import {createInterpretationBrokerAdapter} from '../interpretation-broker.mjs';
 import {executeInterpretationWorker,readInterpretationWorkerResult,validateInterpretationWorkerCall,interpretationWorkerHash} from '../interpretation-worker.mjs';
 
 function memoryRepo(name,initial){
@@ -1586,4 +1587,79 @@ test('caller access revocation stops automatic aggregation before its derived wr
 test('ordinary reconciliation can enforce a caller hold before reading private metadata',async()=>{
  const s=scenario();s.privateRepo.api.get=async()=>{throw Error('MUST_NOT_READ');};
  await assert.rejects(reconcile({...s.args,accessAllowed:async()=>false}),/private_task_access_held/);
+});
+
+async function interpretationBrokerScenario(){
+ const s=scenario(),directory=fs.mkdtempSync(path.join(os.tmpdir(),'wtf-interpretation-broker-')),proof=fixtureObservationProof();
+ const store=()=>createBrokerRequestStore({directory,privateDirectoryVerified:true});let dispatches=0,enabled=true;
+ const options={api:{...s.args.api,writable:false,post:async()=>{throw Error('PC has no Git writer');}},proof,store:store(),
+  interpretationAccessAllowed:async()=>enabled,dispatchWorker:async call=>{dispatches++;await executeInterpretationWorker({...s.args,call,proof,interpretationAccessAllowed:async()=>true});}};
+ return {s,options,store,dispatches:()=>dispatches,setAccess:value=>{enabled=value;},close(){
+  assert(path.isAbsolute(directory)&&path.basename(directory).startsWith('wtf-interpretation-broker-'));fs.rmSync(directory,{recursive:true,force:true});
+ }};
+}
+
+test('interpretation broker recovers sealed pages and automatic submission after PC replacement without another dispatch',async()=>{
+ const f=await interpretationBrokerScenario();try{
+  const broker=createInterpretationBrokerAdapter(f.options),submit=await interpretationCall(f.s),request=await interpretationCall(f.s,'request');
+  await assert.rejects(broker.dispatch(request),/private_interpretation_pending/);
+  const replacement=createInterpretationBrokerAdapter({...f.options,store:f.store()});
+  const descriptor=await replacement.dispatch(request);assert.equal(descriptor.kind,'private_interpretation_request');assert.equal(f.dispatches(),1);
+  const page={schema_version:1,operation:'page',request:{source_revision:request.request.source_revision,request_id:descriptor.request_id,page_index:0}};
+  await assert.rejects(replacement.dispatch(page),/private_interpretation_pending/);
+  assert((await replacement.dispatch(page)).events[0].text.includes('PRIVATE_SENTINEL'));
+  await assert.rejects(replacement.dispatch(submit),/private_interpretation_pending/);
+  const staged=await replacement.dispatch(submit);assert.equal(staged.staged,true);assert.equal(staged.activation_changed,false);
+  assert.equal(f.dispatches(),3);assert.equal((await f.store().pending()).length,0);
+  assert([...f.s.privateRepo.refs.keys()].some(ref=>ref.includes('/receipt-')));
+ }finally{f.close();}
+});
+
+test('lost interpretation dispatch acknowledgement is recovered under the original identity and denied access releases no page',async()=>{
+ const f=await interpretationBrokerScenario();try{
+  const call=await interpretationCall(f.s,'request'),broker=createInterpretationBrokerAdapter({...f.options,dispatchWorker:async input=>{
+   await f.options.dispatchWorker(input);throw Error('ACK_LOST');
+  }});
+  await assert.rejects(broker.dispatch(call),/private_interpretation_pending/);
+  f.setAccess(false);await assert.rejects(broker.dispatch(call),/private_interpretation_access_held/);assert.equal(f.dispatches(),1);
+  f.setAccess(true);assert.equal((await broker.dispatch(call)).kind,'private_interpretation_request');assert.equal(f.dispatches(),1);
+ }finally{f.close();}
+});
+
+test('a missing completed interpretation receipt cannot be regenerated and stale source leaves persisted work unresolved',async()=>{
+ const f=await interpretationBrokerScenario();try{
+  const call=await interpretationCall(f.s,'request'),broker=createInterpretationBrokerAdapter(f.options);
+  await assert.rejects(broker.dispatch(call),/private_interpretation_pending/);await broker.dispatch(call);
+  f.s.privateRepo.refs.delete(`refs/heads/learning/interpretation-result-${interpretationWorkerHash(call)}`);
+  await assert.rejects(broker.dispatch(call),/immutable_artifact_mismatch/);assert.equal(f.dispatches(),1);
+  f.s.privateRepo.branch('main',{'data/synthetic-revision.json':'{}'});
+  await assert.rejects(broker.dispatch(call),/stale_input/);assert.equal(f.dispatches(),1);
+ }finally{f.close();}
+});
+
+test('authenticated MCP interpretation submission reaches inactive deterministic state through the read-only PC broker',async()=>{
+ const f=await interpretationBrokerScenario(),host=await startLocalResearchMcpHost({bearerToken:'x'.repeat(43),interpretationAdapter:createInterpretationBrokerAdapter(f.options)});
+ const client=new Client({name:'synthetic-interpretation-http',version:'1'});
+ try{
+  await client.connect(new StreamableHTTPClientTransport(new URL(host.url),{requestInit:{headers:{Authorization:'Bearer '+'x'.repeat(43)}}}));
+  const request=await interpretationCall(f.s,'request');
+  const first=await client.callTool({name:'private_interpretation_request',arguments:request.request});assert.equal(first.structuredContent.error,'private_interpretation_pending');
+  const manifest=await client.callTool({name:'private_interpretation_request',arguments:request.request});assert.equal(manifest.structuredContent.kind,'private_interpretation_request');
+  const packet=await interpretationCall(f.s),pending=await client.callTool({name:'private_interpretation_submit',arguments:packet.request});assert.equal(pending.structuredContent.error,'private_interpretation_pending');
+  const result=await client.callTool({name:'private_interpretation_submit',arguments:packet.request});assert.equal(result.structuredContent.staged,true);assert.equal(result.structuredContent.activation_changed,false);
+  assert.equal(f.dispatches(),2);assert([...f.s.privateRepo.refs.keys()].some(ref=>ref.includes('/receipt-')));
+  const changed=structuredClone(packet.request);changed.packet.interpretations[0].statements[0].meaning='uncertain';
+  const conflict=await client.callTool({name:'private_interpretation_submit',arguments:changed});assert.equal(conflict.structuredContent.error,'task_request_conflict');assert.equal(f.dispatches(),2);
+  const stopped=await client.callTool({name:'private_research_open',arguments:(await sessionRequest(f.s))});assert.equal(stopped.structuredContent.error,'private_task_access_held');
+ }finally{await client.close();await host.close();f.close();}
+});
+
+test('interpretation access revoked during final repository reads cannot release cached private results',async()=>{
+ const f=await interpretationBrokerScenario();try{
+  const call=await interpretationCall(f.s,'request'),broker=createInterpretationBrokerAdapter(f.options);
+  await assert.rejects(broker.dispatch(call),/private_interpretation_pending/);await broker.dispatch(call);
+  const get=f.options.api.get;let count=0;
+  f.options.api.get=async route=>{const value=await get(route);if(route==='/'&&++count===2)f.setAccess(false);return value;};
+  await assert.rejects(broker.dispatch(call),/private_interpretation_access_held/);assert.equal(f.dispatches(),1);
+ }finally{f.close();}
 });

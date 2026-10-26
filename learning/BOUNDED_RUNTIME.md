@@ -43,8 +43,9 @@ assumed. Current branch protection and all stronger requirements remain intact.
 
 ## Durable recovery
 
-The PC journal contains only closed task requests, dispatch attempts and verified
-completion references, never raw feedback or returned learned contexts. Search
+The PC journal contains closed task requests, dispatch attempts and verified
+completion references, never returned feedback pages or learned contexts.
+Interpretation submission requests contain private quoted evidence, and search
 terms can reveal preferences: the directory must be private to the owner/SYSTEM,
 must be outside every public repository/artifact path and must be mounted only
 into the broker. Deployment must inspect the resolved Windows path and actual
@@ -115,8 +116,11 @@ and observed recommendation effects. No timestamp renewal or fabricated feedback
 The research worker consumes already validated interpretation state. A separate,
 default-disabled [interpretation worker](INTERPRETATION_SUBMISSION.md) can validate
 and stage a complete private packet and invoke deterministic reconciliation.
-Neither worker connects the saved tasks or installs an authenticated PC broker;
-those remain separate required integration and hold-resolution work.
+The opt-in interpretation broker/MCP source now connects that worker to a durable
+private request journal shared with research. It requires its own independent
+server-owned gate. Neither source worker connects the saved tasks or installs
+the contained active runtime; those remain required deployment and hold-resolution
+work. The existing held image exposes no new interpretation tools.
 
 Keep original task times/states/rotator, all six catalogs and historical bytes.
 Use the existing publication/reconciliation architecture after a genuine packet

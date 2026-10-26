@@ -161,7 +161,8 @@ export async function executeInterpretationWorker({api,publicApis,trustedRevisio
 
 const safeErrors=new Set(['invalid_interpretation_task_call','interpretation_submission_limit','private_interpretation_access_held',
  'private_repository_required','stale_input','invalid_source','invalid_interpretation','invalid_interpretation_record','immutable_artifact_mismatch','private_task_access_held',
- 'unauthorized_packet_changes','github_request_failed','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure','invalid_observation_proof']);
+ 'unauthorized_packet_changes','github_request_failed','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure','invalid_observation_proof',
+ 'task_request_conflict','invalid_task_journal']);
 export const interpretationWorkerError=error=>safeErrors.has(error?.code)?error.code:'private_interpretation_pending';
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  Promise.resolve().then(async()=>{
