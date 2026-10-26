@@ -37,7 +37,7 @@ if ($LASTEXITCODE -ne 0 -or $taskHead -ne $ApprovedRevision -or $taskMain -ne $A
 $taskManifestText = & git -C $taskSource show ($ApprovedRevision + ':.learning-engine-manifest.json')
 if ($LASTEXITCODE -ne 0) { throw 'Pinned commit manifest required' }
 $taskManifest = ($taskManifestText -join "`n") | ConvertFrom-Json
-$taskFiles = @('learning/pc-runtime-policy.mjs','learning/pc-runtime-supervisor.mjs')
+$taskFiles = @('learning/pc-runtime-policy.mjs','learning/pc-task-runtime-policy.mjs','learning/pc-runtime-supervisor.mjs')
 $taskBytes = @{}
 foreach ($taskName in $taskFiles) {
   $taskFile = Join-Path $taskSource $taskName
