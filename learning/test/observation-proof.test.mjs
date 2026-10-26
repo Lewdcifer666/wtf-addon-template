@@ -69,3 +69,27 @@ test('proof network and interrupted-body failures are recoverable while HTTP aut
   assert.equal(calls,1);
  }
 });
+
+test('persistent proof readers share bounded issuer-key fetches and refresh rather than trusting missing rotated keys',async()=>{
+ let calls=0,now=new Date('2026-10-12T08:00:00Z');const token=await proof.sign(body,revision);
+ const provider=githubObservationProof({clock:()=>now,fetcher:async url=>{
+  calls++;assert.equal(url,'https://token.actions.githubusercontent.com/.well-known/jwks');
+  await new Promise(r=>setTimeout(r,5));return new Response(JSON.stringify({keys:calls===1?[]:[proof.key]}));
+ }});
+ await provider.verify(token,body,revision);assert.equal(calls,2);
+ await Promise.all([provider.verify(token,body,revision),provider.verify(token,body,revision)]);assert.equal(calls,2);
+ now=new Date(+now+6*60*1000);await provider.verify(token,body,revision);assert.equal(calls,3);
+ assert.throws(()=>verifyObservationProof(token,body,revision,[proof.key],{now:NaN}),/invalid_observation_proof/);
+});
+
+test('issuer-key and OIDC response deadlines cover stalled bodies, invalid UTF-8 and the byte limit',async()=>{
+ for(const mode of ['fetch-timeout','body-timeout','oversize','utf8']){
+  let calls=0;const provider=githubObservationProof({timeoutMs:20,fetcher:async()=>{
+   calls++;if(mode==='fetch-timeout')return new Promise(()=>{});
+   if(mode==='body-timeout')return new Response(new ReadableStream({start(){}}));
+   return new Response(mode==='oversize'?'x'.repeat(256*1024+1):new Uint8Array([255]));
+  }});
+  await assert.rejects(provider.verify(await proof.sign(body,revision),body,revision),e=>e.code===(mode.endsWith('timeout')?'proof_transport_failure':'invalid_observation_proof'));
+  assert.equal(calls,1);
+ }
+});

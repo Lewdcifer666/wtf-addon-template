@@ -33,10 +33,16 @@ const reply=(value,isError=false)=>({content:[{type:'text',text:JSON.stringify(v
 const failure=code=>reply({schema_version:1,error:code},true);
 export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter({})){
  if(typeof adapter?.dispatch!=='function')throw Error('invalid_private_adapter');
+ const advertisedTools=structuredClone(tools);
+ if(adapter.persistsTaskBookkeeping===true)for(const tool of advertisedTools){
+  if(tool.name===healthName)continue;
+  tool.annotations.readOnlyHint=false;
+  tool.description+=' This deployment persists private request/result bookkeeping in a bounded trusted worker.';
+ }
  const server=new Server({name:'wtf-private-research',version:'1.0.0'},
   {supportedProtocolVersions:['2026-07-28','2025-11-25','2025-06-18','2025-03-26','2024-11-05','2024-10-07'],
    capabilities:{tools:{}},instructions:'Use private_research_health for authenticated connection tests while learning is held. Health does not authorize research operations. A hold or denial means stop; never retry using a different tool, ID or writer. Keep all context/results private. Tools cannot stage AI packets, publish, change activation or prove a recommendation effect.'});
- server.setRequestHandler('tools/list',async()=>({tools:structuredClone(tools)}));
+ server.setRequestHandler('tools/list',async()=>({tools:structuredClone(advertisedTools)}));
  server.setRequestHandler('tools/call',async({params},ctx)=>{
   const args=params.name===healthName&&params.arguments===undefined?{}:params.arguments;
   const validate=validators.get(params.name);if(!validate||!validate(args))return failure('invalid_task_call');

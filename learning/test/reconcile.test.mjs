@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {reconcile,loadPublicProfile,engineFingerprintAt} from '../reconcile.mjs';
@@ -20,6 +22,11 @@ import {createPrivateResearchTaskAdapter} from '../research-task-adapter.mjs';
 import {startLocalResearchMcpHost} from '../research-mcp-host.mjs';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {executeResearchWorker,readWorkerRecord,workerRequestHash} from '../research-worker.mjs';
+import {createPublicSearchProvider} from '../public-search.mjs';
+import {recoverResearchSessionForVerification,restoreResearchSessionSearches} from '../research-session.mjs';
+import {createResearchBrokerAdapter} from '../research-broker.mjs';
+import {createBrokerRequestStore} from '../broker-request-store.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -459,7 +466,7 @@ test('explicit provenance probe is metadata-only and the ordinary consumer canno
  const workflow=fs.readFileSync(new URL('../workflows/learning-finalize.yml',import.meta.url),'utf8');
  const consumer=workflow.slice(workflow.indexOf('  consume:'),workflow.indexOf('  provenance-probe:'));
  assert(!consumer.includes('id-token: write'));assert(workflow.includes("inputs.consume_genre == 'none' && !inputs.provenance_probe"));
- const probe=workflow.slice(workflow.indexOf('  provenance-probe:'));assert(probe.includes('contents: read'));assert(!probe.includes('contents: write'));assert(probe.includes('id-token: write'));assert(probe.includes('node learning/reconcile.mjs --probe-proof'));
+ const probe=workflow.slice(workflow.indexOf('  provenance-probe:'),workflow.indexOf('  task-worker:'));assert(probe.includes('contents: read'));assert(!probe.includes('contents: write'));assert(probe.includes('id-token: write'));assert(probe.includes('node learning/reconcile.mjs --probe-proof'));
  const cli=fs.readFileSync(new URL('../reconcile.mjs',import.meta.url),'utf8'),body=cli.slice(cli.indexOf('  if(probe){'),cli.indexOf('  const publicApis=',cli.indexOf('  if(probe){')));
  assert(!body.includes('inventoryFeedback'));assert(!body.includes('.post('));assert(body.includes('feedback_read:false,git_writes:false'));
 });
@@ -1221,4 +1228,246 @@ test('concurrent distinct searches cannot exceed the last journal slot and uncha
  assert.equal((await loadSessionSearchRefs(s.privateRepo.api,session.session_id)).length,100);
  const writes=s.privateRepo.writes.length;await persistResearchSessionSearch({api:s.privateRepo.api,session,handle:first,proof:s.args.proof});
  assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('bounded worker defaults held before metadata, signing, persistence or public queries',async()=>{
+ let touched=0;const call=taskCall('open',{schema_version:1,genre:'scifi',research_date:'2026-10-12',private_revision:'a'.repeat(40),public_revision:'b'.repeat(40)});
+ await assert.rejects(executeResearchWorker({call,api:{get:async()=>{touched++;}}}),/private_task_access_held/);assert.equal(touched,0);
+});
+
+async function workerRead(s,call){
+ return readWorkerRecord({...s.args,base:await s.privateRepo.api.pinMain(),kind:'result',branch:`learning/task-result-${workerRequestHash(call)}`});
+}
+
+test('bounded worker persists a stable external ticket and reuses complete results across job restarts',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const call=taskCall('open',await sessionRequest(s));
+ const options={...s.args,call,taskAccessAllowed:async()=>true};
+ const first=await executeResearchWorker(options),record=await workerRead(s,call),context=record.body.result;
+ assert.equal(record.commit,first.commit);assert.equal(context.kind,'private_task_context');
+ assert(context.response.context.preferences.length);assert.equal(context.actual_context_use_verified,false);
+ const writes=s.privateRepo.writes.length,second=await executeResearchWorker(options);
+ assert.equal(second.commit,first.commit);assert.equal(second.reused,true);assert.equal(s.privateRepo.writes.length,writes);
+ const contextCall=taskCall('context',{task_token:context.task_token});
+ await executeResearchWorker({...options,call:contextCall});
+ assert.equal((await workerRead(s,contextCall)).body.result.task_token,context.task_token);
+ for(const repo of Object.values(s.publicRepos))assert.equal(repo.writes.length,0);
+});
+
+test('keyless provider is wired through the trusted worker, signed intent and recovered search result',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const open=taskCall('open',await sessionRequest(s));let calls=0;
+ const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:createPublicSearchProvider({fetcher:async(url)=>{
+  calls++;assert.equal(new URL(url).hostname,'en.wikipedia.org');assert.equal(new URL(url).searchParams.get('srsearch'),'science mystery public reviews');
+  return new Response(JSON.stringify({batchcomplete:true,query:{search:[{pageid:1,ns:0,title:'Synthetic review'}]}}),{headers:{'content-type':'application/json'}});
+ }})};
+ await executeResearchWorker({...options,call:open});const context=(await workerRead(s,open)).body.result,call=taskSearch(context);
+ await executeResearchWorker({...options,call});const result=(await workerRead(s,call)).body.result;
+ assert.equal(result.sources[0].url,'https://en.wikipedia.org/?curid=1');assert.equal(calls,1);
+ const writes=s.privateRepo.writes.length;await executeResearchWorker({...options,call});
+ assert.equal(calls,1);assert.equal(s.privateRepo.writes.length,writes);
+ const changed=taskSearch(context,'search-1','changed query');await assert.rejects(executeResearchWorker({...options,call:changed}),/task_request_conflict/);
+ assert.equal(calls,1);
+});
+
+test('worker recovery after result persistence failure never repeats an already observed search',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-keyless',async search(){calls++;return {request_id:null,sources:[]};}}};
+ const open=taskCall('open',await sessionRequest(s));await executeResearchWorker({...options,call:open});
+ const context=(await workerRead(s,open)).body.result,call=taskSearch(context),post=s.privateRepo.api.post;let failed=false;
+ s.privateRepo.api.post=async(route,body)=>{
+  if(route==='/git/refs'&&body.ref===`refs/heads/learning/task-result-${workerRequestHash(call)}`&&!failed){failed=true;throw Object.assign(Error('synthetic outage'),{code:'transport_failure'});}
+  return post(route,body);
+ };
+ await assert.rejects(executeResearchWorker({...options,call}),/synthetic outage/);assert.equal(calls,1);
+ await executeResearchWorker({...options,call});assert.equal(calls,1);assert(await workerRead(s,call));
+});
+
+test('interrupted provider outcomes stay pending under the original identity after a worker replacement',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0;
+ const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-keyless',async search(){calls++;throw Error('PRIVATE_SENTINEL');}}};
+ const open=taskCall('open',await sessionRequest(s));await executeResearchWorker({...options,call:open});
+ const context=(await workerRead(s,open)).body.result,call=taskSearch(context);
+ await assert.rejects(executeResearchWorker({...options,call}),/research_search_failed/);
+ for(const candidate of [call,taskSearch(context,'alternate-request')])await assert.rejects(executeResearchWorker({...options,call:candidate}),/task_search_unresolved/);
+ assert.equal(calls,1);assert.equal(await workerRead(s,call),null);
+});
+
+test('a worker cannot release cached context after a hold, source change, date rollover or public staging',async()=>{
+ for(const change of ['hold','private','anime','date','staged']){
+  const s=await activeScenario();await reconcile(s.args);let access=true;let now=s.args.clock();
+  const options={...s.args,clock:()=>now,taskAccessAllowed:async()=>access},call=taskCall('open',await sessionRequest(s));
+  await executeResearchWorker({...options,call});const writes=s.privateRepo.writes.length;
+  if(change==='hold')access=false;
+  if(change==='private')s.privateRepo.branch('main',{'data/feedback/new.json':'{}'});
+  if(change==='anime')s.publicRepos.anime.branch('main',{'config/research.json':'{"changed":true}'});
+  if(change==='date')now=new Date('2026-10-12T22:00:00Z');
+  if(change==='staged')s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});
+  await assert.rejects(executeResearchWorker({...options,call}));assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('a later bounded worker verifies a staged packet only through original signed pre-packet state',async()=>{
+ let open,context;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  open=taskCall('open',await sessionRequest(s));await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call:open});
+  context=(await workerRead(s,open)).body.result;
+ }});
+ const call=taskCall('verify',{task_token:context.task_token,research_commit:researchCommit});
+ await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call});
+ const result=(await workerRead(s,call)).body.result;
+ assert.equal(result.research_commit,researchCommit);assert.equal(result.search_adapter_invocations_observed,0);
+ assert.equal(result.actual_context_use_verified,false);assert.equal(result.behavioral_effect_observed,false);
+ const session=await recoverResearchSessionForVerification({...s.args,request:open.request,researchCommit});
+ assert.deepEqual(await restoreResearchSessionSearches(session),[]);
+ await assert.rejects(observeResearchSessionSearch({session,query:'new search',preferenceIndexes:[]}),/research_already_staged/);
+ await assert.rejects(verifyResearchSessionCommit({session,researchCommit:'f'.repeat(40)}),/stale_input/);
+});
+
+test('verification recovery refuses absent pre-packet context rather than minting it after staging',async()=>{
+ const {s,researchCommit}=await verificationScenario();const request=await sessionRequest(s),writes=s.privateRepo.writes.length;
+ await assert.rejects(recoverResearchSessionForVerification({...s.args,request,researchCommit}),/session_context_not_persisted/);
+ assert.equal(s.privateRepo.writes.length,writes);
+});
+
+async function brokerScenario({provider=null}={}){
+ const s=await activeScenario();await reconcile(s.args);
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'wtf-broker-integration-'));
+ const store=()=>createBrokerRequestStore({directory,privateDirectoryVerified:true});
+ const readOnly={...s.args.api,writable:false,post:async()=>{throw Error('PC may not write Git objects');}};
+ let dispatches=0,allowed=true;
+ const options={...s.args,api:readOnly,store:store(),taskAccessAllowed:async()=>allowed,
+  dispatchWorker:async call=>{dispatches++;await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,searchProvider:provider,call});}};
+ return {s,directory,options,store,dispatches:()=>dispatches,setAccess:v=>{allowed=v;},close(){
+  assert(path.isAbsolute(directory)&&path.basename(directory).startsWith('wtf-broker-integration-'));fs.rmSync(directory,{recursive:true,force:true});
+ }};
+}
+
+test('actual MCP broker reports pending honestly, then authenticates worker results without a PC Git writer',async()=>{
+ let searches=0;const fixture=await brokerScenario({provider:{id:'synthetic-keyless',async search(){searches++;return {request_id:null,sources:[]};}}});
+ const {s,options}=fixture,broker=createResearchBrokerAdapter(options),token='x'.repeat(43);
+ const host=await startLocalResearchMcpHost({bearerToken:token,adapter:broker}),client=new Client({name:'synthetic-broker-client',version:'1'});
+ try{
+  await client.connect(new StreamableHTTPClientTransport(new URL(host.url),{requestInit:{headers:{Authorization:'Bearer '+token}}}));
+  const tools=(await client.listTools()).tools;
+  assert.equal(tools.find(t=>t.name==='private_research_health').annotations.readOnlyHint,true);
+  for(const t of tools.filter(t=>t.name!=='private_research_health'))assert.equal(t.annotations.readOnlyHint,false);
+  const request=await sessionRequest(s),first=await client.callTool({name:'private_research_open',arguments:request});
+  assert.equal(first.isError,true);assert.equal(first.structuredContent.error,'private_task_pending');
+  const context=(await client.callTool({name:'private_research_open',arguments:request})).structuredContent;
+  assert.equal(context.kind,'private_task_context');assert(!JSON.stringify(context).includes('PRIVATE_SENTINEL'));
+  const search=taskSearch(context),pending=await client.callTool({name:'private_research_search',arguments:search.request});
+  assert.equal(pending.structuredContent.error,'private_task_pending');
+  const result=(await client.callTool({name:'private_research_search',arguments:search.request})).structuredContent;
+  assert.equal(result.kind,'private_task_search_result');assert.equal(searches,1);
+  assert.equal(result.actual_context_use_verified,false);assert.equal(fixture.dispatches(),2);
+  assert.deepEqual(await options.store.pending(),[]);
+  for(const repo of Object.values(s.publicRepos))assert.equal(repo.writes.length,0);
+ }finally{await client.close();await host.close();fixture.close();}
+});
+
+test('PC restart recovers the stable task ticket and persisted dispatch instead of opening a new search',async()=>{
+ let searches=0;const f=await brokerScenario({provider:{id:'synthetic-keyless',async search(){searches++;return {request_id:null,sources:[]};}}});
+ try{
+  const open=taskCall('open',await sessionRequest(f.s)),first=createResearchBrokerAdapter(f.options);
+  await assert.rejects(first.dispatch(open),/private_task_pending/);const context=await first.dispatch(open),call=taskSearch(context);
+  await assert.rejects(first.dispatch(call),/private_task_pending/);
+  const replacement=createResearchBrokerAdapter({...f.options,store:f.store()});
+  const recovered=await replacement.dispatch(call);assert.equal(recovered.kind,'private_task_search_result');
+  assert.equal(searches,1);assert.equal(f.dispatches(),2);
+  await assert.rejects(replacement.dispatch(taskSearch(context,'search-1','changed query')),/task_request_conflict/);
+  f.setAccess(false);await assert.rejects(replacement.dispatch(call),/private_task_access_held/);assert.equal(searches,1);
+ }finally{f.close();}
+});
+
+test('uncertain dispatch is recovered from signed results without a second dispatch',async()=>{
+ const f=await brokerScenario();try{
+  const open=taskCall('open',await sessionRequest(f.s));let dispatches=0;
+  const broker=createResearchBrokerAdapter({...f.options,dispatchWorker:async call=>{
+   dispatches++;await f.options.dispatchWorker(call);throw Object.assign(Error('PRIVATE_SENTINEL'),{code:'private_task_pending'});
+  }});
+  await assert.rejects(broker.dispatch(open),error=>error.code==='private_task_pending'&&!String(error).includes('PRIVATE_SENTINEL'));
+  assert.equal((await broker.dispatch(open)).kind,'private_task_context');assert.equal(dispatches,1);
+ }finally{f.close();}
+});
+
+test('reconciliation rotates bounded batches and retains incomplete requests after automatic dispatch limits',async()=>{
+ const f=await brokerScenario();try{
+  const base=await sessionRequest(f.s),calls=[];
+  for(const genre of GENRES){
+   const call=taskCall('open',{...base,genre,public_revision:(await f.s.publicApis[genre].pinMain()).sha});calls.push(call);await f.options.store.reserve(call);
+  }
+  const broker=createResearchBrokerAdapter(f.options);
+  for(let i=0;i<12;i++)await broker.reconcilePending({limit:2});
+  assert.equal(f.dispatches(),6);assert.deepEqual(await f.options.store.pending(),[]);
+  for(const call of calls)assert(await workerRead(f.s,call));
+ }finally{f.close();}
+});
+
+test('worker records reject forged context bodies, wrong proof binding and additional Git changes',async()=>{
+ for(const mode of ['proof','extra-change']){
+  const s=await activeScenario();await reconcile(s.args);const call=taskCall('open',await sessionRequest(s)),options={...s.args,call,taskAccessAllowed:async()=>true};
+  await executeResearchWorker(options);const record=await workerRead(s,call),branch=record.branch;
+  if(mode==='proof'){
+   const value=structuredClone(record.record);value.body.result.actual_context_use_verified=true;
+   s.privateRepo.branch(branch,{'learning-output/task-result.json':stableJson(value)});
+  }else{
+   s.privateRepo.branch(branch,{'learning-output/task-result.json':stableJson(record.record),'learning/evil.mjs':'throw Error("UNTRUSTED")'});
+  }
+  await assert.rejects(executeResearchWorker(options));
+ }
+});
+
+test('bounded worker cannot turn task payloads into code, signing policy or arbitrary output paths',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const call=taskCall('open',await sessionRequest(s)),writes=s.privateRepo.writes.length;
+ for(const change of [{...call,script:'PRIVATE_SENTINEL'}, {...call,proof:{sign:'PRIVATE_SENTINEL'}},
+  {...call,request:{...call.request,branch:'main'}}, {...call,operation:'sign'}, {...call,request:{...call.request,output:'data/taste-profile.json'}}]){
+  await assert.rejects(executeResearchWorker({...s.args,call:change,taskAccessAllowed:async()=>true}),/invalid_task_call/);
+ }
+ assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('verification after a worker restart cannot drop an unresolved pre-search intent',async()=>{
+ let context,calls=0;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  const options={...s.args,taskAccessAllowed:async()=>true},open=taskCall('open',await sessionRequest(s));
+  await executeResearchWorker({...options,call:open});context=(await workerRead(s,open)).body.result;
+  await assert.rejects(executeResearchWorker({...options,call:taskSearch(context),searchProvider:{id:'synthetic-public',async search(){calls++;throw Error('unknown outcome');}}}),/research_search_failed/);
+ }});
+ const writes=s.privateRepo.writes.length;
+ await assert.rejects(executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call:taskCall('verify',{task_token:context.task_token,research_commit:researchCommit})}),/task_search_unresolved/);
+ assert.equal(calls,1);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('post-staging worker recovery authenticates complete signed search and intent without repeating the provider',async()=>{
+ let context,calls=0;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  const options={...s.args,taskAccessAllowed:async()=>true},open=taskCall('open',await sessionRequest(s));
+  await executeResearchWorker({...options,call:open});context=(await workerRead(s,open)).body.result;
+  await executeResearchWorker({...options,call:taskSearch(context),searchProvider:{id:'synthetic-public',async search(){calls++;return {request_id:null,sources:[{url:'https://example.org/review',title:'Synthetic source'}]};}}});
+ }});
+ const call=taskCall('verify',{task_token:context.task_token,research_commit:researchCommit});
+ await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call});
+ assert.equal((await workerRead(s,call)).body.result.search_adapter_invocations_observed,1);assert.equal(calls,1);
+});
+
+test('a half-finished open retains its original ticket rather than allocating a replacement token',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const call=taskCall('open',await sessionRequest(s)),post=s.privateRepo.api.post;
+ let interrupted=false;
+ s.privateRepo.api.post=async(route,body)=>{
+  if(route==='/git/refs'&&body.ref===`refs/heads/learning/task-result-${workerRequestHash(call)}`&&!interrupted){interrupted=true;throw Object.assign(Error('interrupted result'),{code:'transport_failure'});}
+  return post(route,body);
+ };
+ const options={...s.args,taskAccessAllowed:async()=>true,call};await assert.rejects(executeResearchWorker(options),/interrupted result/);
+ const ticket=await readWorkerRecord({...s.args,base:await s.privateRepo.api.pinMain(),kind:'ticket',branch:`learning/task-ticket-${workerRequestHash(call)}`});
+ await executeResearchWorker(options);assert.equal((await workerRead(s,call)).body.result.task_token,ticket.body.task_token);
+ assert.equal([...s.privateRepo.refs.keys()].filter(r=>r.startsWith('refs/heads/learning/task-token-')).length,1);
+});
+
+test('a missing formerly completed result cannot trigger regeneration of frozen evidence',async()=>{
+ const f=await brokerScenario();try{
+  const broker=createResearchBrokerAdapter(f.options),call=taskCall('open',await sessionRequest(f.s));
+  await assert.rejects(broker.dispatch(call),/private_task_pending/);await broker.dispatch(call);
+  assert.equal(f.dispatches(),1);
+  f.s.privateRepo.refs.delete(`refs/heads/learning/task-result-${workerRequestHash(call)}`);
+  await assert.rejects(broker.dispatch(call),/immutable_artifact_mismatch/);assert.equal(f.dispatches(),1);
+ }finally{f.close();}
 });
