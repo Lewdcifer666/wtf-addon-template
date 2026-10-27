@@ -42,18 +42,22 @@ test('private runtime allows only a bounded union of public IPv4 addresses for f
 });
 
 test('private path verifier checks only fixed owner ACLs and file metadata, never reading or printing a key',()=>{
- const previous=process.env.USERPROFILE;process.env.USERPROFILE='C:\\Synthetic';let calls=0;
+ const previous=process.env.USERPROFILE,oldRoot=process.env.SystemRoot,oldModules=process.env.PSModulePath;
+ process.env.USERPROFILE='C:\\Synthetic';process.env.SystemRoot='C:\\Windows';process.env.PSModulePath='C:\\Unrelated\\PowerShell7\\Modules';let calls=0;
  try{
   const files={lstatSync:file=>({isFile:()=>file.endsWith('.pem'),isDirectory:()=>file.endsWith('requests'),isSymbolicLink:()=>false,size:3000}),realpathSync:{native:file=>file},
    readFileSync(){throw Error('MUST_NOT_READ_A_KEY');}};
-  const run=(binary,args,options)=>{calls++;assert.equal(binary,'powershell.exe');assert.equal(options.windowsHide,true);
+  const run=(binary,args,options)=>{calls++;assert.equal(binary,'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');assert.equal(options.windowsHide,true);
+   assert.equal(options.env.PSModulePath,'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules');assert.equal(process.env.PSModulePath,'C:\\Unrelated\\PowerShell7\\Modules');
    const script=Buffer.from(args.at(-1),'base64').toString('utf16le');assert(script.includes('Get-Acl -LiteralPath'));assert(script.includes("$allowed=@($owner,'S-1-5-18')"));
    assert(script.includes('GetOwner([Security.Principal.SecurityIdentifier])'));assert(script.includes('Get-ChildItem -LiteralPath $journal -Force'));assert(script.includes('$entries.Count -gt 100000'));
    assert(!script.includes('Get-Content'));assert(!script.includes('Register-ScheduledTask'));return 'PRIVATE_TASK_PATHS_VERIFIED\r\n';};
   assert.equal(verifyPrivateTaskRuntimePaths(root,{platform:'win32',files,run}),true);assert.equal(calls,1);
   assert.throws(()=>verifyPrivateTaskRuntimePaths(root,{platform:'linux',files,run}));assert.equal(calls,1);
   assert.throws(()=>verifyPrivateTaskRuntimePaths(root,{platform:'win32',files,run:()=> 'unsafe'}));
- }finally{if(previous===undefined)delete process.env.USERPROFILE;else process.env.USERPROFILE=previous;}
+ }finally{if(previous===undefined)delete process.env.USERPROFILE;else process.env.USERPROFILE=previous;
+  if(oldRoot===undefined)delete process.env.SystemRoot;else process.env.SystemRoot=oldRoot;
+  if(oldModules===undefined)delete process.env.PSModulePath;else process.env.PSModulePath=oldModules;}
 });
 
 function fixture({enabled=true}={}){
