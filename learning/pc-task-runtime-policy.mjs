@@ -68,7 +68,13 @@ foreach($target in @($root,$journal,(Join-Path $root 'runtime-app.private-key.pe
 }
 'PRIVATE_TASK_PATHS_VERIFIED'
 `;
- const result=run('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],
-  {encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe'],timeout:10000}).trim();
+ // A Node child can inherit PowerShell7's module path. Legacy PowerShell then
+ // discovers Get-Acl in an incompatible module and cannot autoload it. Pin both
+ // executable and built-in module directory; never weaken or skip ACL checks.
+ const systemRoot=process.env.SystemRoot??process.env.SYSTEMROOT;
+ if(typeof systemRoot!=='string'||!path.win32.isAbsolute(systemRoot)||path.win32.normalize(systemRoot)!==systemRoot||/[\r\n,"\x00]/.test(systemRoot))fail();
+ const powershellRoot=path.win32.join(systemRoot,'System32','WindowsPowerShell','v1.0');
+ const result=run(path.win32.join(powershellRoot,'powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],
+  {encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe'],timeout:10000,env:{...process.env,PSModulePath:path.win32.join(powershellRoot,'Modules')}}).trim();
  if(result!=='PRIVATE_TASK_PATHS_VERIFIED')fail();return true;
 }
