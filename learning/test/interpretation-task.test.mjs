@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {createInterpretationTaskPlan,createPrivateInterpretationTaskAdapter} from '../interpretation-task.mjs';
+import Ajv from 'ajv';
+import {createInterpretationTaskPlan,createPrivateInterpretationTaskAdapter,interpretationOutputSchema} from '../interpretation-task.mjs';
 import {inventoryFeedback} from '../inventory.mjs';
 import {digest,gitBlobOid,stableJson} from '../interpretation.mjs';
 const revision='a'.repeat(40),treeSha='b'.repeat(40);
@@ -27,6 +28,15 @@ const call=(operation,request)=>({schema_version:1,operation,request:{source_rev
 const active=f=>createPrivateInterpretationTaskAdapter({api:f.api,trustedRevision:revision,interpretationAccessAllowed:async()=>true});
 const packet=(f,interpretations)=>({schema_version:1,source_revision:revision,request_id:createInterpretationTaskPlan(f.source()).request.request_id,interpretations});
 const noSignal=f=>createInterpretationTaskPlan(f.source()).request.required.map(r=>({...r,status:'no_signal',statements:[]}));
+
+test('AI output contract exposes category/scope, aspect and status rules already enforced by trusted validation',()=>{
+ const f=fixture(),plan=createInterpretationTaskPlan(f.source()),valid=new Ajv({strict:true}).compile(plan.descriptor.packet_schema);
+ assert.deepEqual(plan.descriptor.packet_schema,interpretationOutputSchema());assert(plan.descriptor.instructions.includes('concept uses content_preference'));
+ const p=packet(f,noSignal(f)),entry=p.interpretations[0];entry.status='interpreted';entry.statements=[{category:'concept',aspect:'experiments',scope:'content_preference',meaning:'wanted_more',quote:'more experiments',confidence:'high'}];
+ assert(valid(p));entry.statements[0].scope='title_execution';assert.equal(valid(p),false);entry.statements[0].scope='content_preference';
+ entry.statements[0].aspect='pacing';assert.equal(valid(p),false);entry.statements[0].aspect='experiments';
+ entry.status='ambiguous';assert.equal(valid(p),false);entry.statements=[];assert(valid(p));entry.status='interpreted';assert.equal(valid(p),false);
+});
 
 test('independent interpretation hold prevents every repository read',async()=>{
  const f=fixture(),adapter=createPrivateInterpretationTaskAdapter({api:f.api,trustedRevision:revision});

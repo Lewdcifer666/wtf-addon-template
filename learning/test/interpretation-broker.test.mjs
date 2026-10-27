@@ -76,3 +76,14 @@ test('interpretation host gate is separate from research and legacy held config 
   config.interpretation_access_enabled=false;fs.writeFileSync(configFile,JSON.stringify(config));const host=await startResearchBrokerHost({configFile,env:{}});await host.close();
  }finally{close(root);}
 });
+
+test('category/scope draft mistakes fail at MCP before journal, dispatch or adapter access while historical wire drafts remain retained',async()=>{
+ const root=directory();let entered=0;const server=createResearchMcpServer(undefined,{interpretationAdapter:{async dispatch(){entered++;throw Error('MUST_NOT_ENTER');}}});
+ const client=new Client({name:'synthetic-semantic-draft',version:'1'}),[a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);
+ try{
+  const bad=structuredClone(submit);bad.request.packet.interpretations[0]={...bad.request.packet.interpretations[0],status:'interpreted',statements:[{category:'concept',aspect:'experiments',meaning:'wanted_more',scope:'title_execution',quote:'PRIVATE_SYNTHETIC',confidence:'high'}]};
+  const result=await client.callTool({name:'private_interpretation_submit',arguments:bad.request});assert.equal(result.isError,true);assert.equal(result.structuredContent.error,'invalid_task_call');assert.equal(entered,0);
+  const store=createBrokerRequestStore({directory:root,privateDirectoryVerified:true}),saved=await store.reserve(bad);assert.equal((await store.pending())[0].request_hash,saved.request_hash);
+  const altered=structuredClone(bad);altered.request.packet.interpretations[0].statements[0].scope='content_preference';await assert.rejects(store.reserve(altered),/task_request_conflict/);
+ }finally{await client.close();await server.close();close(root);}
+});
