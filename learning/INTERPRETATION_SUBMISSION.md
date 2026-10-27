@@ -141,6 +141,17 @@ Git, under the approved owner/SYSTEM-only directory, never logged or published.
 No returned feedback pages or learned contexts are stored there. A future journal
 mount decision must explicitly cover these private submissions.
 
+The AI-facing output schema and submit/validate MCP arguments expose the existing
+category/aspect/scope and status/statement rules. Category/scope contradictions
+are rejected before entering the adapter or reserving a durable submission.
+Execution uses title_execution, concept uses content_preference and tone uses
+tone_preference; an unsupported general preference must be omitted, never forced
+by changing scope. This narrows the AI-facing contract without changing historical
+wire/journal formats, accepted evidence rules or profile weights. Retained invalid
+drafts stay immutable and cannot be overwritten with a corrected packet. A normal
+scheduled task evaluates the current complete source and policy; it must not
+force a retry of a previously rejected or ambiguous operation.
+
 This code does not update the installed held image, connect saved ChatGPT tasks,
 mount the App key/journal, broaden network access or enable a worker. The contained
 runtime policy/packaging and actual saved-task consumption still require review
