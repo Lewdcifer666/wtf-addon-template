@@ -33,6 +33,12 @@ export function privateTaskRuntimePlan(input,{cycleId,...endpoints}={}){
   `type=bind,source=${path.win32.join(c.directory,privateTaskBrokerFilename(c))},target=/run/broker.json,readonly`);
  const before=app.indexOf('--entrypoint');if(before<0)fail();
  app.splice(before,0,'--env',`PRIVATE_INTERPRETATION_BROKER_ALLOWED=${c.interpretation_access_enabled}`,
+  // Use the exact validated public addresses admitted by this cycle's firewall.
+  // Independent host/container DNS answers can differ geographically. Fixed
+  // host mappings retain HTTPS hostname/certificate verification and deny all
+  // other destinations; neither private request data nor callers choose them.
+  '--add-host',`api.github.com:${[...endpoints.githubAddresses].sort()[0]}`,
+  '--add-host',`token.actions.githubusercontent.com:${[...endpoints.oidcAddresses].sort()[0]}`,
   '--mount',`type=bind,source=${path.win32.join(c.directory,'runtime-app.private-key.pem')},target=/run/secrets/runtime-app.pem,readonly`,
   '--mount',`type=bind,source=${path.win32.join(c.directory,'requests')},target=/run/private-requests`);
  return {...plan,task_access_enabled:c.task_access_enabled,interpretation_access_enabled:c.interpretation_access_enabled,

@@ -31,7 +31,20 @@ test('private runtime plan mounts exactly the protected key and journal and reta
  assert(!p.connector.join(' ').includes('runtime-app.private-key'));assert(!p.connector.join(' ').includes('private-requests'));
  assert(!/docker\.sock|--privileged|--publish|--network","host|data\/feedback|OpenAI|openai\.com/.test(text));
  assert(!p.app.includes('NET_ADMIN'));assert(!p.connector.includes('NET_ADMIN'));assert(p.install_policy.includes('NET_ADMIN'));
+ const hostPins=p.app.flatMap((v,i)=>v==='--add-host'?[p.app[i+1]]:[]);
+ assert.deepEqual(hostPins,[`api.github.com:${endpoints.githubAddresses[0]}`,`token.actions.githubusercontent.com:${endpoints.oidcAddresses[0]}`]);
+ assert(!p.connector.includes('--add-host'));assert(!p.app.some(v=>v.includes('NODE_TLS_REJECT_UNAUTHORIZED')));
  assert.equal(p.task_access_enabled,false);assert.equal(p.interpretation_access_enabled,true);
+});
+
+test('GitHub host mappings deterministically choose only a validated firewall address without disabling TLS or broadening DNS',()=>{
+ const c={...config(),remote_service_enabled:true,interpretation_access_enabled:true};
+ const e={...endpoints,githubAddresses:['140.82.121.6','140.82.121.5'],oidcAddresses:['140.82.114.22','140.82.112.22']};
+ const p=privateTaskRuntimePlan(c,{cycleId,...e}),pins=p.app.flatMap((v,i)=>v==='--add-host'?[p.app[i+1]]:[]);
+ assert.deepEqual(pins,['api.github.com:140.82.121.5','token.actions.githubusercontent.com:140.82.112.22']);
+ assert(p.firewall.includes('-d 140.82.121.5/32'));assert(p.firewall.includes('-d 140.82.112.22/32'));
+ assert.throws(()=>privateTaskRuntimePlan(c,{cycleId,...e,githubAddresses:['127.0.0.1']}));
+ assert(!JSON.stringify(p).includes('host-gateway'));assert(!p.app.includes('--network=host'));
 });
 
 test('private runtime allows only a bounded union of public IPv4 addresses for fixed owner, GitHub and OIDC endpoints',()=>{
