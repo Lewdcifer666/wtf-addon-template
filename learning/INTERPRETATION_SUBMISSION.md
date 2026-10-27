@@ -87,6 +87,30 @@ five tools. Interpretation requires both server-owned
 interpretation. Both permissions are rechecked on every call and before releasing
 cached results; health does not enter either adapter.
 
+The pure read-only `private_interpretation_status({})` resolves the current
+private source and authenticates its existing staged packet plus signed
+submission. It needs no GitHub connector call, raw-feedback inventory, journal
+write or workflow. A daily task must call it first: unchanged accepted state
+needs no new AI interpretation. An unsigned/partial staged branch is explicitly
+unverified, never permission to overwrite it or generate a replacement packet.
+Proof/source errors stop rather than masquerading as missing feedback. It makes
+no assertion about learning activation or recommendation effects.
+
+Once interpretation is explicitly enabled, the existing trusted reconciliation
+job prepares the complete current descriptor and every private feedback page
+after its ordinary reconciliation step. No extra hourly job, AI call or task
+slot is added. This is skipped for dry runs and remains bounded at five minutes.
+The scheduled AI task can then read already prepared signed input directly,
+without waiting for a separate Actions job per page. Preparation never stages
+an interpretation or activates learning.
+
+An immutable signed preparation receipt binds all request/page commit identities
+and hashes. An interrupted producer reuses its completed pages; once the receipt
+exists, a lost descriptor or page cannot be regenerated. Unchanged preparation
+reuses its authenticated input without reloading raw blobs or minting new proofs.
+Privacy/current source/hold checks remain fresh. These records prove prepared
+input, not AI interpretation, learning use or recommendation effects.
+
 The read-only PC client can fetch only fixed metadata, immutable Git objects and
 the exact interpretation/result refs needed for verification. Git writes and
 OIDC signing stay inside trusted Actions. MCP annotations disclose private

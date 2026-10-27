@@ -30,6 +30,8 @@ import {createBrokerRequestStore} from '../broker-request-store.mjs';
 import {createInterpretationBrokerAdapter} from '../interpretation-broker.mjs';
 import {executeInterpretationWorker,readInterpretationWorkerResult,validateInterpretationWorkerCall,interpretationWorkerHash} from '../interpretation-worker.mjs';
 import {executeInterpretationWireWorker,interpretationTransportPlan,interpretationPartBranch,interpretationWireHash} from '../interpretation-transport.mjs';
+import {readPrivateInterpretationStatus} from '../interpretation-readiness.mjs';
+import {preparePrivateInterpretation} from '../prepare-interpretation.mjs';
 
 function memoryRepo(name,initial){
  let serial=0;const commits=new Map(),trees=new Map(),blobs=new Map(),refs=new Map(),writes=[];
@@ -1756,4 +1758,137 @@ test('concurrent identical transport workers preserve one immutable part and rec
  s.privateRepo.api.post=async(route,body)=>{const value=await post(route,body);if(route==='/git/refs'&&body.ref.includes('/interpretation-part-')&&!lost){lost=true;throw Object.assign(Error('ACK_LOST'),{code:'transport_failure'});}return value;};
  await assert.rejects(executeInterpretationWireWorker(second),/ACK_LOST/);const writes=s.privateRepo.writes.length;
  const recovered=await executeInterpretationWireWorker(second);assert.equal(recovered.reused,true);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('a first trusted research worker opening automatically persists current deterministic learning before issuing context',async()=>{
+ const s=await activeScenario(),call=taskCall('open',await sessionRequest(s));
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.includes('/receipt-')));
+ const result=await executeResearchWorker({...s.args,call,taskAccessAllowed:async()=>true});assert.equal(result.state,'completed');
+ assert([...s.privateRepo.refs.keys()].some(ref=>ref.includes('/receipt-')));
+ const stored=await readWorkerRecord({...s.args,base:await s.args.api.pinMain(),branch:`learning/task-result-${workerRequestHash(call)}`,kind:'result'});
+ assert.equal(stored.body.result.response.genre,'scifi');assert.equal(stored.body.result.response.source_heads.private,s.args.trustedRevision);
+});
+
+test('a later genre starts from freshly recomputed policy after another genre changes main without waiting for the hourly job',async()=>{
+ const s=await activeScenario(),initial=await reconcile(s.args),old=s.privateRepo.refs.get('refs/heads/'+initial.receipt),oldBytes=stableJson(s.privateRepo.filesAt(old.object.sha));
+ const changed=s.publicRepos.action.branch('main',{'data/synthetic-deployment-marker.json':'{}'}),call=taskCall('open',await sessionRequest(s));
+ const before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision));
+ await executeResearchWorker({...s.args,call,taskAccessAllowed:async()=>true});
+ const record=await readWorkerRecord({...s.args,base:await s.args.api.pinMain(),branch:`learning/task-result-${workerRequestHash(call)}`,kind:'result'});
+ assert.equal(record.body.source_heads.public.action,changed);assert.equal(record.body.result.response.source_heads.public.action,changed);
+ assert.equal(stableJson(s.privateRepo.filesAt(old.object.sha)),oldBytes);assert.equal(stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),before);
+ assert([...s.privateRepo.refs.keys()].filter(ref=>ref.includes('/receipt-')).length>=2);
+});
+
+test('policy movement cannot refresh or replace a frozen research opening or replay its original session',async()=>{
+ const s=await activeScenario(),call=taskCall('open',await sessionRequest(s)),options={...s.args,call,taskAccessAllowed:async()=>true};
+ await executeResearchWorker(options);const writes=s.privateRepo.writes.length;
+ s.publicRepos.action.branch('main',{'data/synthetic-new-head.json':'{}'});
+ await assert.rejects(executeResearchWorker(options),/stale_input/);assert.equal(s.privateRepo.writes.length,writes);
+});
+
+test('caller hold revoked during on-demand recomputation blocks derived writes and pre-search provenance',async()=>{
+ const s=await activeScenario(),call=taskCall('open',await sessionRequest(s)),get=s.publicApis.action.get;let allowed=true;
+ const before=s.privateRepo.writes.length;
+ s.publicApis.action.get=async route=>{const result=await get(route);if(route.startsWith('/git/blobs/'))allowed=false;return result;};
+ await assert.rejects(executeResearchWorker({...s.args,call,taskAccessAllowed:async()=>allowed}),/private_task_access_held/);
+ assert.equal(s.privateRepo.writes.length,before);assert(![...s.privateRepo.refs.keys()].some(ref=>ref.includes('/task-ticket-')||ref.includes('/session-')));
+});
+
+test('on-demand refresh cannot backfill private context after the requested public research branch has advanced',async()=>{
+ const s=await activeScenario(),call=taskCall('open',await sessionRequest(s));
+ s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});const before=s.privateRepo.writes.length;
+ await assert.rejects(executeResearchWorker({...s.args,call,taskAccessAllowed:async()=>true}),/research_already_staged/);assert.equal(s.privateRepo.writes.length,before);
+});
+
+test('private readiness detects unchanged accepted interpretations without another AI interpretation, write or workflow dispatch',async()=>{
+ const f=await interpretationBrokerScenario();try{
+  const broker=createInterpretationBrokerAdapter(f.options),before=f.s.privateRepo.writes.length;
+  const needed=await broker.status({});assert.equal(needed.state,'interpretation_needed');assert.equal(needed.source_revision,f.s.args.trustedRevision);
+  assert.equal(f.s.privateRepo.writes.length,before);assert.equal(f.dispatches(),0);assert.equal((await f.store().pending()).length,0);
+  const call=await interpretationCall(f.s);await assert.rejects(broker.dispatch(call),/private_interpretation_pending/);await broker.dispatch(call);
+  const writes=f.s.privateRepo.writes.length,ready=await broker.status({});assert.equal(ready.state,'interpretation_staged');assert.equal(ready.learning_activation,'not_asserted');
+  assert.equal(f.s.privateRepo.writes.length,writes);assert.equal(f.dispatches(),1);assert(!stableJson(ready).includes('PRIVATE_SENTINEL'));
+  f.setAccess(false);await assert.rejects(broker.status({}),/private_interpretation_access_held/);
+ }finally{f.close();}
+});
+
+test('a staged branch alone cannot claim private readiness and failed source proof never becomes a request to reinterpret',async()=>{
+ const s=scenario();await stage(s);const options={api:{...s.args.api,writable:false},proof:fixtureObservationProof(),interpretationAccessAllowed:async()=>true};
+ const writes=s.privateRepo.writes.length,status=await readPrivateInterpretationStatus(options);assert.equal(status.state,'unverified_staged');assert.equal(s.privateRepo.writes.length,writes);
+ await executeInterpretationWorker({...s.args,call:await interpretationCall(s),proof:options.proof,interpretationAccessAllowed:async()=>true});
+ await assert.rejects(readPrivateInterpretationStatus({...options,proof:{verify(){throw Object.assign(Error('KEY_UNAVAILABLE'),{code:'proof_key_unavailable'});}}}),/KEY_UNAVAILABLE/);
+});
+
+test('authenticated MCP readiness stays read-only and does not enter the worker or leak personal quotes',async()=>{
+ const f=await interpretationBrokerScenario(),host=await startLocalResearchMcpHost({bearerToken:'x'.repeat(43),interpretationAdapter:createInterpretationBrokerAdapter(f.options)});
+ const client=new Client({name:'synthetic-private-readiness',version:'1'});
+ try{
+  await client.connect(new StreamableHTTPClientTransport(new URL(host.url),{requestInit:{headers:{Authorization:'Bearer '+'x'.repeat(43)}}}));
+  const tool=(await client.listTools()).tools.find(t=>t.name==='private_interpretation_status');assert.equal(tool.annotations.readOnlyHint,true);
+  const before=f.s.privateRepo.writes.length,result=await client.callTool({name:tool.name,arguments:{}});assert.equal(result.structuredContent.state,'interpretation_needed');
+  assert.equal(f.dispatches(),0);assert.equal(f.s.privateRepo.writes.length,before);assert.equal((await f.store().pending()).length,0);
+  const invalid=await client.callTool({name:tool.name,arguments:{activate:true}});assert.equal(invalid.structuredContent.error,'invalid_task_call');
+ }finally{await client.close();await host.close();f.close();}
+});
+
+test('interruption after the original ticket but before its token alias resumes without refreshing or reallocating the session',async()=>{
+ const s=await activeScenario(),call=taskCall('open',await sessionRequest(s)),post=s.privateRepo.api.post;let interrupted=false;
+ s.privateRepo.api.post=async(route,body)=>{
+  if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/task-token-')&&!interrupted){interrupted=true;throw Object.assign(Error('INTERRUPTED_ALIAS'),{code:'transport_failure'});}return post(route,body);
+ };
+ const options={...s.args,call,taskAccessAllowed:async()=>true};await assert.rejects(executeResearchWorker(options),/INTERRUPTED_ALIAS/);
+ const ticket=await readWorkerRecord({...s.args,base:await s.args.api.pinMain(),kind:'ticket',branch:`learning/task-ticket-${workerRequestHash(call)}`});assert(ticket);
+ await executeResearchWorker(options);
+ assert.equal(s.privateRepo.refs.get(`refs/heads/learning/task-token-${ticket.body.task_token}`).object.sha,ticket.commit);
+ assert.equal([...s.privateRepo.refs.keys()].filter(ref=>ref.includes('/task-ticket-')).length,1);
+ assert.equal([...s.privateRepo.refs.keys()].filter(ref=>ref.includes('/task-token-')).length,1);
+});
+
+test('trusted preparation defaults held before any private read, Git write or signing',async()=>{
+ let touched=0;const proxy=new Proxy({},{get(){touched++;throw Error('MUST_NOT_TOUCH');}});
+ await assert.rejects(preparePrivateInterpretation({api:proxy,proof:proxy}),/private_interpretation_access_held/);assert.equal(touched,0);
+});
+
+test('trusted feedback preparation persists complete AI input only and unchanged recovery neither reloads raw blobs nor signs again',async()=>{
+ const {s,base}=await largeInterpretationScenario(),real=fixtureObservationProof();let signatures=0;
+ s.args.api.writable=true;
+ const proof={verify:(...args)=>real.verify(...args),sign:(...args)=>{signatures++;return real.sign(...args);}},options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ const first=await preparePrivateInterpretation(options);assert.equal(first.state,'interpretation_input_prepared');assert(first.pages>1);assert.equal(first.reused,false);
+ assert(![...s.privateRepo.refs.keys()].some(ref=>ref.startsWith('refs/heads/interpretation/')||ref.includes('/receipt-')));
+ const writes=s.privateRepo.writes.length,signed=signatures,rawOids=new Set(s.privateRepo.trees.get(base.tree.sha).tree.filter(e=>e.path.endsWith('.json')).map(e=>e.sha)),get=s.privateRepo.api.get;
+ s.privateRepo.api.get=async route=>{if(route.startsWith('/git/blobs/')&&rawOids.has(route.split('/').at(-1)))throw Error('MUST_NOT_RELOAD_RAW');return get(route);};
+ const retry=await preparePrivateInterpretation(options);assert.equal(retry.reused,true);assert.equal(retry.pages,first.pages);assert.equal(s.privateRepo.writes.length,writes);assert.equal(signatures,signed);
+});
+
+test('interrupted private input preparation resumes the original descriptor and preserves all completed pages',async()=>{
+ const s=scenario(),post=s.privateRepo.api.post,proof=fixtureObservationProof();let once=true;
+ s.args.api.writable=true;
+ const options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+ const descriptorCall={schema_version:1,operation:'request',request:{source_revision:s.args.trustedRevision}},descriptorKey=interpretationWorkerHash(descriptorCall);
+ s.privateRepo.api.post=async(route,body)=>{if(route==='/git/refs'&&body.ref.startsWith('refs/heads/learning/interpretation-result-')&&!body.ref.endsWith(descriptorKey)&&once){once=false;throw Object.assign(Error('INTERRUPTED_PAGE'),{code:'transport_failure'});}return post(route,body);};
+ await assert.rejects(preparePrivateInterpretation(options),/INTERRUPTED_PAGE/);
+ const original=s.privateRepo.refs.get('refs/heads/learning/interpretation-result-'+descriptorKey).object.sha;
+ const done=await preparePrivateInterpretation(options);assert.equal(done.state,'interpretation_input_prepared');
+ assert.equal(s.privateRepo.refs.get('refs/heads/learning/interpretation-result-'+descriptorKey).object.sha,original);
+});
+
+test('a completed preparation receipt prevents recreating a lost descriptor or page',async()=>{
+ for(const lost of ['request','page']){
+  const s=scenario(),proof=fixtureObservationProof(),options={...s.args,proof,interpretationAccessAllowed:async()=>true};
+  s.args.api.writable=true;
+  await preparePrivateInterpretation(options);
+  const requestCall={schema_version:1,operation:'request',request:{source_revision:s.args.trustedRevision}},base=await s.args.api.pinMain();
+  const request=await readInterpretationWorkerResult({api:s.args.api,base,call:requestCall,proof,assertCurrent:async()=>{}});
+  const call=lost==='request'?requestCall:{schema_version:1,operation:'page',request:{source_revision:base.sha,request_id:request.body.result.request_id,page_index:0}};
+  s.privateRepo.refs.delete('refs/heads/learning/interpretation-result-'+interpretationWorkerHash(call));const writes=s.privateRepo.writes.length;
+  await assert.rejects(preparePrivateInterpretation(options),/immutable_artifact_mismatch/);assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('private input preparation runs only after ordinary reconciliation, is bounded, opt-in and skipped for dry runs',()=>{
+ const workflow=fs.readFileSync(new URL('../workflows/learning-finalize.yml',import.meta.url),'utf8'),job=workflow.slice(workflow.indexOf('  reconcile:'),workflow.indexOf('  consume:'));
+ assert(job.indexOf('node learning/prepare-interpretation.mjs')>job.indexOf('node learning/reconcile.mjs'));
+ assert(job.includes("vars.PRIVATE_INTERPRETATION_WORKER_ENABLED == 'true'"));assert(job.includes("!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"));
+ assert(job.includes('timeout-minutes: 5'));assert(job.includes('timeout-minutes: 15'));assert(job.includes('persist-credentials: false'));assert(job.includes('package-manager-cache: false'));
 });

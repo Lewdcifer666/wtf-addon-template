@@ -14,6 +14,7 @@ import {createPrivateResearchTaskAdapter,researchTaskCallSchema,privateTaskError
 import {createPublicSearchProvider} from './public-search.mjs';
 import {recoverResearchSessionForVerification,restoreResearchSessionSearches,verifyResearchSessionCommit} from './research-session.mjs';
 import {verifyEngineManifest} from './integrity.mjs';
+import {reconcile} from './reconcile.mjs';
 
 const validCall=new Ajv({strict:true,allErrors:false}).compile(researchTaskCallSchema());
 const fail=code=>{throw new LearningError(code);};
@@ -99,6 +100,23 @@ export async function executeResearchWorker({api,publicApis,trustedRevision,proo
  if(existing){
   if(stableJson(existing.body.call)!==stableJson(copied)||(ticket&&existing.body.session_id!==ticket.body.session_id))fail('invalid_task_record');
   await assertCurrent(existing.body.source_heads);return {state:'completed',request_hash:requestHash,commit:existing.commit,reused:true};
+ }
+ if(copied.operation==='open'){
+  const priorTicket=await readWorkerRecord({api,base,branch:`learning/task-ticket-${requestHash}`,kind:'ticket',proof});
+  if(priorTicket){
+   // An interrupted/frozen session is recovered, never replaced by a fresh
+   // policy tuple or new provenance after a search could already have run.
+   if(stableJson(priorTicket.body.open_request)!==stableJson(request))fail('invalid_task_record');
+   await assertCurrent(priorTicket.body.source_heads);
+  }else{
+   // Another genre may have published since hourly reconciliation. Refresh
+   // deterministic state BEFORE a genuinely new session and before research.
+   const heads={private:base.sha,public:Object.fromEntries(await Promise.all(GENRES.map(async genre=>[genre,(await publicApis[genre].pinMain()).sha])))};
+   await assertCurrent(heads);
+   const refreshed=await reconcile({api,publicApis,trustedRevision,proof,clock,accessAllowed:taskAccessAllowed});
+   if(refreshed.state!=='computed_active')fail(refreshed.state==='awaiting_interpretation'?'interpretation_not_staged':'learning_inactive');
+   await assertCurrent(heads);
+  }
  }
  let result,heads,sessionId;
  if(copied.operation==='verify'){

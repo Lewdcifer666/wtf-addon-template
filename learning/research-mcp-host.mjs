@@ -49,6 +49,9 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
    advertisedTools.push({name:`private_interpretation_${operation}`,description:description[operation]+' Requires separate authorized interpretation access. Stop on any hold or denial; keep all inputs/results private.',
     inputSchema:spec.properties.request,annotations:{readOnlyHint:interpretationAdapter.persistsTaskBookkeeping!==true&&operation!=='submit',destructiveHint:false,idempotentHint:true,openWorldHint:false}});
   }
+  if(typeof interpretationAdapter.status==='function')advertisedTools.push({name:'private_interpretation_status',
+   description:'Read the current private source revision and verify whether its complete interpretation is already staged. Pure read: no feedback inventory, journal write, dispatch, signing or learning activation. Use before interpreting; stop if an existing staged result is unverified.',
+   inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}});
  }
  const installedValidators=new Map(advertisedTools.map(tool=>[tool.name,new Ajv({strict:true,allErrors:false}).compile(tool.inputSchema)]));
  const server=new Server({name:'wtf-private-research',version:'1.0.0'},
@@ -62,7 +65,8 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
   if(params.name===healthName)return reply(transportHealth());
   const interpretation=params.name.startsWith('private_interpretation_'),operation=params.name.slice((interpretation?'private_interpretation_':'private_research_').length);
   try{
-   const result=await (interpretation?interpretationAdapter:adapter).dispatch({schema_version:1,operation,request:structuredClone(params.arguments)});
+   const result=interpretation&&operation==='status'?await interpretationAdapter.status(structuredClone(args))
+    :await (interpretation?interpretationAdapter:adapter).dispatch({schema_version:1,operation,request:structuredClone(params.arguments)});
    const response=reply(result);
    // Text and structuredContent both carry the value; count escaped JSON and
    // the RPC envelope too, not merely the adapter's unduplicated object.
