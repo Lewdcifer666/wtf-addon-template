@@ -65,6 +65,7 @@ async function loadSource(api,base){
  if(tree?.sha!==base.tree.sha||tree.truncated!==false||!Array.isArray(tree.tree))fail('invalid_source');
  const entries=tree.tree.filter(e=>e.type==='blob'&&typeof e.path==='string'&&e.path.toLowerCase().endsWith('.json'));
  if(entries.length>10000||entries.some(e=>!Number.isSafeInteger(e.size)||e.size<0)||entries.reduce((n,e)=>n+e.size,0)>32*1024*1024)fail('invalid_source');
+ if(typeof api.readBlobs==='function')return inventoryFeedback({commit:base,tree,blobs:await api.readBlobs(entries)});
  const blobs=new Map();
  for(let offset=0;offset<entries.length;offset+=6){
   const rows=await Promise.all(entries.slice(offset,offset+6).map(async entry=>{
@@ -80,7 +81,7 @@ async function loadSource(api,base){
  return inventoryFeedback({commit:base,tree,blobs});
 }
 const safeCodes=new Set(['private_interpretation_access_held','invalid_interpretation_task_call','invalid_interpretation',
- 'interpretation_response_limit','invalid_source','private_repository_required','stale_input','github_request_failed','transport_failure']);
+ 'interpretation_response_limit','invalid_source','private_repository_required','stale_input','github_request_failed','github_rate_limited','transport_failure']);
 // No reference to api.post/dispatch/sign, and no capability is returned to AI.
 export function createPrivateInterpretationTaskAdapter({api,trustedRevision,interpretationAccessAllowed=async()=>false}={}){
  if(typeof interpretationAccessAllowed!=='function')fail('private_interpretation_access_held');

@@ -9,6 +9,7 @@ import {createPrivateInterpretationTaskAdapter,interpretationTaskCallSchema} fro
 import {LearningError,readArtifactJson,readImmutable,persistSealedState,requirePacketDiff,requireTrustedAncestor} from './git-artifacts.mjs';
 import {githubObservationProof,PROOF_REPOSITORY} from './observation-proof.mjs';
 import {GitHub} from './github.mjs';
+import {createGitHubQuotaGate} from './github-quota.mjs';
 import {GENRES} from './receipt.mjs';
 import {reconcile} from './reconcile.mjs';
 import {verifyEngineManifest} from './integrity.mjs';
@@ -163,7 +164,7 @@ export async function executeInterpretationWorker({api,publicApis,trustedRevisio
 
 const safeErrors=new Set(['invalid_interpretation_task_call','interpretation_submission_limit','private_interpretation_access_held',
  'private_repository_required','stale_input','invalid_source','invalid_interpretation','invalid_interpretation_record','immutable_artifact_mismatch','private_task_access_held',
- 'unauthorized_packet_changes','github_request_failed','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure','invalid_observation_proof',
+  'unauthorized_packet_changes','github_request_failed','github_rate_limited','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure','invalid_observation_proof',
  'task_request_conflict','invalid_task_journal']);
 export const interpretationWorkerError=error=>safeErrors.has(error?.code)?error.code:'private_interpretation_pending';
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
@@ -179,8 +180,9 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   if(inputs.task_request||inputs.consume_genre&&inputs.consume_genre!=='none'||![undefined,false,'false',''].includes(inputs.provenance_probe)
    ||![false,'false'].includes(inputs.dry_run)||typeof inputs.interpretation_request!=='string'||Buffer.byteLength(inputs.interpretation_request)>60000)fail('invalid_interpretation_task_call');
   let call;try{call=JSON.parse(inputs.interpretation_request);}catch{fail('invalid_interpretation_task_call');}
-  const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{writable:true,cacheImmutable:true});
-  const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,process.env.GH_TOKEN,{cacheImmutable:true})]));
+  const quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,quotaGate};
+  const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{...options,writable:true});
+  const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,process.env.GH_TOKEN,options)]));
   const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
   const {executeInterpretationWireWorker}=await import('./interpretation-transport.mjs');
   const result=await executeInterpretationWireWorker({api,publicApis,trustedRevision:process.env.LEARNING_TRUSTED_SHA,call,proof,interpretationAccessAllowed:async()=>true});

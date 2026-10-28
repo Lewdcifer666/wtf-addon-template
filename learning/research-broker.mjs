@@ -8,7 +8,9 @@ import {validateWorkerCall,workerRequestHash,readWorkerRecord,assertWorkerHeads}
 import {brokerCallFamily} from './broker-request-store.mjs';
 const fail=code=>{throw new LearningError(code);};
 
-export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker,clock=()=>new Date(),taskAccessAllowed=async()=>false}={}){
+export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker,clock=()=>new Date(),taskAccessAllowed=async()=>false,
+ resultWaitMs=0,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),monotonic=()=>Date.now()}={}){
+ if(!Number.isInteger(resultWaitMs)||resultWaitMs<0||resultWaitMs>60000||typeof sleep!=='function'||typeof monotonic!=='function')fail('invalid_task_call');
  let queue=Promise.resolve(),cursor=0;
  async function run(input,{submit=true}={}){
   const call=validateWorkerCall(input);
@@ -55,7 +57,17 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
    // This never repeats a provider call or trusts the local completion hint.
    const first=(await store.pending()).find(entry=>brokerCallFamily(entry.call)==='research');
    if(first&&first.request_hash!==workerRequestHash(snapshot))try{await run(first.call,{submit:false});}catch{}
-   return run(snapshot);
+   try{return await run(snapshot);}catch(error){
+    if(error.code!=='private_task_pending'||!resultWaitMs)throw error;
+    const deadline=monotonic()+resultWaitMs;
+    for(let reads=0;reads<6&&monotonic()<deadline;reads++){
+     await sleep(Math.min(10000,deadline-monotonic()));
+     // Read the ORIGINAL sealed result only. Never reserve another dispatch,
+     // invoke a provider, change identity, or catch quota/hold/proof failures.
+     try{return await run(snapshot,{submit:false});}catch(next){if(next.code!=='private_task_pending')throw next;}
+    }
+    throw error;
+   }
   });},
   reconcilePending({limit=1}={}){return serialized(async()=>{
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');

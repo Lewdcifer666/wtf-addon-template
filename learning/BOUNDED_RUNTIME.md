@@ -1,5 +1,39 @@
 # Bounded trusted worker / PC broker
 
+## Throughput and quota recovery
+
+Trusted Actions batch at most20small pinned Git blobs per fixed read-only GraphQL
+query. Every object retains its original OID, byte size, UTF-8 and completeness
+checks. Larger blobs are selected for the existing REST reader before any request;
+failed, truncated or rate-limited batches never fall back to another endpoint or
+credential. Complete trees and all input files remain mandatory. The PC capability
+keeps batching disabled and its original GET-only route restriction. Both worker
+and reconciliation clients cache only immutable objects; mutable metadata, heads
+and ref inventories are still fetched for every existing currentness check.
+
+One quota gate spans the seven clients and dispatch capability. GitHub's reset and
+Retry-After headers pause all API access until the deadline, including other
+endpoints. The PC appends a closed hash-named quota record to its protected journal,
+so a container rollover cannot forget that deadline. These are local backoff
+metadata, never signed learning evidence or permission to retry a held operation.
+Original request, dispatch and result files retain their identities/bytes. Corrupt
+quota records fail closed. Rollback must retain a compatible journal reader; never
+delete the new records to run an older reader.
+
+The production broker waits for up to30seconds of timer delays and at most six
+same-request result checks (in addition to bounded API work) before reporting queued
+research. Those checks cannot dispatch another job or invoke another search. They
+stop immediately on quotas, revoked access, stale inputs or proof errors. Slow or
+interrupted jobs remain pending under their original identities. The independent
+worker gates, five-minute jobs, shared non-cancelling concurrency, bounded dispatch
+reservations and durable reconciliation are unchanged. No perpetual Actions worker
+or credential expansion is introduced.
+
+This repairs measured GitHub request pressure and premature task exits. It does
+not assert a completed live learning cycle or clear historical OpenAI denials.
+References: [GitHub blob fields](https://docs.github.com/en/graphql/reference/git#blob),
+[GitHub rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
+
 This is reviewed-deployment preparation, not a learning cutover. All existing
 private-learning, interpretation, legacy-work and safety-denial holds remain.
 The family extension is excluded. No OpenAI API or paid search provider is used.
