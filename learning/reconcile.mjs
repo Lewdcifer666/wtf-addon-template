@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {GitHub} from './github.mjs';
+import {createGitHubQuotaGate} from './github-quota.mjs';
 import {inventoryFeedback} from './inventory.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from './interpretation.mjs';
 import {buildReceipt,GENRES,validateActivation} from './receipt.mjs';
@@ -19,7 +20,7 @@ import {createInterpretationTaskPlan} from './interpretation-task.mjs';
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
 const readLocal=name=>JSON.parse(fs.readFileSync(new URL(name,import.meta.url),'utf8'));
 const fail=code=>{throw new LearningError(code);};
-const recoverableTransport=error=>error?.code==='transport_failure'
+const recoverableTransport=error=>['transport_failure','github_rate_limited'].includes(error?.code)
   ||error?.code==='github_request_failed'&&[408,429,500,502,503,504].includes(error.status);
 const validResearchDate=value=>typeof value==='string'&&/^20\d\d-\d\d-\d\d$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
 async function treeAt(api,commit){
@@ -37,6 +38,7 @@ async function readBlob(api,entry,maxBytes=8*1024*1024){
 }
 async function readEntries(api,entries){
   if(entries.length>10000||entries.reduce((n,e)=>n+(e.size||0),0)>32*1024*1024)fail('invalid_source');
+  if(typeof api.readBlobs==='function')return api.readBlobs(entries);
   const blobs=new Map();
   for(let offset=0;offset<entries.length;offset+=6){
     const batch=await Promise.all(entries.slice(offset,offset+6).map(async entry=>[entry.sha,await readBlob(api,entry)]));
@@ -218,7 +220,7 @@ async function main(){
   const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
   if(head!==process.env.LEARNING_TRUSTED_SHA||!/^[a-f0-9]{40}$/.test(head))fail('trusted_checkout_required');
   if(execFileSync('git',['status','--porcelain','--untracked-files=no'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim())fail('trusted_checkout_modified');
-  const token=process.env.GH_TOKEN,api=new GitHub(PRIVATE,token,{writable:!dryRun});
+  const token=process.env.GH_TOKEN,quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,quotaGate},api=new GitHub(PRIVATE,token,{...options,writable:!dryRun});
   if(probe){
     // Explicit metadata-only probe: no feedback/profile reads, Git writes,
     // interpretation or activation. The ephemeral statement is not persisted.
@@ -230,7 +232,7 @@ async function main(){
     if((await readonly.pinMain()).sha!==head)fail('stale_input');
     console.log(JSON.stringify({state:'provenance_probe_verified',executed_revision:head,trigger_revision:claims.sha,feedback_read:false,git_writes:false}));return;
   }
-  const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,token)]));
+  const publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,token,options)]));
   const result=await reconcile({api,publicApis,trustedRevision:head,dryRun,consumeGenre,researchCommit:verify?args[2]:null,researchDate:verify&&args.length===4?args[3]:null});
   // Only structural state reaches workflow logs. All personal evidence stays
   // in this private repository's immutable branches, never workflow artifacts.

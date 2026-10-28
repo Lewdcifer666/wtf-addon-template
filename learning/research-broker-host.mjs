@@ -5,6 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {LearningError,requireTrustedAncestor} from './git-artifacts.mjs';
 import {GENRES} from './receipt.mjs';
+import {createGitHubQuotaGate} from './github-quota.mjs';
 import {PROOF_REPOSITORY,githubObservationProof} from './observation-proof.mjs';
 import {createBrokerGitHub} from './broker-github.mjs';
 import {createBrokerAppTokenProvider} from './broker-app-auth.mjs';
@@ -38,11 +39,12 @@ export async function startResearchBrokerHost({configFile,port=0,env=process.env
  const app=config.github_app;
  if(!app||Object.keys(app).sort().join()!=='app_id,installation_id,private_key_file')throw new LearningError('private_app_credentials_required');
  const getToken=createBrokerAppTokenProvider({appId:app.app_id,installationId:app.installation_id,privateKey:readFile(app.private_key_file,16384)});
- const api=createBrokerGitHub({repository:PROOF_REPOSITORY,getToken}),publicApis=Object.fromEntries(GENRES.map(g=>[g,createBrokerGitHub({repository:`Lewdcifer666/wtf-${g}-stremio`,getToken})]));
- const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
  const store=createBrokerRequestStore({directory:config.request_directory,privateDirectoryVerified:config.private_directory_verified});
- const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken}),taskAccessAllowed:allowed}):undefined;
- const interpretationBroker=config.interpretation_access_enabled===true?createInterpretationBrokerAdapter({api,proof,store,dispatchWorker:createInterpretationWorkerDispatch({getToken}),interpretationAccessAllowed:interpretationAllowed}):undefined;
+ const quotaGate=createGitHubQuotaGate({initialUntil:store.quotaDeadline(),onPause:until=>store.recordQuota(until)});
+ const api=createBrokerGitHub({repository:PROOF_REPOSITORY,getToken,quotaGate}),publicApis=Object.fromEntries(GENRES.map(g=>[g,createBrokerGitHub({repository:`Lewdcifer666/wtf-${g}-stremio`,getToken,quotaGate})]));
+ const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
+ const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken,quotaGate}),taskAccessAllowed:allowed,resultWaitMs:30000}):undefined;
+ const interpretationBroker=config.interpretation_access_enabled===true?createInterpretationBrokerAdapter({api,proof,store,dispatchWorker:createInterpretationWorkerDispatch({getToken,quotaGate}),interpretationAccessAllowed:interpretationAllowed}):undefined;
  const host=await startLocalResearchMcpHost({access:config.access,adapter:broker,interpretationAdapter:interpretationBroker,port});
  let reconciling=false;
  const timer=setInterval(()=>{

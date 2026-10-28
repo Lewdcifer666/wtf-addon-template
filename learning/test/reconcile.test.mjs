@@ -1892,3 +1892,28 @@ test('private input preparation runs only after ordinary reconciliation, is boun
  assert(job.includes("vars.PRIVATE_INTERPRETATION_WORKER_ENABLED == 'true'"));assert(job.includes("!(github.event_name == 'workflow_dispatch' && inputs.dry_run)"));
  assert(job.includes('timeout-minutes: 5'));assert(job.includes('timeout-minutes: 15'));assert(job.includes('persist-credentials: false'));assert(job.includes('package-manager-cache: false'));
 });
+
+test('production result waiting reads the same asynchronously completed request without dispatching or searching twice',async()=>{
+ let searches=0;const f=await brokerScenario({provider:{id:'synthetic-keyless',async search(){searches++;return {request_id:null,sources:[]};}}});
+ try{
+  let pending=null,dispatches=0,waits=0,time=0;
+  const broker=createResearchBrokerAdapter({...f.options,resultWaitMs:60000,monotonic:()=>time,
+   dispatchWorker:async call=>{dispatches++;pending=call;},sleep:async ms=>{time+=ms;waits++;await executeResearchWorker({...f.s.args,call:pending,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-keyless',async search(){searches++;return {request_id:null,sources:[]};}}});}});
+  const context=await broker.dispatch(taskCall('open',await sessionRequest(f.s)));assert.equal(context.kind,'private_task_context');
+  const result=await broker.dispatch(taskSearch(context));assert.equal(result.kind,'private_task_search_result');assert.equal(searches,1);assert.equal(dispatches,2);assert.equal(waits,2);
+  assert.equal((await f.options.store.pending()).length,0);
+ }finally{f.close();}
+});
+
+test('result waiting is bounded and stops on quota or revoked access without another reservation',async()=>{
+ for(const change of ['timeout','quota','hold']){
+  const f=await brokerScenario();try{
+   let time=0,waits=0,dispatches=0;const get=f.options.api.get;
+   const broker=createResearchBrokerAdapter({...f.options,resultWaitMs:60000,monotonic:()=>time,dispatchWorker:async()=>{dispatches++;},sleep:async ms=>{
+    time+=ms;waits++;if(change==='hold')f.setAccess(false);if(change==='quota')f.options.api.get=async()=>{throw Object.assign(Error('PRIVATE_SENTINEL'),{code:'github_rate_limited'});};
+   }});
+   await assert.rejects(broker.dispatch(taskCall('open',await sessionRequest(f.s))),e=>e.code===({timeout:'private_task_pending',quota:'github_rate_limited',hold:'private_task_access_held'}[change]));
+   assert.equal(dispatches,1);assert.equal(waits,change==='timeout'?6:1);f.options.api.get=get;
+  }finally{f.close();}
+ }
+});

@@ -68,7 +68,7 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
    ||process.env.GITHUB_REF!=='refs/heads/main'||process.env.GITHUB_WORKFLOW_REF!==PROOF_REPOSITORY+'/.github/workflows/learning-finalize.yml@refs/heads/main'
    ||!['schedule','push','workflow_run','workflow_dispatch'].includes(process.env.GITHUB_EVENT_NAME))fail('private_interpretation_access_held');
   verifyEngineManifest(process.cwd());
-  const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{writable:true,cacheImmutable:true});
+  const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{writable:true,cacheImmutable:true,batchBlobs:true});
   const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
   const result=await preparePrivateInterpretation({api,trustedRevision:process.env.LEARNING_TRUSTED_SHA,proof,interpretationAccessAllowed:async()=>true});
   console.log(JSON.stringify(result));

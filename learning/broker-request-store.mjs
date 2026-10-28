@@ -27,7 +27,7 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
   if(fs.existsSync(path.join(parent,'.git')))fail();
   if(path.dirname(parent)===parent)break;
  }
- const file=(name)=>{if(!/^[a-f0-9]{64}-(?:request|complete|dispatch-[1-3])\.json$/.test(name))fail();return path.join(root,name);};
+ const file=(name)=>{if(!/^[a-f0-9]{64}-(?:request|complete|quota|dispatch-[1-3])\.json$/.test(name))fail();return path.join(root,name);};
  const read=(name)=>{
   const p=file(name);let stat;try{stat=fs.lstatSync(p);}catch(e){if(e.code==='ENOENT')return null;throw e;}
   if(!stat.isFile()||stat.isSymbolicLink()||stat.size<1||stat.size>2*1024*1024)fail();
@@ -66,7 +66,21 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
   if(Object.keys(value).sort().join()!=='request_hash,result_commit,schema_version'||value.schema_version!==1
    ||value.request_hash!==key||!/^[a-f0-9]{40}$/.test(value.result_commit??''))fail();return value;
  };
+ const quotaDeadline=()=>{
+  let deadline=0;const names=fs.readdirSync(root);if(names.length>100000)fail();
+  for(const name of names.filter(n=>/^[a-f0-9]{64}-quota\.json$/.test(n))){
+   const v=read(name);
+   if(!v||Object.keys(v).sort().join()!=='kind,retry_at,schema_version'||v.schema_version!==1||v.kind!=='github_quota_pause'||!Number.isSafeInteger(v.retry_at)||v.retry_at<0||name!==digest(stableJson(v))+'-quota.json')fail();
+   deadline=Math.max(deadline,v.retry_at);
+  }return deadline;
+ };
  return Object.freeze({
+  quotaDeadline,
+  recordQuota(retryAt){
+   if(!Number.isSafeInteger(retryAt)||retryAt<0)fail();
+   const value={schema_version:1,kind:'github_quota_pause',retry_at:retryAt};once(digest(stableJson(value))+'-quota.json',value);
+   return quotaDeadline();
+  },
   async reserve(input){
    const call=validateCall(input),name=identity(call)+'-request.json',value={schema_version:1,request_hash:brokerCallHash(call),call};
    once(name,value);const saved=requestAt(name);
@@ -75,7 +89,8 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
   },
   async pending(){
    const names=fs.readdirSync(root);
-   if(names.length>100000||names.some(n=>!/^[a-f0-9]{64}-(?:request|complete|dispatch-[1-3])\.json(?:\.tmp-[a-f0-9-]{36})?$/.test(n)))fail();
+   if(names.length>100000||names.some(n=>!/^[a-f0-9]{64}-(?:request|complete|quota|dispatch-[1-3])\.json(?:\.tmp-[a-f0-9-]{36})?$/.test(n)))fail();
+   quotaDeadline();
    return names.filter(n=>n.endsWith('-request.json')).sort().map(requestAt).filter(request=>{
     return completion(request.request_hash)===null;
    }).sort((a,b)=>Number(attempts(b.request_hash).length>0)-Number(attempts(a.request_hash).length>0)||a.request_hash.localeCompare(b.request_hash));

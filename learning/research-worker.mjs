@@ -5,6 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import Ajv from 'ajv';
 import {GitHub} from './github.mjs';
+import {createGitHubQuotaGate} from './github-quota.mjs';
 import {digest,stableJson} from './interpretation.mjs';
 import {GENRES} from './receipt.mjs';
 import {berlinResearchDate} from './handoff.mjs';
@@ -176,7 +177,8 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   if(typeof text!=='string'||Buffer.byteLength(text)>16384)fail('invalid_task_call');
   let call;try{call=JSON.parse(text);}catch{fail('invalid_task_call');}
   validateWorkerCall(call);
-  const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{writable:true,cacheImmutable:true}),publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,process.env.GH_TOKEN,{cacheImmutable:true})]));
+  const quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,quotaGate};
+  const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{...options,writable:true}),publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,process.env.GH_TOKEN,options)]));
   const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
   const result=await executeResearchWorker({api,publicApis,trustedRevision:process.env.LEARNING_TRUSTED_SHA,proof,call,
    searchProvider:createPublicSearchProvider(),taskAccessAllowed:async()=>true});
