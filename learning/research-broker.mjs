@@ -28,6 +28,16 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
   const heads={private:base.sha,public:Object.fromEntries(await Promise.all(GENRES.map(async g=>[g,(await publicApis[g].pinMain()).sha])))};
   const assertCurrent=sourceHeads=>assertWorkerHeads({api,publicApis,heads:sourceHeads,request,operation:call.operation,researchCommit:call.request.research_commit,clock});
   await assertCurrent(heads);
+  if(call.operation==='open'){
+   // Availability is a prerequisite, never authentication. A missing current
+   // interpretation cannot be repaired by dispatching another research job.
+   // The trusted worker still validates its complete packet/proof and computes
+   // the current receipt before any context or provider capability is released.
+   const branch=`interpretation/${base.sha}`,ref=await api.optional(`/git/ref/heads/${branch}`);
+   if(!ref)fail('interpretation_not_staged');
+   if(ref.ref!==`refs/heads/${branch}`||!/^[a-f0-9]{40}$/.test(ref.object?.sha??''))fail('invalid_interpretation_record');
+   await assertCurrent(heads);
+  }
   // Reserve before dispatch. A changed query cannot borrow the same search ID.
   const saved=await store.reserve(call),requestHash=workerRequestHash(call);
   if(saved.request_hash!==requestHash||stableJson(saved.call)!==stableJson(call))fail('task_request_conflict');

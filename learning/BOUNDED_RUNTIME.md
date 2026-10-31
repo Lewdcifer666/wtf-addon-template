@@ -139,6 +139,15 @@ before installing persistent execution or renewing remote-access grants.
 
 ## Cutover and acceptance
 
+The PC checks that the current interpretation ref exists before reserving or
+dispatching a new research opening. Missing interpretation returns the closed
+`interpretation_not_staged` prerequisite state; it does not repeatedly dispatch
+research jobs that cannot create their input. Existing journal requests and
+attempt records remain intact. This read-only availability check does not
+authenticate the ref or release context: the trusted worker still validates the
+complete packet and provenance and recomputes the current receipt. A malformed
+ref or quota error stops without a dispatch, fallback or credential change.
+
 Before a genuinely new research opening, the trusted worker recomputes and
 persists the complete current deterministic receipt/handoffs. Another genre's
 publication therefore cannot leave the next task waiting solely for the hourly

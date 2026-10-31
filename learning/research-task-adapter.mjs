@@ -27,7 +27,7 @@ const fail=code=>{throw new LearningError(code);};
 const recoverable=error=>error?.code==='github_request_failed'&&[408,429,500,502,503,504].includes(error.status)
  ||['transport_failure','github_rate_limited','proof_key_unavailable','proof_transport_failure'].includes(error?.code);
 const publicErrors=new Set(['invalid_task_call','private_task_access_held','private_task_pending','invalid_task_journal','invalid_task_record','private_app_credentials_required','task_session_limit','unknown_task_session',
- 'task_request_conflict','task_search_unresolved','learning_inactive','invalid_consumer_request','invalid_handoff',
+ 'task_request_conflict','task_search_unresolved','learning_inactive','interpretation_not_staged','invalid_interpretation_record','invalid_consumer_request','invalid_handoff',
  'stale_input','research_already_staged','private_repository_required','invalid_search_request','search_provider_unavailable',
  'research_search_failed','invalid_search_result','session_journal_limit','session_context_not_persisted',
  'github_request_failed','github_rate_limited','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure',
