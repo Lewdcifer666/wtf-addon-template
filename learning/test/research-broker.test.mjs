@@ -11,6 +11,8 @@ import {createResearchBrokerAdapter} from '../research-broker.mjs';
 import {workerRequestHash} from '../research-worker.mjs';
 import {startResearchBrokerHost} from '../research-broker-host.mjs';
 import {createGitHubQuotaGate} from '../github-quota.mjs';
+import {LearningError} from '../git-artifacts.mjs';
+import {privateTaskErrorCode} from '../research-task-adapter.mjs';
 const token='1'.repeat(43),uuid='12345678-1234-4234-8234-123456789abc';
 const call={schema_version:1,operation:'search',request:{task_token:uuid,request_id:'same-search',query:'public fictional title',preference_indexes:[]}};
 const open={schema_version:1,operation:'open',request:{schema_version:1,genre:'scifi',research_date:'2026-10-12',private_revision:'a'.repeat(40),public_revision:'b'.repeat(40)}};
@@ -26,6 +28,11 @@ test('quota reset survives a broker replacement without changing request identit
   let now=60000;const renewed=createGitHubQuotaGate({clock:()=>now,initialUntil:replacement.quotaDeadline()});assert.throws(()=>renewed.assertAllowed(),{code:'github_rate_limited'});now=120000;renewed.assertAllowed();
   const name=fs.readdirSync(root).find(n=>n.endsWith('-quota.json'));fs.writeFileSync(path.join(root,name),'{}');await assert.rejects(replacement.pending(),{code:'invalid_task_journal'});
  }finally{remove(root);}
+});
+
+test('missing interpretation has a closed honest code while arbitrary private errors remain hidden',()=>{
+ for(const code of ['interpretation_not_staged','invalid_interpretation_record'])assert.equal(privateTaskErrorCode(new LearningError(code)),code);
+ assert.equal(privateTaskErrorCode(Error('PRIVATE_SENTINEL')),'private_task_failed');
 });
 
 test('request journal survives replacement, reserves before dispatch and rejects changed payloads under one identity',async()=>{

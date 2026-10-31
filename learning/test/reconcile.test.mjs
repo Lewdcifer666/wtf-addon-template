@@ -1355,6 +1355,59 @@ async function brokerScenario({provider=null}={}){
  }};
 }
 
+test('missing interpretation blocks before journal/dispatch and the same opening works once its prerequisite returns',async()=>{
+ const f=await brokerScenario();try{
+  const branch=`refs/heads/interpretation/${f.s.args.trustedRevision}`,original=f.s.privateRepo.refs.get(branch);
+  const call=taskCall('open',await sessionRequest(f.s)),broker=createResearchBrokerAdapter(f.options),writes=f.s.privateRepo.writes.length;
+  f.s.privateRepo.refs.delete(branch);
+  await assert.rejects(broker.dispatch(call),{code:'interpretation_not_staged'});
+  assert.equal(f.dispatches(),0);assert.equal(f.s.privateRepo.writes.length,writes);assert.deepEqual(fs.readdirSync(f.directory),[]);
+  f.s.privateRepo.refs.set(branch,original);
+  await assert.rejects(broker.dispatch(call),{code:'private_task_pending'});
+  assert.equal((await broker.dispatch(call)).kind,'private_task_context');assert.equal(f.dispatches(),1);
+  assert(await workerRead(f.s,call));
+ }finally{f.close();}
+});
+
+test('missing interpretation preserves pending requests and dispatch reservations without repeated research jobs',async()=>{
+ const f=await brokerScenario();try{
+  const call=taskCall('open',await sessionRequest(f.s)),saved=await f.options.store.reserve(call);
+  await f.options.store.reserveDispatch(saved.request_hash,f.s.args.clock().toISOString());
+  const before=Object.fromEntries(fs.readdirSync(f.directory).map(n=>[n,fs.readFileSync(path.join(f.directory,n),'utf8')]));
+  f.s.privateRepo.refs.delete(`refs/heads/interpretation/${f.s.args.trustedRevision}`);
+  const counts=await createResearchBrokerAdapter(f.options).reconcilePending();
+  assert.deepEqual(counts,{completed:0,pending:0,unresolved:1});assert.equal(f.dispatches(),0);
+  assert.deepEqual(Object.fromEntries(fs.readdirSync(f.directory).map(n=>[n,fs.readFileSync(path.join(f.directory,n),'utf8')])),before);
+  assert.equal((await f.options.store.pending()).length,1);
+ }finally{f.close();}
+});
+
+test('malformed prerequisite metadata and quota failures stop before journal or dispatch',async()=>{
+ for(const mode of ['malformed','quota']){
+  const f=await brokerScenario();try{
+   const call=taskCall('open',await sessionRequest(f.s)),optional=f.options.api.optional;
+   const api={...f.options.api,optional:async route=>{
+    if(route.startsWith('/git/ref/heads/interpretation/')){
+     if(mode==='quota')throw Object.assign(Error('PRIVATE_SENTINEL'),{code:'github_rate_limited'});
+     return {ref:'refs/heads/interpretation/wrong',object:{sha:'f'.repeat(40)}};
+    }return optional(route);
+   }};
+   await assert.rejects(createResearchBrokerAdapter({...f.options,api}).dispatch(call),{code:mode==='quota'?'github_rate_limited':'invalid_interpretation_record'});
+   assert.equal(f.dispatches(),0);assert.deepEqual(fs.readdirSync(f.directory),[]);
+  }finally{f.close();}
+ }
+});
+
+test('an existing interpretation ref never substitutes for complete trusted-worker validation',async()=>{
+ let providerCalls=0;const f=await brokerScenario({provider:{id:'synthetic',async search(){providerCalls++;return {request_id:null,sources:[]};}}});
+ try{
+  const call=taskCall('open',await sessionRequest(f.s));
+  f.s.privateRepo.branch(`interpretation/${f.s.args.trustedRevision}`,{'learning/untrusted.mjs':'throw Error("UNTRUSTED")'});
+  await assert.rejects(createResearchBrokerAdapter(f.options).dispatch(call),{code:'private_task_pending'});
+  assert.equal(f.dispatches(),1);assert.equal(providerCalls,0);assert.equal(await workerRead(f.s,call),null);
+ }finally{f.close();}
+});
+
 test('actual MCP broker reports pending honestly, then authenticates worker results without a PC Git writer',async()=>{
  let searches=0;const fixture=await brokerScenario({provider:{id:'synthetic-keyless',async search(){searches++;return {request_id:null,sources:[]};}}});
  const {s,options}=fixture,broker=createResearchBrokerAdapter(options),token='x'.repeat(43);
