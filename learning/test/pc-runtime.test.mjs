@@ -83,7 +83,7 @@ function fixture({enabled=true}={}){
   if(args[0]==='run')return 'policy installed';throw Error('unexpected Docker operation');
  };
  return {cfg,configFile,map,commands,states,reads,files,data,get starts(){return starts;},get closed(){return closed;},get leases(){return leases;},get dns(){return dns;},
-  stop:()=>{stop=true;},options:{configFile,docker,files,clock:()=>now,shouldStop:()=>stop,
+  stop:()=>{stop=true;},advance:ms=>{now+=ms;},options:{configFile,docker,files,clock:()=>now,shouldStop:()=>stop,
    resolveIssuer:async issuer=>{dns++;assert.equal(issuer,access.issuer);return issuerAddresses;},
    sleep:async ms=>{now+=ms;if(starts>0)stop=true;},acquireLease:async()=>{leases++;return {close:async()=>{closed++;}};}}};
 }
@@ -105,6 +105,37 @@ test('one held cycle starts in policy-first order, observes revocation and clean
 test('an unknown container is never stopped or adopted and the acquired lease is released',async()=>{
  const f=fixture();f.states.set(runtimeNames[1],{Name:'/'+runtimeNames[1],Config:{Labels:{[runtimeLabel]:'other-owner'}},State:{Running:true}});
  await assert.rejects(superviseHeldRuntime(f.options));assert.equal(f.closed,1);assert(!f.commands.some(a=>a[0]==='rm'));assert.equal(f.states.size,1);
+});
+
+test('a Docker outage during startup retries cleanup under the same lease before any new launch',async()=>{
+ const f=fixture(),docker=f.options.docker,stages=[];let unavailable=true,elapsed=0;
+ f.options.record=stage=>stages.push(stage);
+ f.options.docker=args=>{if(unavailable)throw Error('PRIVATE_DOCKER_FAILURE');return docker(args);};
+ f.options.sleep=async ms=>{f.advance(ms);elapsed+=ms;if(unavailable){assert.equal(f.starts,0);assert.equal(f.dns,0);if(elapsed>=30000)unavailable=false;}else if(f.starts)f.stop();};
+ assert.deepEqual(await superviseHeldRuntime(f.options),{state:'stopped_held'});
+ assert.equal(f.leases,1);assert.equal(f.closed,1);assert.equal(f.starts,1);assert.equal(f.states.size,0);
+ assert(stages.includes('held_cleanup_pending'));assert(!JSON.stringify(stages).includes('PRIVATE_DOCKER_FAILURE'));
+});
+
+test('Docker cleanup failure after a running cycle remains pending until the same owner can clean and restart',async()=>{
+ const f=fixture(),docker=f.options.docker,stages=[];let unavailable=false,recovered=false,elapsed=0;
+ f.options.record=stage=>stages.push(stage);
+ f.options.docker=args=>{if(unavailable)throw Error('PRIVATE_DOCKER_FAILURE');return docker(args);};
+ f.options.sleep=async ms=>{
+  f.advance(ms);if(f.starts===1&&!recovered&&!unavailable){unavailable=true;elapsed=0;}
+  else if(unavailable){elapsed+=ms;if(elapsed>=30000){assert(f.states.size>0);assert(!stages.includes('held_transport_stopped'));unavailable=false;recovered=true;}}
+  if(f.starts===2)f.stop();
+ };
+ await superviseHeldRuntime(f.options);assert.equal(f.leases,1);assert.equal(f.closed,1);assert.equal(f.starts,2);assert.equal(f.states.size,0);
+ assert(stages.includes('held_cleanup_pending'));assert.equal(stages.filter(s=>s==='held_transport_stopped').length,1);
+});
+
+test('revocation during Docker outage releases the lease without launching or removing unverified containers',async()=>{
+ const f=fixture(),stages=[];f.options.record=stage=>stages.push(stage);
+ f.options.docker=()=>{throw Error('PRIVATE_DOCKER_FAILURE');};f.options.sleep=async()=>f.stop();
+ assert.deepEqual(await superviseHeldRuntime(f.options),{state:'stopped_held'});
+ assert.equal(f.starts,0);assert.equal(f.closed,1);assert.equal(f.leases,1);assert(!f.commands.some(a=>a[0]==='rm'));
+ assert(stages.every(s=>s==='held_cleanup_pending'));
 });
 
 test('crash recovery reconciles owned stale containers under the OS lease without reading or replacing private work',async()=>{

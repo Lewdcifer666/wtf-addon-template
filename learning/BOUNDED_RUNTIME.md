@@ -185,3 +185,15 @@ Rollback disables the PC access and GitHub worker gates, stops the broker and
 gateway, preserves private requests and sealed artifacts, and repairs source
 through a validated PR. Never reset main, overwrite immutable history, weaken
 protection, or restore direct-to-main automation.
+# Local supervisor recovery
+
+The existing lease owner retries bounded Docker invocation failures during
+startup and cleanup. It starts no replacement container until exact labelled
+cleanup succeeds. Ownership, malformed-output, configuration and firewall
+validation failures stay closed. A stop or disabled configuration still exits;
+container deadlines remain independent if Docker cannot perform cleanup.
+Only successful cleanup reports the transport stopped. Local lifecycle records
+include UTC timestamps, process IDs and closed stage names, never command errors,
+credentials or private evidence. These records help diagnose external termination;
+Docker retry handling does not establish the cause of a prior interrupted process.
+
