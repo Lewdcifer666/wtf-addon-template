@@ -2,6 +2,16 @@
 
 ## Throughput and quota recovery
 
+Trusted Actions select a fixed read-only query for all seven current main heads
+and repository identities before processing. Every currentness assertion fetches
+a new complete response; mutable heads are never cached. This replaces eight
+fresh REST metadata/ref reads with one query while retaining every equality,
+privacy, repository and branch check. Partial/invalid/limited responses stop;
+there is no endpoint or credential fallback. The same quota gate covers this
+query, blob batches, REST and dispatch. PC clients retain their original GET-only
+checks and cannot enable this query through task data. This worker-only change
+needs no PC image, configuration, permissions or Windows-task update.
+
 Trusted Actions batch at most20small pinned Git blobs per fixed read-only GraphQL
 query. Every object retains its original OID, byte size, UTF-8 and completeness
 checks. Larger blobs are selected for the existing REST reader before any request;

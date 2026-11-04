@@ -68,11 +68,12 @@ export async function readWorkerRecord({api,base,branch,kind,proof,assertCurrent
 
 export async function assertWorkerHeads({api,publicApis,heads,request,operation,researchCommit,clock=()=>new Date()}){
  validateHeads(heads);
- const metadata=await api.get('/');
- if(metadata.private!==true||metadata.full_name!==PROOF_REPOSITORY||metadata.default_branch!=='main'||api.repository!==PROOF_REPOSITORY||(await api.pinMain()).sha!==heads.private
+  const snapshot=api.batchHeads?await api.readCurrentHeads(publicApis):null;
+  const metadata=snapshot?.metadata??await api.get('/');
+  if(metadata.private!==true||metadata.full_name!==PROOF_REPOSITORY||metadata.default_branch!=='main'||api.repository!==PROOF_REPOSITORY||(snapshot?.private??(await api.pinMain()).sha)!==heads.private
   ||request.private_revision!==heads.private||request.public_revision!==heads.public[request.genre]
   ||request.research_date!==berlinResearchDate(clock()))fail('stale_input');
- for(const genre of GENRES)if(publicApis[genre]?.repository!==`Lewdcifer666/wtf-${genre}-stremio`||(await publicApis[genre].pinMain()).sha!==heads.public[genre])fail('stale_input');
+  for(const genre of GENRES)if(publicApis[genre]?.repository!==`Lewdcifer666/wtf-${genre}-stremio`||(snapshot?.public[genre]??(await publicApis[genre].pinMain()).sha)!==heads.public[genre])fail('stale_input');
  const branch=`research/${request.research_date}-${request.genre}`,ref=await publicApis[request.genre].optional(`/git/ref/heads/${branch}`);
  if(operation==='verify'){
   if(ref?.ref!==`refs/heads/${branch}`||ref.object?.sha!==researchCommit)fail('stale_input');
@@ -177,7 +178,7 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   if(typeof text!=='string'||Buffer.byteLength(text)>16384)fail('invalid_task_call');
   let call;try{call=JSON.parse(text);}catch{fail('invalid_task_call');}
   validateWorkerCall(call);
-  const quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,quotaGate};
+  const quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,batchHeads:true,quotaGate};
   const api=new GitHub(PROOF_REPOSITORY,process.env.GH_TOKEN,{...options,writable:true}),publicApis=Object.fromEntries(GENRES.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,process.env.GH_TOKEN,options)]));
   const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
   const result=await executeResearchWorker({api,publicApis,trustedRevision:process.env.LEARNING_TRUSTED_SHA,proof,call,

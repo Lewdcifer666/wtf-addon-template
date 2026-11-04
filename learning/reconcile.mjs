@@ -139,10 +139,11 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
   }
   const assertCurrent=async()=>{
     await checkAccess();
-    const repo=await api.get('/');
+    const snapshot=api.batchHeads?await api.readCurrentHeads(publicApis):null;
+    const repo=snapshot?.metadata??await api.get('/');
     if(repo.private!==true||repo.full_name!==PRIVATE)fail('private_repository_required');
-    if((await api.pinMain()).sha!==base.sha)fail('stale_input');
-    for(const genre of GENRES)if((await publicApis[genre].pinMain()).sha!==profiles[genre].revision)fail('stale_input');
+    if((snapshot?.private??(await api.pinMain()).sha)!==base.sha)fail('stale_input');
+    for(const genre of GENRES)if((snapshot?.public[genre]??(await publicApis[genre].pinMain()).sha)!==profiles[genre].revision)fail('stale_input');
     await checkAccess();
   };
   if(consumeGenre!==null&&activation.research_learning_enabled!==true)fail('learning_inactive');
@@ -220,7 +221,7 @@ async function main(){
   const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
   if(head!==process.env.LEARNING_TRUSTED_SHA||!/^[a-f0-9]{40}$/.test(head))fail('trusted_checkout_required');
   if(execFileSync('git',['status','--porcelain','--untracked-files=no'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim())fail('trusted_checkout_modified');
-  const token=process.env.GH_TOKEN,quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,quotaGate},api=new GitHub(PRIVATE,token,{...options,writable:!dryRun});
+  const token=process.env.GH_TOKEN,quotaGate=createGitHubQuotaGate(),options={cacheImmutable:true,batchBlobs:true,batchHeads:true,quotaGate},api=new GitHub(PRIVATE,token,{...options,writable:!dryRun});
   if(probe){
     // Explicit metadata-only probe: no feedback/profile reads, Git writes,
     // interpretation or activation. The ephemeral statement is not persisted.

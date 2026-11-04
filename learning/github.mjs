@@ -2,16 +2,52 @@ import {LearningError} from './git-artifacts.mjs';
 import {createHash} from 'node:crypto';
 import {createGitHubQuotaGate,isGitHubQuotaGate} from './github-quota.mjs';
 const blobOid=bytes=>createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+const headGenres=['action','anime','fantasy','mystery','scifi','thriller'];
 export class GitHub {
-  constructor(repository,token,{writable=false,fetcher=fetch,cacheImmutable=false,cacheMaxEntries=2048,cacheMaxBytes=64*1024*1024,batchBlobs=false,quotaGate=createGitHubQuotaGate()}={}){
+  constructor(repository,token,{writable=false,fetcher=fetch,cacheImmutable=false,cacheMaxEntries=2048,cacheMaxBytes=64*1024*1024,batchBlobs=false,batchHeads=false,quotaGate=createGitHubQuotaGate()}={}){
     if(!/^Lewdcifer666\/wtf-(?:scifi-feedback|(?:action|anime|fantasy|mystery|scifi|thriller)-stremio)$/.test(repository))throw new LearningError('unexpected_repository');
     if(!token)throw new LearningError('missing_credentials');
     this.repository=repository;this.token=token;this.writable=writable;this.fetcher=fetcher;
-    if(typeof batchBlobs!=='boolean'||!isGitHubQuotaGate(quotaGate))throw new LearningError('invalid_api_cache');
-    this.batchBlobs=batchBlobs;this.quotaGate=quotaGate;
+    if(typeof batchBlobs!=='boolean'||typeof batchHeads!=='boolean'||!isGitHubQuotaGate(quotaGate))throw new LearningError('invalid_api_cache');
+    this.batchBlobs=batchBlobs;this.batchHeads=batchHeads;this.quotaGate=quotaGate;
     if(typeof cacheImmutable!=='boolean'||!Number.isInteger(cacheMaxEntries)||cacheMaxEntries<1||cacheMaxEntries>2048
       ||!Number.isInteger(cacheMaxBytes)||cacheMaxBytes<1||cacheMaxBytes>64*1024*1024)throw new LearningError('invalid_api_cache');
     this.immutableReads=cacheImmutable?{values:new Map(),pending:new Map(),bytes:0,maxEntries:cacheMaxEntries,maxBytes:cacheMaxBytes}:null;
+  }
+  // Trusted Actions opt in before any request. Each check reads ALL seven
+  // current heads and repository identities afresh; this is never a cache or
+  // a fallback after a failed/limited REST request. The PC stays GET-only.
+  async readCurrentHeads(publicApis){
+    const fail=()=>{throw new LearningError('invalid_source');};
+    if(!this.batchHeads||this.repository!=='Lewdcifer666/wtf-scifi-feedback'
+      ||Object.keys(publicApis??{}).sort().join()!==headGenres.join()
+      ||headGenres.some(g=>publicApis[g]?.repository!==`Lewdcifer666/wtf-${g}-stremio`
+        ||publicApis[g].token!==this.token||publicApis[g].quotaGate!==this.quotaGate))fail();
+    this.quotaGate.assertAllowed();
+    const repos=[this.repository,...headGenres.map(g=>publicApis[g].repository)];
+    const fields=repos.map((repo,i)=>`r${i}:repository(owner:"Lewdcifer666",name:"${repo.split('/')[1]}"){nameWithOwner isPrivate defaultBranchRef{name target{__typename oid}}}`);
+    const query=`query CurrentPrivateLearningHeads{${fields.join(' ')}}`;
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);let value;
+    try{
+      const response=await this.fetcher('https://api.github.com/graphql',{method:'POST',redirect:'manual',credentials:'omit',signal:controller.signal,
+        headers:{Authorization:`Bearer ${this.token}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({query})});
+      if(this.quotaGate.observe(response))this.quotaGate.reject();
+      if(!response.ok||response.redirected){const e=new LearningError('github_request_failed');e.status=response.status;throw e;}
+      let size=0;const chunks=[];
+      for await(const chunk of response.body??[]){size+=chunk.length;if(size>32768)fail();chunks.push(chunk);}
+      value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    }catch(error){if(error instanceof LearningError)throw error;throw new LearningError('transport_failure');}
+    finally{clearTimeout(timer);controller.abort();}
+    if(Array.isArray(value?.errors)&&value.errors.some(e=>e?.type==='RATE_LIMITED'))this.quotaGate.reject();
+    if(value?.errors||!value?.data||Object.keys(value.data).sort().join()!==repos.map((_,i)=>'r'+i).join())fail();
+    const heads=repos.map((repo,i)=>{
+      const r=value.data['r'+i],ref=r?.defaultBranchRef;
+      if(r?.nameWithOwner!==repo||r.isPrivate!==(i===0)||ref?.name!=='main'
+        ||ref.target?.__typename!=='Commit'||!/^[a-f0-9]{40}$/.test(ref.target?.oid??''))fail();
+      return ref.target.oid;
+    });
+    return {metadata:{full_name:this.repository,private:true,default_branch:'main'},private:heads[0],
+      public:Object.fromEntries(headGenres.map((g,i)=>[g,heads[i+1]]))};
   }
   async request(method,route,body){
     if(!route.startsWith('/')||route.includes('://'))throw new LearningError('invalid_api_route');
