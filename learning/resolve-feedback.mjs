@@ -1,7 +1,7 @@
 // Pure graph resolver preserved from the audited Sci-Fi implementation.
 // Resolve the COMPLETE graph before identity, genre or retraction filtering.
 const SUPPORTED = new Set([1, 2, 3]);
-const CONTEXTS = new Set(['scifi', 'fantasy', 'action', 'anime', 'thriller', null]);
+const CONTEXTS = new Set(['scifi', 'fantasy', 'action', 'anime', 'thriller', 'mystery', null]);
 const goodId = x => typeof x === 'string' && /^tt\d+$/.test(x);
 const obj = x => x && typeof x === 'object' && !Array.isArray(x);
 function identity(e){ return goodId(e?.imdb_id)?`imdb:${e.imdb_id}`:typeof e?.source_id==="string"&&e.source_id?`source:${e.source_id}`:null; }

@@ -17,12 +17,14 @@ function artifactNames(branch,files){
   const interpretation=/^learning\/interpretation-result-[a-f0-9]{64}$/.test(branch);
   const interpretationPart=/^learning\/interpretation-part-[a-f0-9]{40}-[a-f0-9]{64}-\d{2}$/.test(branch);
   const interpretationPrepared=/^learning\/interpretation-prepared-[a-f0-9]{40}$/.test(branch);
-  if(!worker&&!interpretation&&!interpretationPart&&!interpretationPrepared&&!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance|session)-[a-f0-9]{64}|(?:search|task-intent)-[a-f0-9]{64}-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
+  const dailySearch=/^learning\/daily-search-20\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])-(?:action|anime|fantasy|mystery|scifi|thriller)$/.test(branch);
+  if(!worker&&!interpretation&&!interpretationPart&&!interpretationPrepared&&!dailySearch&&!/^learning\/(?:(?:request|receipt|failure|handoff|observation|issuance|session)-[a-f0-9]{64}|(?:search|task-intent)-[a-f0-9]{64}-[a-f0-9]{64}|queue-20\d\d-(?:0[1-9]|1[0-2])-[a-f0-9]{64}|observation-index-(?:(?:20\d\d-(?:0[1-9]|1[0-2])|legacy)-)?\d{10}-[a-f0-9]{64})$/.test(branch))throw new LearningError('unsafe_artifact_branch');
   const names=Object.keys(files).sort();
   if(worker&&(names.length!==1||names[0]!==(/^learning\/task-result-/.test(branch)?'task-result.json':'task-ticket.json')))throw new LearningError('unsafe_artifact_path');
   if(interpretation&&(names.length!==1||names[0]!=='interpretation-result.json'))throw new LearningError('unsafe_artifact_path');
   if(interpretationPart&&(names.length!==1||names[0]!=='interpretation-part.json'))throw new LearningError('unsafe_artifact_path');
   if(interpretationPrepared&&(names.length!==1||names[0]!=='interpretation-prepared.json'))throw new LearningError('unsafe_artifact_path');
+  if(dailySearch&&(names.length!==1||names[0]!=='intent.json'))throw new LearningError('unsafe_artifact_path');
   if(!names.length||names.some(name=>!name.endsWith('.json')||!/^[a-z0-9/-]+\.json$/.test(name)||name.includes('..')))throw new LearningError('unsafe_artifact_path');
   return names;
 }

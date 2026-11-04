@@ -41,6 +41,7 @@ permissions:
   contents: read
 concurrency:
   group: private-learning-reconciliation
+  queue: max
   cancel-in-progress: false
 jobs:
   reconcile:

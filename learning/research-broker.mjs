@@ -6,6 +6,8 @@ import {GENRES} from './receipt.mjs';
 import {PROOF_REPOSITORY} from './observation-proof.mjs';
 import {validateWorkerCall,workerRequestHash,readWorkerRecord,assertWorkerHeads} from './research-worker.mjs';
 import {brokerCallFamily} from './broker-request-store.mjs';
+import {berlinResearchDate} from './handoff.mjs';
+import {assertPrivateTaskDeadline,privateTaskDelay,withPrivateTaskDeadline} from './task-deadline.mjs';
 const fail=code=>{throw new LearningError(code);};
 
 export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker,clock=()=>new Date(),taskAccessAllowed=async()=>false,
@@ -14,11 +16,14 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
  let queue=Promise.resolve(),cursor=0;
  async function run(input,{submit=true}={}){
   const call=validateWorkerCall(input);
+  assertPrivateTaskDeadline();
   if(typeof taskAccessAllowed!=='function'||await taskAccessAllowed()!==true)fail('private_task_access_held');
+  if(call.operation==='open'&&call.request.research_date!==berlinResearchDate(clock()))fail('stale_input');
   if(!store||typeof store.reserve!=='function'||typeof store.pending!=='function'||typeof store.reserveDispatch!=='function'
    ||typeof store.complete!=='function'||typeof store.completed!=='function'||typeof dispatchWorker!=='function'||api?.writable!==false)fail('private_task_access_held');
   const metadata=await api.get('/'),base=await api.pinMain();
   if(api.repository!==PROOF_REPOSITORY||metadata.full_name!==PROOF_REPOSITORY||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
+  if(call.operation==='open'&&call.request.private_revision!==base.sha)fail('stale_input');
   let ticket,request;
   if(call.operation==='open')request=call.request;
   else{
@@ -39,6 +44,7 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
    await assertCurrent(heads);
   }
   // Reserve before dispatch. A changed query cannot borrow the same search ID.
+  assertPrivateTaskDeadline();
   const saved=await store.reserve(call),requestHash=workerRequestHash(call);
   if(saved.request_hash!==requestHash||stableJson(saved.call)!==stableJson(call))fail('task_request_conflict');
   const result=await readWorkerRecord({api,base,proof,kind:'result',branch:`learning/task-result-${requestHash}`});
@@ -61,28 +67,34 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
  const serialized=fn=>{const next=queue.then(fn);queue=next.catch(()=>{});return next;};
  return Object.freeze({
   persistsTaskBookkeeping:true,
-  dispatch(input){const snapshot=validateWorkerCall(input);return serialized(async()=>{
+  dispatch(input){const snapshot=validateWorkerCall(input);return withPrivateTaskDeadline(()=>serialized(async()=>{
+   assertPrivateTaskDeadline();
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
    // Read back the current outstanding result before submitting another job.
    // This never repeats a provider call or trusts the local completion hint.
-   const first=(await store.pending()).find(entry=>brokerCallFamily(entry.call)==='research');
+   const first=(await store.pending()).find(entry=>brokerCallFamily(entry.call)==='research'
+    &&(entry.call.operation!=='open'||entry.call.request.research_date===berlinResearchDate(clock())));
    if(first&&first.request_hash!==workerRequestHash(snapshot))try{await run(first.call,{submit:false});}catch{}
    try{return await run(snapshot);}catch(error){
     if(error.code!=='private_task_pending'||!resultWaitMs)throw error;
     const deadline=monotonic()+resultWaitMs;
     for(let reads=0;reads<6&&monotonic()<deadline;reads++){
-     await sleep(Math.min(10000,deadline-monotonic()));
+     assertPrivateTaskDeadline();
+     await privateTaskDelay(Math.min(10000,deadline-monotonic()),sleep);
+     assertPrivateTaskDeadline();
      // Read the ORIGINAL sealed result only. Never reserve another dispatch,
      // invoke a provider, change identity, or catch quota/hold/proof failures.
      try{return await run(snapshot,{submit:false});}catch(next){if(next.code!=='private_task_pending')throw next;}
     }
     throw error;
    }
-  });},
-  reconcilePending({limit=1}={}){return serialized(async()=>{
+  }));},
+  reconcilePending({limit=1}={}){return withPrivateTaskDeadline(()=>serialized(async()=>{
+   assertPrivateTaskDeadline();
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
    if(!Number.isInteger(limit)||limit<1||limit>20)fail('invalid_task_call');
-   const entries=(await store.pending()).filter(entry=>brokerCallFamily(entry.call)==='research'),counts={completed:0,pending:0,unresolved:0};
+   const entries=(await store.pending()).filter(entry=>brokerCallFamily(entry.call)==='research'
+    &&(entry.call.operation!=='open'||entry.call.request.research_date===berlinResearchDate(clock()))),counts={completed:0,pending:0,unresolved:0};
    // Requests remain persisted after every result/error, including old policy.
    const batch=entries.length?Array.from({length:Math.min(limit,entries.length)},(_,i)=>entries[(cursor+i)%entries.length]):[];
    cursor=entries.length?(cursor+batch.length)%entries.length:0;
@@ -91,6 +103,6 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
     catch(error){if(error.code==='private_task_pending')counts.pending++;else counts.unresolved++;}
    }
    return counts;
-  });}
+  }));}
  });
 }

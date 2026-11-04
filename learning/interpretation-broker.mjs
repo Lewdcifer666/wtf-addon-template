@@ -6,6 +6,7 @@ import {validateInterpretationWorkerCall,interpretationWorkerHash,readInterpreta
 import {brokerCallFamily} from './broker-request-store.mjs';
 import {interpretationTransportPlan,interpretationWireHash,readInterpretationPart,interpretationPartBranch} from './interpretation-transport.mjs';
 import {readPrivateInterpretationStatus} from './interpretation-readiness.mjs';
+import {assertPrivateTaskDeadline,withPrivateTaskDeadline} from './task-deadline.mjs';
 const fail=code=>{throw new LearningError(code);};
 const isRoot=entry=>brokerCallFamily(entry.call)==='interpretation'&&!['part','assemble'].includes(entry.call.operation);
 
@@ -13,7 +14,7 @@ export function createInterpretationBrokerAdapter({api,proof,store,dispatchWorke
  let queue=Promise.resolve(),cursor=0;const verifiedParts=new Map();
  const allowed=async()=>{if(typeof interpretationAccessAllowed!=='function'||await interpretationAccessAllowed()!==true)fail('private_interpretation_access_held');};
  async function run(input,{submit=true}={}){
-  const call=validateInterpretationWorkerCall(input);await allowed();
+  const call=validateInterpretationWorkerCall(input);assertPrivateTaskDeadline();await allowed();
   if(api?.writable!==false||!store||['reserve','pending','reserveDispatch','complete','completed'].some(key=>typeof store[key]!=='function')
    ||typeof dispatchWorker!=='function')fail('private_interpretation_access_held');
   const assertCurrent=async()=>{
@@ -69,22 +70,30 @@ export function createInterpretationBrokerAdapter({api,proof,store,dispatchWorke
   persistsTaskBookkeeping:true,
   status(input={}){
    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length)fail('invalid_interpretation_task_call');
-   return serialized(()=>readPrivateInterpretationStatus({api,proof,interpretationAccessAllowed}));
+   return withPrivateTaskDeadline(()=>serialized(()=>{assertPrivateTaskDeadline();return readPrivateInterpretationStatus({api,proof,interpretationAccessAllowed});}),{code:'private_interpretation_pending'});
   },
-  dispatch(input){const snapshot=validateInterpretationWorkerCall(input);return serialized(async()=>{
+  dispatch(input){const snapshot=validateInterpretationWorkerCall(input);return withPrivateTaskDeadline(()=>serialized(async()=>{
+   assertPrivateTaskDeadline();
    await allowed();
    const first=(await store.pending()).find(isRoot);
    if(first&&first.request_hash!==interpretationWorkerHash(snapshot))try{await run(first.call,{submit:false});}catch{}
    return run(snapshot);
-  });},
-  reconcilePending({limit=1}={}){return serialized(async()=>{
+  }),{code:'private_interpretation_pending'});},
+  reconcilePending({limit=1}={}){return withPrivateTaskDeadline(()=>serialized(async()=>{
+   assertPrivateTaskDeadline();
    await allowed();if(!Number.isInteger(limit)||limit<1||limit>20)fail('invalid_interpretation_task_call');
-   const entries=(await store.pending()).filter(isRoot),counts={completed:0,pending:0,unresolved:0};
+   let entries=(await store.pending()).filter(isRoot);const counts={completed:0,pending:0,unresolved:0};
+   if(!entries.length)return counts;
+   // Retain old requests, but do not repeatedly authenticate full stale graphs.
+   // This fresh metadata/ref read is classification only, never acceptance.
+   const metadata=await api.get('/'),base=await api.pinMain();
+   if(api.repository!==PROOF_REPOSITORY||metadata?.full_name!==PROOF_REPOSITORY||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
+   entries=entries.filter(entry=>entry.call.request.source_revision===base.sha);
    const batch=entries.length?Array.from({length:Math.min(limit,entries.length)},(_,i)=>entries[(cursor+i)%entries.length]):[];
    cursor=entries.length?(cursor+batch.length)%entries.length:0;
    for(const entry of batch){try{await run(entry.call);counts.completed++;}
     catch(error){if(error.code==='private_interpretation_pending')counts.pending++;else counts.unresolved++;}}
    return counts;
-  });}
+  }),{code:'private_interpretation_pending'});}
  });
 }

@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import Ajv from 'ajv';
 import {GitHub} from './github.mjs';
 import {createGitHubQuotaGate} from './github-quota.mjs';
+import {githubErrorSummary} from './github-diagnostics.mjs';
 import {digest,stableJson} from './interpretation.mjs';
 import {GENRES} from './receipt.mjs';
 import {berlinResearchDate} from './handoff.mjs';
@@ -130,7 +131,7 @@ export async function executeResearchWorker({api,publicApis,trustedRevision,proo
    search_adapter_invocations_observed:verified.search_adapter_invocations_observed,actual_context_use_verified:false,behavioral_effect_observed:false};
   heads=ticket.body.source_heads;sessionId=session.session_id;
  }else{
-  const adapter=createPrivateResearchTaskAdapter({api,publicApis,trustedRevision,proof,clock,searchProvider,taskAccessAllowed});
+  const adapter=createPrivateResearchTaskAdapter({api,publicApis,trustedRevision,proof,clock,searchProvider,taskAccessAllowed,genericDailySearch:true});
   const opened=await adapter.dispatch({schema_version:1,operation:'open',request});
   heads=opened.response.source_heads;sessionId=opened.response.session_id;
   await assertCurrent(heads);
@@ -185,5 +186,5 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
    searchProvider:createPublicSearchProvider(),taskAccessAllowed:async()=>true});
   // No query, context, task token, feedback, proof or result in Actions logs.
   console.log(JSON.stringify({state:result.state,reused:result.reused}));
- }).catch(error=>{console.error(JSON.stringify({state:'pending',code:privateTaskErrorCode(error)}));process.exitCode=1;});
+ }).catch(error=>{console.error(JSON.stringify({state:'pending',code:privateTaskErrorCode(error),...githubErrorSummary(error)}));process.exitCode=1;});
 }

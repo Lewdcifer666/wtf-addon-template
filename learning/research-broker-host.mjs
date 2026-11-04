@@ -46,15 +46,20 @@ export async function startResearchBrokerHost({configFile,port=0,env=process.env
  const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken,quotaGate}),taskAccessAllowed:allowed,resultWaitMs:30000}):undefined;
  const interpretationBroker=config.interpretation_access_enabled===true?createInterpretationBrokerAdapter({api,proof,store,dispatchWorker:createInterpretationWorkerDispatch({getToken,quotaGate}),interpretationAccessAllowed:interpretationAllowed}):undefined;
  const host=await startLocalResearchMcpHost({access:config.access,adapter:broker,interpretationAdapter:interpretationBroker,port});
- let reconciling=false;
+ let reconciling=false,stopping=false,closed;
  const timer=setInterval(()=>{
-  if(reconciling)return;reconciling=true;
+  if(reconciling||stopping)return;reconciling=true;
   void (async()=>{
    if(broker&&await allowed())await broker.reconcilePending();
    if(interpretationBroker&&await interpretationAllowed())await interpretationBroker.reconcilePending();
   })().catch(()=>{console.error('private-broker: reconciliation_pending');}).finally(()=>{reconciling=false;});
  },30000);timer.unref();
- return Object.freeze({...host,close:async()=>{clearInterval(timer);await host.close();}});
+ // Stop admitting work 90 seconds before the independent container deadline.
+ // A request's 22-second budget fits inside this bounded drain; no public
+ // control endpoint or additional container/network capability is introduced.
+ const close=()=>closed??=(async()=>{stopping=true;clearInterval(timer);clearTimeout(rollover);await host.drain();await host.close();})();
+ const rollover=setTimeout(()=>{void close().catch(()=>{});},1710000);rollover.unref();
+ return Object.freeze({...host,close});
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const args=process.argv.slice(2);

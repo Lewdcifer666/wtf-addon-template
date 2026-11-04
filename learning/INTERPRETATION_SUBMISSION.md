@@ -152,9 +152,8 @@ drafts stay immutable and cannot be overwritten with a corrected packet. A norma
 scheduled task evaluates the current complete source and policy; it must not
 force a retry of a previously rejected or ambiguous operation.
 
-This code does not update the installed held image, connect saved ChatGPT tasks,
-mount the App key/journal, broaden network access or enable a worker. The contained
-runtime policy/packaging and actual saved-task consumption still require review
-before cutover. Existing holds and denied operations stay held. Completion
-requires explicitly authorized recomputation and genuine new feedback affecting
-subsequent research, including correction and retraction.
+Changing this source does not itself update an installed image, task or access
+grant. The operator must deploy the exact reviewed revision within existing
+grants, preserve held operations and verify genuine normal task consumption.
+[CURRENT_OPERATION.md](CURRENT_OPERATION.md) defines the current engineering
+contract; the private checkpoint records actual deployment and acceptance.

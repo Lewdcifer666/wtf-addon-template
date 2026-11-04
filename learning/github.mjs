@@ -1,6 +1,7 @@
 import {LearningError} from './git-artifacts.mjs';
 import {createHash} from 'node:crypto';
 import {createGitHubQuotaGate,isGitHubQuotaGate} from './github-quota.mjs';
+import {githubHttpSummary,attachGitHubSummary} from './github-diagnostics.mjs';
 const blobOid=bytes=>createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 const headGenres=['action','anime','fantasy','mystery','scifi','thriller'];
 export class GitHub {
@@ -31,8 +32,8 @@ export class GitHub {
     try{
       const response=await this.fetcher('https://api.github.com/graphql',{method:'POST',redirect:'manual',credentials:'omit',signal:controller.signal,
         headers:{Authorization:`Bearer ${this.token}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({query})});
-      if(this.quotaGate.observe(response))this.quotaGate.reject();
-      if(!response.ok||response.redirected){const e=new LearningError('github_request_failed');e.status=response.status;throw e;}
+      if(this.quotaGate.observe(response,'current_heads'))this.quotaGate.reject();
+      if(!response.ok||response.redirected){const e=new LearningError('github_request_failed');e.status=response.status;throw attachGitHubSummary(e,githubHttpSummary(response,'current_heads'));}
       let size=0;const chunks=[];
       for await(const chunk of response.body??[]){size+=chunk.length;if(size>32768)fail();chunks.push(chunk);}
       value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -57,13 +58,13 @@ export class GitHub {
       let response;
       try{response=await this.fetcher(`https://api.github.com/repos/${this.repository}${route==='/'?'':route}`,{method,headers:{Authorization:`Bearer ${this.token}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});}
       catch{throw new LearningError('transport_failure');}
-      if(this.quotaGate.observe(response))this.quotaGate.reject();
+      if(this.quotaGate.observe(response,method==='GET'?'rest_read':'git_write'))this.quotaGate.reject();
       if(response.ok){
         try{return await response.json();}
         catch(error){throw new LearningError(error instanceof SyntaxError?'github_request_failed':'transport_failure');}
       }
       if(method==='GET'&&response.status>=500&&attempt<2){await new Promise(resolve=>setTimeout(resolve,1000*(attempt+1)));continue;}
-      const error=new LearningError('github_request_failed');error.status=response.status;throw error;
+      const error=new LearningError('github_request_failed');error.status=response.status;throw attachGitHubSummary(error,githubHttpSummary(response,method==='GET'?'rest_read':'git_write'));
     }
   }
   rememberImmutable(route,result){
@@ -107,8 +108,8 @@ export class GitHub {
       const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);let value;
       try{
         const response=await this.fetcher('https://api.github.com/graphql',{method:'POST',redirect:'manual',credentials:'omit',signal:controller.signal,headers:{Authorization:`Bearer ${this.token}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({query,variables})});
-        if(this.quotaGate.observe(response))this.quotaGate.reject();
-        if(!response.ok||response.redirected){const error=new LearningError('github_request_failed');error.status=response.status;throw error;}
+        if(this.quotaGate.observe(response,'immutable_blobs'))this.quotaGate.reject();
+        if(!response.ok||response.redirected){const error=new LearningError('github_request_failed');error.status=response.status;throw attachGitHubSummary(error,githubHttpSummary(response,'immutable_blobs'));}
         let size=0;const chunks=[];
         for await(const chunk of response.body??[]){size+=chunk.length;if(size>4*1024*1024)fail();chunks.push(chunk);}
         value=JSON.parse(Buffer.concat(chunks).toString('utf8'));

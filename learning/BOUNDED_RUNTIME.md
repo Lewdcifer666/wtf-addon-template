@@ -195,6 +195,12 @@ Rollback disables the PC access and GitHub worker gates, stops the broker and
 gateway, preserves private requests and sealed artifacts, and repairs source
 through a validated PR. Never reset main, overwrite immutable history, weaken
 protection, or restore direct-to-main automation.
+# Current contract
+
+[CURRENT_OPERATION.md](CURRENT_OPERATION.md) supersedes the earlier implementation
+milestones above where they describe a component as not yet implemented. It does
+not claim deployment or acceptance; use the private migration checkpoint for that.
+
 # Local supervisor recovery
 
 The existing lease owner retries bounded Docker invocation failures during

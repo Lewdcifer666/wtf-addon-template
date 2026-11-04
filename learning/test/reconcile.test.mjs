@@ -519,7 +519,9 @@ test('closed session requests reject arbitrary revisions, invalid dates, caller 
 
 const taskCall=(operation,request)=>({schema_version:1,operation,request});
 const taskSearch=(context,request_id='search-1',query='science mystery public reviews')=>taskCall('search',{
- task_token:context.task_token,request_id,query,preference_indexes:[0]});
+ task_token:context.task_token,...(context.search_policy&&request_id==='search-1'&&query==='science mystery public reviews'
+  ?{request_id:context.search_policy.request_id,query:context.search_policy.query,preference_indexes:context.search_policy.preference_indexes}
+  :{request_id,query,preference_indexes:[0]})});
 
 test('task adapter defaults to held before repository reads, and active host access cannot override inactive policy',async()=>{
  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s),writes=s.privateRepo.writes.length;
@@ -1266,20 +1268,19 @@ test('bounded worker persists a stable external ticket and reuses complete resul
 });
 
 test('keyless provider is wired through the trusted worker, signed intent and recovered search result',async()=>{
- for(const query of ['science mystery public reviews','science\nmystery\tpublic reviews']){
  const s=await activeScenario();await reconcile(s.args);const open=taskCall('open',await sessionRequest(s));let calls=0;
+ let expectedQuery;
  const options={...s.args,taskAccessAllowed:async()=>true,searchProvider:createPublicSearchProvider({fetcher:async(url)=>{
-  calls++;assert.equal(new URL(url).hostname,'en.wikipedia.org');assert.equal(new URL(url).searchParams.get('srsearch'),query);
+  calls++;assert.equal(new URL(url).hostname,'en.wikipedia.org');assert.equal(new URL(url).searchParams.get('srsearch'),expectedQuery);
   return new Response(JSON.stringify({batchcomplete:true,query:{search:[{pageid:1,ns:0,title:'Synthetic review'}]}}),{headers:{'content-type':'application/json'}});
  }})};
- await executeResearchWorker({...options,call:open});const context=(await workerRead(s,open)).body.result,call=taskSearch(context,'search-1',query);
+ await executeResearchWorker({...options,call:open});const context=(await workerRead(s,open)).body.result,call=taskSearch(context);expectedQuery=context.search_policy.query;
  await executeResearchWorker({...options,call});const result=(await workerRead(s,call)).body.result;
  assert.equal(result.sources[0].url,'https://en.wikipedia.org/?curid=1');assert.equal(calls,1);
  const writes=s.privateRepo.writes.length;await executeResearchWorker({...options,call});
  assert.equal(calls,1);assert.equal(s.privateRepo.writes.length,writes);
- const changed=taskSearch(context,'search-1','changed query');await assert.rejects(executeResearchWorker({...options,call:changed}),/task_request_conflict/);
+ const changed={...call,request:{...call.request,query:'changed query'}};await assert.rejects(executeResearchWorker({...options,call:changed}),/invalid_search_request/);
  assert.equal(calls,1);
- }
 });
 
 test('worker recovery after result persistence failure never repeats an already observed search',async()=>{
@@ -1301,7 +1302,8 @@ test('interrupted provider outcomes stay pending under the original identity aft
  const open=taskCall('open',await sessionRequest(s));await executeResearchWorker({...options,call:open});
  const context=(await workerRead(s,open)).body.result,call=taskSearch(context);
  await assert.rejects(executeResearchWorker({...options,call}),/research_search_failed/);
- for(const candidate of [call,taskSearch(context,'alternate-request')])await assert.rejects(executeResearchWorker({...options,call:candidate}),/task_search_unresolved/);
+ await assert.rejects(executeResearchWorker({...options,call}),/task_search_unresolved/);
+ await assert.rejects(executeResearchWorker({...options,call:taskSearch(context,'alternate-request')}),/daily_search_limit/);
  assert.equal(calls,1);assert.equal(await workerRead(s,call),null);
 });
 
@@ -1440,7 +1442,7 @@ test('PC restart recovers the stable task ticket and persisted dispatch instead 
   const replacement=createResearchBrokerAdapter({...f.options,store:f.store()});
   const recovered=await replacement.dispatch(call);assert.equal(recovered.kind,'private_task_search_result');
   assert.equal(searches,1);assert.equal(f.dispatches(),2);
-  await assert.rejects(replacement.dispatch(taskSearch(context,'search-1','changed query')),/task_request_conflict/);
+  await assert.rejects(replacement.dispatch({...call,request:{...call.request,query:'changed query'}}),/task_request_conflict/);
   f.setAccess(false);await assert.rejects(replacement.dispatch(call),/private_task_access_held/);assert.equal(searches,1);
  }finally{f.close();}
 });
@@ -1969,4 +1971,23 @@ test('result waiting is bounded and stops on quota or revoked access without ano
    assert.equal(dispatches,1);assert.equal(waits,change==='timeout'?6:1);f.options.api.get=get;
   }finally{f.close();}
  }
+});
+
+test('production generic search policy enforces one original daily reservation and never sends caller private text',async()=>{
+ const s=await activeScenario();await reconcile(s.args);let calls=0,observedQuery;
+ const options={...s.args,genericDailySearch:true,taskAccessAllowed:async()=>true,searchProvider:{id:'synthetic-generic',async search(query){calls++;observedQuery=query;return {request_id:null,sources:[]};}}};
+ const adapter=createPrivateResearchTaskAdapter(options),context=await adapter.dispatch(taskCall('open',await sessionRequest(s)));
+ assert.equal(context.search_policy.maximum_searches,1);const request=taskSearch(context),before=s.privateRepo.writes.length;
+ await assert.rejects(adapter.dispatch({...request,request:{...request.request,query:'PRIVATE_SENTINEL caller text'}}),/invalid_search_request/);
+ await assert.rejects(adapter.dispatch({...request,request:{...request.request,request_id:'second-search'}}),/daily_search_limit/);
+ assert.equal(s.privateRepo.writes.length,before);assert.equal(calls,0);
+ await adapter.dispatch(request);assert.equal(calls,1);assert.equal(observedQuery,context.search_policy.query);assert(!observedQuery.includes('PRIVATE_SENTINEL'));
+ const budget='refs/heads/learning/daily-search-2026-10-12-scifi';assert(s.privateRepo.refs.get(budget));
+ const second=createPrivateResearchTaskAdapter(options),reopened=await second.dispatch(taskCall('open',await sessionRequest(s)));
+ await second.dispatch(taskSearch(reopened));assert.equal(calls,1);
+ // Different current public state creates a different session but cannot
+ // borrow another provider invocation for the same genre/date.
+ s.publicRepos.scifi.branch('main',{'data/rejections.json':stableJson({items:[{title:'synthetic changed public policy'}]})});
+ await reconcile(s.args);const third=createPrivateResearchTaskAdapter(options),fresh=await third.dispatch(taskCall('open',await sessionRequest(s)));
+ await assert.rejects(third.dispatch(taskSearch(fresh)),/daily_search_limit/);assert.equal(calls,1);
 });

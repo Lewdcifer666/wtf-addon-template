@@ -79,7 +79,7 @@ export async function readSealedSessionRecord({api,base,branch,name,proof,assert
  const graph=await readImmutable(api,{base,branch,files:{[name]:stableJson(record)}});
  if(graph?.commit!==raw.commit.sha)fail();
  await assertCurrent();
- return {commit:raw.commit.sha,branch,body:record.body};
+ return {commit:raw.commit.sha,branch,body:record.body,proof:record.proof};
 }
 
 export async function loadSessionSearchRefs(api,session_id){

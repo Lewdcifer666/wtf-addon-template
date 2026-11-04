@@ -9,6 +9,8 @@ import {openResearchSession,privateResearchSessionResponse,recheckResearchSessio
  observeResearchSessionSearch,verifyResearchSessionCommit,restoreResearchSessionSearches} from './research-session.mjs';
 import {persistResearchSessionContext,persistResearchSessionSearch,
  persistResearchSessionTaskIntent,readResearchSessionTaskIntent} from './session-journal-writer.mjs';
+import {reserveDailyResearchSearch} from './session-journal-writer.mjs';
+import {dailySearchPolicy,assertDailySearchRequest} from './daily-search-policy.mjs';
 import {loadSessionSearchRefs} from './session-journal.mjs';
 
 const token={type:'string',pattern:'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'};
@@ -28,7 +30,7 @@ const recoverable=error=>error?.code==='github_request_failed'&&[408,429,500,502
  ||['transport_failure','github_rate_limited','proof_key_unavailable','proof_transport_failure'].includes(error?.code);
 const publicErrors=new Set(['invalid_task_call','private_task_access_held','private_task_pending','invalid_task_journal','invalid_task_record','private_app_credentials_required','task_session_limit','unknown_task_session',
  'task_request_conflict','task_search_unresolved','learning_inactive','interpretation_not_staged','invalid_interpretation_record','invalid_consumer_request','invalid_handoff',
- 'stale_input','research_already_staged','private_repository_required','invalid_search_request','search_provider_unavailable',
+ 'stale_input','research_already_staged','private_repository_required','invalid_search_request','daily_search_limit','search_provider_unavailable',
  'research_search_failed','invalid_search_result','session_journal_limit','session_context_not_persisted',
  'github_request_failed','github_rate_limited','transport_failure','proof_credentials_required','proof_key_unavailable','proof_transport_failure',
  'invalid_session_journal','invalid_observation_proof','immutable_artifact_mismatch','invalid_signed_artifact']);
@@ -41,8 +43,9 @@ export const privateTaskErrorCode=error=>safeError(error).code;
 // activation policy is later enabled. One process queues all calls; existing
 // workflow-wide non-canceling concurrency remains the outer writer boundary.
 export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision,clock,proof,searchProvider=null,
- taskAccessAllowed=async()=>false}){
+ taskAccessAllowed=async()=>false,genericDailySearch=false}){
  if(typeof taskAccessAllowed!=='function')fail('private_task_access_held');
+ if(typeof genericDailySearch!=='boolean')fail('invalid_task_call');
  const sessions=new Map(),requests=new Map();let queue=Promise.resolve();
  const authority={api,publicApis,trustedRevision,clock,proof,searchProvider};
  const writeContext=async entry=>{
@@ -80,7 +83,7 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
   if(entry.blocked)throw entry.blocked;return entry;
  };
  const contextResponse=(entry,response)=>({schema_version:1,kind:'private_task_context',task_token:entry.token,
-  context_commit:entry.context.commit,response,actual_context_use_verified:false,behavioral_effect_observed:false});
+  context_commit:entry.context.commit,response,...(genericDailySearch?{search_policy:dailySearchPolicy(response.context)}:{}),actual_context_use_verified:false,behavioral_effect_observed:false});
  async function dispatch({operation,request}){
   if(await taskAccessAllowed()!==true)fail('private_task_access_held');
   if(operation==='open'){
@@ -104,6 +107,7 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
     actual_context_use_verified:false,behavioral_effect_observed:false};
   }
   await recheckResearchSession(entry.session);
+  if(genericDailySearch)assertDailySearchRequest(request,dailySearchPolicy((await privateResearchSessionResponse(entry.session)).context));
   if(entry.unresolvedIntents)fail('task_search_unresolved');
   const signature=stableJson({query:request.query,preference_indexes:[...request.preference_indexes].sort((a,b)=>a-b)});
   let search=entry.searches.get(request.request_id);
@@ -121,6 +125,7 @@ export function createPrivateResearchTaskAdapter({api,publicApis,trustedRevision
     const intent=await persistResearchSessionTaskIntent({api,session:entry.session,proof,nonce:search.nonce,
      request:{request_id:request.request_id,query:request.query,preference_indexes:[...request.preference_indexes].sort((a,b)=>a-b)}});
     if(!intent.owned)fail('task_search_unresolved');
+    if(genericDailySearch)await reserveDailyResearchSearch({api,session:entry.session,proof,intent});
    }catch(error){
     if(error.code==='task_search_unresolved'){
      entry.unresolvedIntents=true;entry.searches.delete(request.request_id);

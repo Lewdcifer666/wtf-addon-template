@@ -2,6 +2,7 @@ import {LearningError} from './git-artifacts.mjs';
 import {stableJson} from './interpretation.mjs';
 import {validateWorkerCall} from './research-worker.mjs';
 import {createGitHubQuotaGate,isGitHubQuotaGate} from './github-quota.mjs';
+import {assertPrivateTaskDeadline,linkPrivateTaskDeadline} from './task-deadline.mjs';
 // Separate capability: one private main workflow dispatch, never a Git write,
 // caller-selected repository/ref/URL/workflow or arbitrary signing request.
 export function createResearchWorkerDispatch({token,getToken,fetcher=fetch,timeoutMs=10000,quotaGate=createGitHubQuotaGate()}={}){
@@ -9,12 +10,14 @@ export function createResearchWorkerDispatch({token,getToken,fetcher=fetch,timeo
  if((getToken!==undefined&&(typeof getToken!=='function'||token!==undefined))||getToken===undefined&&(typeof token!=='string'||!token.trim()||/[\r\n]/.test(token)||token.length>8192)||typeof fetcher!=='function'
   ||!Number.isInteger(timeoutMs)||timeoutMs<10||timeoutMs>20000)throw new LearningError('missing_credentials');
  return async input=>{
+  assertPrivateTaskDeadline();
   quotaGate.assertAllowed();
-  const call=validateWorkerCall(input),controller=new AbortController();let timer;
+  const call=validateWorkerCall(input),controller=new AbortController(),unlink=linkPrivateTaskDeadline(controller);let timer;
   const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new LearningError('private_task_pending'));},timeoutMs);});
   try{
    const operation=async()=>{
     const credential=getToken?await getToken():token;
+    assertPrivateTaskDeadline();
     if(controller.signal.aborted||typeof credential!=='string'||!credential.trim()||/[\r\n]/.test(credential)||credential.length>8192)throw new LearningError('private_task_pending');
     return fetcher('https://api.github.com/repos/Lewdcifer666/wtf-scifi-feedback/actions/workflows/learning-finalize.yml/dispatches',{
     method:'POST',redirect:'manual',credentials:'omit',signal:controller.signal,headers:{Authorization:'Bearer '+credential,
@@ -28,6 +31,6 @@ export function createResearchWorkerDispatch({token,getToken,fetcher=fetch,timeo
    if(response.status!==204||response.redirected)throw new LearningError('private_task_pending');
    await response.body?.cancel();return {accepted:true};
   }catch(error){if(error?.code==='github_rate_limited')throw error;throw new LearningError('private_task_pending');}
-  finally{clearTimeout(timer);controller.abort();}
+  finally{clearTimeout(timer);unlink();controller.abort();}
  };
 }

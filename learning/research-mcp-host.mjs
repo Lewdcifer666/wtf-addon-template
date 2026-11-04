@@ -15,7 +15,7 @@ import {interpretationOutputSchema} from './interpretation-task.mjs';
 const descriptions={
  open:'Open current private learning context and persist its private provenance. Requires an authorized active deployment. Never use for a held operation.',
  context:'Read current private context using this authenticated service session. Keep its response private.',
- search:'Run a public-source search through the configured provider and persist private evidence. Reuse the same request ID for unchanged retries; stop on a hold or denial.',
+ search:'Run the one daily generic public search using exactly the returned search_policy request_id, query and preference_indexes. Never invent or alter that binding. Unchanged pending read-backs keep the original identity; holds, denials and ambiguous provider outcomes stop.',
  verify:'Verify this session against an already staged public research commit. Does not stage, publish or claim a learning effect.'
 };
 const transportHealth=()=>({schema_version:1,transport:'ready',learning_activation:'not_asserted',publication_capability:false});
@@ -93,6 +93,7 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
  const handler=createMcpHandler(()=>createResearchMcpServer(installedAdapter,{interpretationAdapter}),{legacy:'reject',responseMode:'auto',onerror:()=>{}});
  const accessAuth=access===undefined?null:createAccessAuthenticator(access);
  const expected=accessAuth?null:createHash('sha256').update('Bearer '+bearerToken).digest();
+ let draining=false,active=0;const drained=new Set();
  const authorized=async req=>{
   if(accessAuth){
    const assertions=req.rawHeaders.filter((_,index)=>index%2===0&&req.rawHeaders[index].toLowerCase()==='cf-access-jwt-assertion');
@@ -107,6 +108,7 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
   const localPort=req.socket.localPort;
   if(![`127.0.0.1:${localPort}`,`localhost:${localPort}`].includes(req.headers.host)||req.headers.origin){end(403,'private_host_origin_denied');return;}
   if(!await authorized(req)){end(401,'private_host_unauthorized');return;}
+  if(draining){end(503,'private_host_draining');return;}
   if(req.url==='/healthz'&&req.method==='GET'){
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(transportHealth()));return;
   }
@@ -114,6 +116,8 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
   if(req.method!=='POST'){end(405,'private_host_method_denied');return;}
   if(!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type']||'')||req.headers['content-encoding']){end(415,'private_host_content_type');return;}
   if(Number(req.headers['content-length'])>1024*1024){end(413,'private_host_request_limit');return;}
+  active++;let counted=true;const finished=()=>{if(!counted)return;counted=false;active--;res.off('finish',finished);res.off('close',finished);if(active===0)for(const notify of [...drained])notify();};
+  res.once('finish',finished);res.once('close',finished);
   res.setHeader('Cache-Control','no-store');
   let body,bytes=0;const chunks=[];
   try{
@@ -157,6 +161,11 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
  http.requestTimeout=30000;http.headersTimeout=10000;
  await new Promise((resolve,reject)=>{http.once('error',reject);http.listen({host:'127.0.0.1',port},resolve);});
  return Object.freeze({url:`http://127.0.0.1:${http.address().port}/mcp`,
+  drain:async({timeoutMs=25000}={})=>{
+   if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>25000)throw Error('invalid_private_host_drain');
+   draining=true;if(active===0)return;
+   await new Promise(resolve=>{let timer;const done=()=>{clearTimeout(timer);drained.delete(done);resolve();};drained.add(done);timer=setTimeout(done,timeoutMs);});
+  },
   close:async()=>{http.closeAllConnections();await handler.close();await new Promise((resolve,reject)=>http.close(error=>error?reject(error):resolve()));}});
 }
 

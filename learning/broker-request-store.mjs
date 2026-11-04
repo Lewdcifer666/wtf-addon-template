@@ -8,6 +8,7 @@ import {LearningError} from './git-artifacts.mjs';
 import {stableJson,digest} from './interpretation.mjs';
 import {validateWorkerCall,workerRequestHash} from './research-worker.mjs';
 import {validateInterpretationWireCall,interpretationWireHash} from './interpretation-transport.mjs';
+import {assertPrivateTaskDeadline} from './task-deadline.mjs';
 const fail=()=>{throw new LearningError('invalid_task_journal');};
 const hash=s=>/^[a-f0-9]{64}$/.test(s??'');
 export const brokerCallFamily=call=>['request','page','validate','submit','part','assemble'].includes(call?.operation)?'interpretation':'research';
@@ -82,6 +83,7 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
    return quotaDeadline();
   },
   async reserve(input){
+   assertPrivateTaskDeadline();
    const call=validateCall(input),name=identity(call)+'-request.json',value={schema_version:1,request_hash:brokerCallHash(call),call};
    once(name,value);const saved=requestAt(name);
    if(stableJson(saved)!==stableJson(value))throw new LearningError('task_request_conflict');
@@ -96,23 +98,29 @@ export function createBrokerRequestStore({directory,privateDirectoryVerified=fal
    }).sort((a,b)=>Number(attempts(b.request_hash).length>0)-Number(attempts(a.request_hash).length>0)||a.request_hash.localeCompare(b.request_hash));
   },
   async complete(key,commit){
+   assertPrivateTaskDeadline();
    if(!hash(key)||!/^[a-f0-9]{40}$/.test(commit??''))fail();
    const name=key+'-complete.json',value={schema_version:1,request_hash:key,result_commit:commit};once(name,value);
    if(stableJson(read(name))!==stableJson(value))fail();
   },
   async completed(key){return completion(key);},
   async reserveDispatch(key,now){
+   assertPrivateTaskDeadline();
    const old=attempts(key),time=Date.parse(now);
    if(!Number.isFinite(time)||new Date(time).toISOString()!==now)fail();
    // Five-minute job bound plus queue allowance; never loop in a task call.
    if(old.length>=3||(old.length&&time-Date.parse(old.at(-1).started_at)<10*60*1000))return false;
-   // One outstanding workflow dispatch across the private PC journal. GitHub
-   // concurrency has one pending slot and can otherwise cancel queued work.
+   // The workflow uses queue:max, retaining serial trusted execution. Admit at
+   // most eight outstanding dispatches per ten-minute window so independent
+   // tasks do not each wait ten minutes for the old replaceable pending slot.
+   // Same-request attempts and ambiguous-provider rules remain unchanged.
+   const outstanding=new Set();
    for(const name of fs.readdirSync(root).filter(n=>/^[a-f0-9]{64}-dispatch-[1-3]\.json$/.test(n))){
     const other=name.slice(0,64);if(other===key||completion(other))continue;
     const lease=attempts(other).at(-1);
-    if(lease&&time-Date.parse(lease.started_at)<10*60*1000)return false;
+    if(lease&&time-Date.parse(lease.started_at)<10*60*1000)outstanding.add(other);
    }
+   if(outstanding.size>=8)return false;
    const attempt=old.length+1;return once(`${key}-dispatch-${attempt}.json`,{schema_version:1,request_hash:key,attempt,started_at:now});
   }
  });

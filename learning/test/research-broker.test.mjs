@@ -108,6 +108,16 @@ test('broker defaults to held before any journal, GitHub, workflow or proof acce
  await assert.rejects(broker.dispatch(open),{code:'private_task_access_held'});assert.equal(touched,0);
 });
 
+test('expired pending opens are retained without background reads or dispatch and cannot starve today',async()=>{
+ let reads=0,dispatches=0;
+ const stale={...open,request:{...open.request,research_date:'2026-10-11'}};
+ const store={reserve:async()=>{},pending:async()=>[{call:stale,request_hash:workerRequestHash(stale)}],reserveDispatch:async()=>{},complete:async()=>{},completed:async()=>null};
+ const api={writable:false,get:async()=>{reads++;throw Error('must not read');}};
+ const broker=createResearchBrokerAdapter({api,store,taskAccessAllowed:async()=>true,dispatchWorker:async()=>{dispatches++;},clock:()=>new Date('2026-10-12T12:00:00Z')});
+ assert.deepEqual(await broker.reconcilePending(),{completed:0,pending:0,unresolved:0});
+ await assert.rejects(broker.dispatch(stale),{code:'stale_input'});assert.equal(reads,0);assert.equal(dispatches,0);assert.equal((await store.pending()).length,1);
+});
+
 test('new PC entry point cannot accidentally enable active access through config or CLI arguments',async()=>{
  const root=directory(),config=path.join(root,'config.json'),access={issuer:'https://synthetic.cloudflareaccess.com',audience:'a'.repeat(64),subject:'synthetic',email:'owner@example.invalid'};
  try{
@@ -121,15 +131,22 @@ test('new PC entry point cannot accidentally enable active access through config
  }finally{remove(root);}
 });
 
-test('one outstanding dispatch slot prevents a burst of queued workflows while retaining every request',async()=>{
+test('bounded eight-request queue permits independent tasks but caps bursts and preserves original attempts',async()=>{
  const root=directory();try{
   const store=createBrokerRequestStore({directory:root,privateDirectoryVerified:true}),first=await store.reserve(call);
   const other=await store.reserve({...call,request:{...call.request,request_id:'other'}});
   assert.equal(await store.reserveDispatch(first.request_hash,'2026-10-12T10:00:00.000Z'),true);
-  assert.equal(await store.reserveDispatch(other.request_hash,'2026-10-12T10:00:01.000Z'),false);
+  assert.equal(await store.reserveDispatch(other.request_hash,'2026-10-12T10:00:01.000Z'),true);
   assert.equal((await store.pending()).length,2);
+  for(let i=2;i<8;i++){
+   const item=await store.reserve({...call,request:{...call.request,request_id:'queue-'+i}});
+   assert.equal(await store.reserveDispatch(item.request_hash,'2026-10-12T10:00:02.000Z'),true);
+  }
+  const ninth=await store.reserve({...call,request:{...call.request,request_id:'queue-9'}});
+  assert.equal(await store.reserveDispatch(ninth.request_hash,'2026-10-12T10:00:02.000Z'),false);
   await store.complete(first.request_hash,'c'.repeat(40));
-  assert.equal(await store.reserveDispatch(other.request_hash,'2026-10-12T10:00:02.000Z'),true);
+  assert.equal(await store.reserveDispatch(ninth.request_hash,'2026-10-12T10:00:02.000Z'),true);
+  assert.equal(await store.reserveDispatch(other.request_hash,'2026-10-12T10:00:03.000Z'),false);
  }finally{remove(root);}
 });
 
@@ -140,6 +157,7 @@ test('worker workflow remains opt-in, bounded and on trusted main; request text 
   "vars.PRIVATE_RESEARCH_WORKER_ENABLED == 'true'",'timeout-minutes: 5','ref: ${{ steps.trusted.outputs.sha }}',
   'persist-credentials: false','node learning/research-worker.mjs'])assert(worker.includes(required));
  assert(workflow.includes('group: private-learning-reconciliation'));assert(workflow.includes('cancel-in-progress: false'));
+ assert(workflow.includes('queue: max'));
  assert(!worker.includes('${{ inputs.task_request }}'));assert(!worker.includes('PRIVATE_TASK_REQUEST:'));
  assert(!worker.includes('self-hosted'));assert(!worker.includes('head_sha'));assert(!/^\s+cache:/m.test(worker));
  const code=fs.readFileSync(new URL('../research-worker.mjs',import.meta.url),'utf8');

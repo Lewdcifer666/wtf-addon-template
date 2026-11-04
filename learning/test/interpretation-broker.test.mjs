@@ -22,14 +22,14 @@ test('permanent private journal conflicts and corruption stay distinguishable fr
  assert.equal(interpretationWorkerError(Error('PRIVATE_SENTINEL')),'private_interpretation_pending');
 });
 
-test('both task families share one durable dispatch slot and changed private submissions conflict rather than replacing the packet',async()=>{
+test('both task families share the bounded queue and changed private submissions conflict rather than replacing the packet',async()=>{
  const root=directory();try{
   const store=createBrokerRequestStore({directory:root,privateDirectoryVerified:true}),a=await store.reserve(research),b=await store.reserve(submit);
   assert.equal(await store.reserveDispatch(a.request_hash,'2026-10-26T10:00:00.000Z'),true);
-  assert.equal(await store.reserveDispatch(b.request_hash,'2026-10-26T10:00:01.000Z'),false);
+  assert.equal(await store.reserveDispatch(b.request_hash,'2026-10-26T10:00:01.000Z'),true);
   const changed=structuredClone(submit);changed.request.packet.interpretations[0].status='ambiguous';
   await assert.rejects(store.reserve(changed),/task_request_conflict/);assert.equal((await store.pending()).length,2);
-  await store.complete(a.request_hash,'e'.repeat(40));assert.equal(await store.reserveDispatch(b.request_hash,'2026-10-26T10:00:02.000Z'),true);
+  await store.complete(a.request_hash,'e'.repeat(40));assert.equal(await store.reserveDispatch(b.request_hash,'2026-10-26T10:00:02.000Z'),false);
   assert.equal((await createBrokerRequestStore({directory:root,privateDirectoryVerified:true}).pending())[0].request_hash,brokerCallHash(submit));
  }finally{close(root);}
 });

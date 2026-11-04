@@ -3,7 +3,7 @@
 // can persist derived observations. This cannot stage AI interpretation, raw
 // feedback, public packets, or replay any denied operation.
 import {privateResearchSessionResponse,privateResearchSearchObservation,recheckResearchSession} from './research-session.mjs';
-import {LearningError,persistSealedState} from './git-artifacts.mjs';
+import {LearningError,persistSealedState,persistArtifactAlias} from './git-artifacts.mjs';
 import {readSealedSessionRecord,sessionContextBody,sessionSearchBody,validateSessionSearch,loadSessionSearchRefs} from './session-journal.mjs';
 import {stableJson,digest} from './interpretation.mjs';
 
@@ -114,4 +114,21 @@ export async function persistResearchSessionTaskIntent(options){
  }
  if(!record)fail('invalid_session_journal');
  return {...record,owned:record.body.nonce===nonce};
+}
+
+// A global genre/date alias of the authenticated ORIGINAL signed intent enforces
+// the budget across sessions, restarts and changing public heads. No overwrite.
+// An existing different alias blocks work; it can never authenticate success.
+export async function reserveDailyResearchSearch({api,session,proof,intent}){
+ const auth=await authority({api,session,proof}),{response,base,assertCurrent}=auth;
+ if(!intent?.owned||typeof intent.branch!=='string'||!/^[a-f0-9]{40}$/.test(intent.commit??''))fail('task_search_unresolved');
+ const branch=`learning/daily-search-${response.research_date}-${response.genre}`;
+ const previous=await api.optional(`/git/ref/heads/${branch}`);
+ if(previous&&(previous.ref!==`refs/heads/${branch}`||previous.object?.sha!==intent.commit))fail('daily_search_limit');
+ await assertCurrent();
+ try{return await persistArtifactAlias(api,{base,original:{branch:intent.branch,commit:intent.commit},branch,
+  files:{'intent.json':stableJson({body:intent.body,proof:intent.proof})},assertCurrent});}
+ catch(error){
+  if(error.code==='immutable_artifact_mismatch')fail('daily_search_limit');throw error;
+ }
 }
