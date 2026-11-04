@@ -61,3 +61,10 @@ raw feedback, learned briefs, queries, mappings and signed evidence private.
 Use trusted-main OIDC, protected App-owned publication and existing strict checks.
 No OpenAI API, paid overages, public feedback repository, broadened credentials,
 unauthenticated tunnel or self-hosted runner is part of this architecture.
+
+Provenance transport reads retain the fixed GitHub issuer and complete verification.
+The public signing-key document alone permits two reads within one bounded budget,
+respecting Retry-After. Token issuance is never retried by this layer. Closed local
+phase/reason/HTTP status diagnostics exclude tokens, audiences and response bodies.
+This repairs a reproduced transient-read path, not a proven explanation of any
+historical transport failure. PC deadline cancellation stops subsequent reads.

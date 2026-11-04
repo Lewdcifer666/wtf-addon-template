@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {fixtureObservationProof} from './fixtures/observation-proof.mjs';
-import {verifyObservationProof,githubObservationProof} from '../observation-proof.mjs';
+import {verifyObservationProof,githubObservationProof,proofErrorSummary} from '../observation-proof.mjs';
+import {withPrivateTaskDeadline} from '../task-deadline.mjs';
 import {engineFingerprintAt,recoverEngineFingerprint} from '../reconcile.mjs';
 import {selectObservationBatch,emptyObservationIndex} from '../observation-index.mjs';
 import {proofAudience} from '../observation-proof.mjs';
@@ -92,4 +93,52 @@ test('issuer-key and OIDC response deadlines cover stalled bodies, invalid UTF-8
   await assert.rejects(provider.verify(await proof.sign(body,revision),body,revision),e=>e.code===(mode.endsWith('timeout')?'proof_transport_failure':'invalid_observation_proof'));
   assert.equal(calls,1);
  }
+});
+
+test('only the fixed public issuer key read recovers once from a transient failure',async()=>{
+ const token=await proof.sign(body,revision);
+ for(const mode of ['network','http','body']){
+  let calls=0;const provider=githubObservationProof({fetcher:async(url,options)=>{
+   calls++;assert.equal(url,'https://token.actions.githubusercontent.com/.well-known/jwks');assert.equal(options.redirect,'error');
+   if(calls===1){if(mode==='network')throw Error('SYNTHETIC_SECRET');if(mode==='http')return new Response('',{status:503});return {ok:true,text:async()=>{throw Error('SYNTHETIC_SECRET');}};}
+   return new Response(JSON.stringify({keys:[proof.key]}));
+  }});
+  await provider.verify(token,body,revision);assert.equal(calls,2);
+ }
+});
+
+test('authorization, malformed trust data and Retry-After outside the budget never trigger another issuer read',async()=>{
+ const token=await proof.sign(body,revision);
+ for(const mode of ['denied','malformed','signature','cooldown']){
+  let calls=0;const provider=githubObservationProof({timeoutMs:1000,fetcher:async()=>{
+   calls++;if(mode==='denied')return new Response('',{status:403});
+   if(mode==='cooldown')return new Response('',{status:429,headers:{'Retry-After':'3600'}});
+   return new Response(mode==='malformed'?'malformed':JSON.stringify({keys:[{...proof.key,n:'a'.repeat(64)}]}));
+  }});
+  await assert.rejects(provider.verify(token,body,revision));assert.equal(calls,1);
+ }
+});
+
+test('proof failure diagnostics expose only a closed phase/reason/status and token issuance is never retried',async()=>{
+ const env={ACTIONS_ID_TOKEN_REQUEST_URL:'https://pipelines.actions.githubusercontent.com/SYNTHETIC_SECRET',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'SYNTHETIC_SECRET'};
+ let calls=0;const provider=githubObservationProof({env,fetcher:async()=>{calls++;return new Response('SYNTHETIC_SECRET',{status:503});}});
+ await assert.rejects(provider.sign(body,revision),error=>{
+  assert.deepEqual(proofErrorSummary(error),{proof:{phase:'actions_token',reason:'http_error',status:503}});
+  assert(!JSON.stringify(error).includes('SYNTHETIC_SECRET'));return error.code==='proof_transport_failure';
+ });assert.equal(calls,1);assert.deepEqual(proofErrorSummary(new Error('SYNTHETIC_SECRET')),{});
+});
+
+test('an exhausted issuer read has a two-call ceiling and safe operational evidence',async()=>{
+ const token=await proof.sign(body,revision);let calls=0;
+ const provider=githubObservationProof({fetcher:async()=>{calls++;return new Response('SYNTHETIC_SECRET',{status:429,headers:{'Retry-After':'0','x-secret':'SYNTHETIC_SECRET'}});}});
+ await assert.rejects(provider.verify(token,body,revision),error=>{
+  assert.deepEqual(proofErrorSummary(error),{proof:{phase:'issuer_keys',reason:'http_error',status:429}});return error.code==='proof_transport_failure';
+ });assert.equal(calls,2);
+});
+
+test('a PC request expiring during issuer backoff aborts without another network call',async()=>{
+ const token=await proof.sign(body,revision);let calls=0;
+ const provider=githubObservationProof({fetcher:async()=>{calls++;throw Error('SYNTHETIC_SECRET');}});
+ await assert.rejects(withPrivateTaskDeadline(()=>provider.verify(token,body,revision),{timeoutMs:30}),/private_task_pending/);
+ await new Promise(resolve=>setTimeout(resolve,270));assert.equal(calls,1);
 });

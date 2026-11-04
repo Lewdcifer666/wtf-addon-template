@@ -11,7 +11,7 @@ import {digest,stableJson} from './interpretation.mjs';
 import {GENRES} from './receipt.mjs';
 import {berlinResearchDate} from './handoff.mjs';
 import {LearningError,readArtifactJson,readImmutable,persistSealedState,persistArtifactAlias,requireTrustedAncestor} from './git-artifacts.mjs';
-import {githubObservationProof,PROOF_REPOSITORY} from './observation-proof.mjs';
+import {githubObservationProof,proofErrorSummary,PROOF_REPOSITORY} from './observation-proof.mjs';
 import {createPrivateResearchTaskAdapter,researchTaskCallSchema,privateTaskErrorCode} from './research-task-adapter.mjs';
 import {createPublicSearchProvider} from './public-search.mjs';
 import {recoverResearchSessionForVerification,restoreResearchSessionSearches,verifyResearchSessionCommit} from './research-session.mjs';
@@ -186,5 +186,5 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
    searchProvider:createPublicSearchProvider(),taskAccessAllowed:async()=>true});
   // No query, context, task token, feedback, proof or result in Actions logs.
   console.log(JSON.stringify({state:result.state,reused:result.reused}));
- }).catch(error=>{console.error(JSON.stringify({state:'pending',code:privateTaskErrorCode(error),...githubErrorSummary(error)}));process.exitCode=1;});
+ }).catch(error=>{console.error(JSON.stringify({state:'pending',code:privateTaskErrorCode(error),...githubErrorSummary(error),...proofErrorSummary(error)}));process.exitCode=1;});
 }

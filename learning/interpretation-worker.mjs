@@ -7,7 +7,7 @@ import Ajv from 'ajv';
 import {digest,gitBlobOid,stableJson} from './interpretation.mjs';
 import {createPrivateInterpretationTaskAdapter,interpretationTaskCallSchema} from './interpretation-task.mjs';
 import {LearningError,readArtifactJson,readImmutable,persistSealedState,requirePacketDiff,requireTrustedAncestor} from './git-artifacts.mjs';
-import {githubObservationProof,PROOF_REPOSITORY} from './observation-proof.mjs';
+import {githubObservationProof,proofErrorSummary,PROOF_REPOSITORY} from './observation-proof.mjs';
 import {GitHub} from './github.mjs';
 import {createGitHubQuotaGate} from './github-quota.mjs';
 import {githubErrorSummary} from './github-diagnostics.mjs';
@@ -188,5 +188,5 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   const {executeInterpretationWireWorker}=await import('./interpretation-transport.mjs');
   const result=await executeInterpretationWireWorker({api,publicApis,trustedRevision:process.env.LEARNING_TRUSTED_SHA,call,proof,interpretationAccessAllowed:async()=>true});
   console.log(JSON.stringify({state:result.state,reused:result.reused,reconciliation:result.reconciliation?.state??null}));
- }).catch(error=>{console.error(JSON.stringify({state:'pending',code:interpretationWorkerError(error),...githubErrorSummary(error)}));process.exitCode=1;});
+ }).catch(error=>{console.error(JSON.stringify({state:'pending',code:interpretationWorkerError(error),...githubErrorSummary(error),...proofErrorSummary(error)}));process.exitCode=1;});
 }

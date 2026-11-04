@@ -14,7 +14,8 @@ import {loadVerifiedReceipt} from './receipt-loader.mjs';
 import {authenticateResearchCommit} from './research-commit.mjs';
 import {createResearchValidator} from './research-contract.mjs';
 import {collectResearchObservations} from './research-observations.mjs';
-import {githubObservationProof} from './observation-proof.mjs';
+import {githubErrorSummary} from './github-diagnostics.mjs';
+import {githubObservationProof,proofErrorSummary} from './observation-proof.mjs';
 import {createInterpretationTaskPlan} from './interpretation-task.mjs';
 
 const PRIVATE='Lewdcifer666/wtf-scifi-feedback';
@@ -241,4 +242,4 @@ async function main(){
   console.log(JSON.stringify(['research_ready','research_verified'].includes(result.state)?{state:result.state,branch:result.handoff.branch,commit:result.handoff.commit,use_id:result.handoff.issued.use_id,
     ...(result.trace?{trace_id:result.trace.trace_id,research_commit:result.trace.research_commit,research_date:result.trace.research_date,effect_status:result.trace.effect_status}:{})}:summary));
 }
-if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error(`private-learning: ${error instanceof LearningError?error.code:'validation_failed'}`);process.exitCode=1;});
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error(JSON.stringify({state:'pending',code:error instanceof LearningError?error.code:'validation_failed',...githubErrorSummary(error),...proofErrorSummary(error)}));process.exitCode=1;});

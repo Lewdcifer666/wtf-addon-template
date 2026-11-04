@@ -1,6 +1,14 @@
 import {createPublicKey,verify} from 'node:crypto';
 import {digest,stableJson} from './interpretation.mjs';
 import {LearningError} from './git-artifacts.mjs';
+import {assertPrivateTaskDeadline,linkPrivateTaskDeadline,privateTaskDelay} from './task-deadline.mjs';
+
+// Closed transport evidence only: no endpoint, audience, token, body or error text.
+const transportRecords=new WeakMap();
+export function proofErrorSummary(error){const record=transportRecords.get(error);return record?{proof:{phase:record.phase,reason:record.reason,...(record.status===undefined?{}:{status:record.status})}}:{};}
+function transportFailure(code,phase,reason,status,retryAfter){
+ const error=new LearningError(code);transportRecords.set(error,{phase,reason,status,retryAfter});return error;
+}
 
 export const PROOF_ISSUER='https://token.actions.githubusercontent.com';
 export const PROOF_REPOSITORY='Lewdcifer666/wtf-scifi-feedback';
@@ -31,32 +39,56 @@ export function verifyObservationProof(token,body,revision,keys,{now=Date.now(),
 export function githubObservationProof({env=process.env,fetcher=fetch,clock=()=>new Date(),assertTriggerAncestor,timeoutMs=10000}={}){
  if(!Number.isInteger(timeoutMs)||timeoutMs<10||timeoutMs>20000)fail();
  let keys,keysAt=0,refreshing=null,lastForced=-Infinity;
- const json=async(url,options={})=>{
-  const controller=new AbortController();let timer;
-  const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new LearningError('proof_transport_failure'));},timeoutMs);});
+ const json=async(url,phase,options={},attemptTimeout=timeoutMs)=>{
+  assertPrivateTaskDeadline();
+  const controller=new AbortController(),unlink=linkPrivateTaskDeadline(controller);let timer,abort;
+  const deadline=new Promise((_,reject)=>{
+   abort=()=>{try{assertPrivateTaskDeadline();}catch(error){reject(error);return;}reject(transportFailure('proof_transport_failure',phase,'deadline'));};
+   controller.signal.addEventListener('abort',abort,{once:true});timer=setTimeout(()=>controller.abort(),attemptTimeout);
+  });
   try{return await Promise.race([(async()=>{
    let response,text;
-   try{response=await fetcher(url,{...options,redirect:'error',signal:controller.signal});}catch{fail('proof_transport_failure');}
+   try{response=await fetcher(url,{...options,redirect:'error',signal:controller.signal});}catch{assertPrivateTaskDeadline();throw transportFailure('proof_transport_failure',phase,'network_failure');}
+   assertPrivateTaskDeadline();
    if(!response.ok){
-    if([401,403].includes(response.status))fail('proof_credentials_required');
-    fail([408,429].includes(response.status)||response.status>=500?'proof_transport_failure':'invalid_observation_proof');
+    const status=Number.isInteger(response.status)?response.status:undefined,header=response.headers?.get('retry-after');
+    const retryAfter=typeof header==='string'?(/^\d{1,6}$/.test(header)?Number(header)*1000:Math.max(0,Date.parse(header)-Date.now())):undefined;
+    throw transportFailure([401,403].includes(status)?'proof_credentials_required':([408,429].includes(status)||status>=500?'proof_transport_failure':'invalid_observation_proof'),phase,'http_error',status,retryAfter);
    }
    if(response.body){
     const chunks=[];let size=0;
     try{for await(const chunk of response.body){size+=chunk.length;if(size>256*1024)fail();chunks.push(chunk);}}
-    catch(error){if(error instanceof LearningError)throw error;fail('proof_transport_failure');}
+    catch(error){assertPrivateTaskDeadline();if(error instanceof LearningError)throw error;throw transportFailure('proof_transport_failure',phase,'body_failure');}
     const raw=Buffer.concat(chunks);text=raw.toString('utf8');if(!Buffer.from(text).equals(raw))fail();
-   }else try{text=await response.text();}catch{fail('proof_transport_failure');}
+   }else try{text=await response.text();}catch{assertPrivateTaskDeadline();throw transportFailure('proof_transport_failure',phase,'body_failure');}
+   assertPrivateTaskDeadline();
    if(Buffer.byteLength(text)>256*1024)fail();
    try{return JSON.parse(text);}catch{fail();}
-  })(),deadline]);}finally{clearTimeout(timer);controller.abort();}
+  })(),deadline]);}finally{clearTimeout(timer);unlink();controller.signal.removeEventListener('abort',abort);controller.abort();}
+ };
+ // Only the fixed public key document is retried. Token issuance is one call;
+ // provider work and stored evidence are never replayed by this transport.
+ const issuerDocument=async()=>{
+  const until=Date.now()+timeoutMs;
+  for(let attempt=0;attempt<2;attempt++){
+   assertPrivateTaskDeadline();
+   try{return await json(PROOF_ISSUER+'/.well-known/jwks','issuer_keys',{},Math.max(1,Math.min(Math.ceil(timeoutMs/2),until-Date.now())));}
+   catch(error){
+    const record=transportRecords.get(error);
+    if(attempt||error.code!=='proof_transport_failure'||!record)throw error;
+    // A Retry-After beyond this bounded read is pending, not permission to retry early.
+    const delay=record.retryAfter===undefined?250:record.retryAfter;
+    if(!Number.isFinite(delay)||delay<0||Date.now()+delay>=until)throw error;
+    await privateTaskDelay(delay);assertPrivateTaskDeadline();
+   }
+  }
  };
  const trustedKeys=async(force=false)=>{
   const now=+clock();if(!Number.isFinite(now))fail();
   if(force&&now-lastForced>=5000){keysAt=0;lastForced=now;}
   if(keys&&now>=keysAt&&now-keysAt<5*60*1000&&keysAt!==0)return keys;
   if(!refreshing)refreshing=(async()=>{
-   const document=await json(PROOF_ISSUER+'/.well-known/jwks');if(!Array.isArray(document.keys)||document.keys.length>64)fail();
+   const document=await issuerDocument();if(!Array.isArray(document.keys)||document.keys.length>64)fail();
    keys=document.keys;keysAt=now;return keys;
   })().finally(()=>{refreshing=null;});
   return refreshing;
@@ -78,7 +110,7 @@ export function githubObservationProof({env=process.env,fetcher=fetch,clock=()=>
    const url=new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
    if(url.protocol!=='https:'||url.username||url.password||!url.hostname.endsWith('.actions.githubusercontent.com'))fail();
    url.searchParams.set('audience',proofAudience(body,revision));
-   const result=await json(url,{headers:{Authorization:'Bearer '+env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}});
+   const result=await json(url,'actions_token',{headers:{Authorization:'Bearer '+env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}});
    await checkTrigger(await verifyToken(result.value,body,revision,true),revision);return result.value;
   }
  };
