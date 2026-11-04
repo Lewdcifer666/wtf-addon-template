@@ -25,7 +25,7 @@ export class GitHub {
         ||publicApis[g].token!==this.token||publicApis[g].quotaGate!==this.quotaGate))fail();
     this.quotaGate.assertAllowed();
     const repos=[this.repository,...headGenres.map(g=>publicApis[g].repository)];
-    const fields=repos.map((repo,i)=>`r${i}:repository(owner:"Lewdcifer666",name:"${repo.split('/')[1]}"){nameWithOwner isPrivate defaultBranchRef{name target{__typename oid}}}`);
+    const fields=repos.map((repo,i)=>`r${i}:repository(owner:"Lewdcifer666",name:"${repo.split('/')[1]}"){nameWithOwner isPrivate defaultBranchRef{name prefix target{__typename oid}}}`);
     const query=`query CurrentPrivateLearningHeads{${fields.join(' ')}}`;
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);let value;
     try{
@@ -42,7 +42,7 @@ export class GitHub {
     if(value?.errors||!value?.data||Object.keys(value.data).sort().join()!==repos.map((_,i)=>'r'+i).join())fail();
     const heads=repos.map((repo,i)=>{
       const r=value.data['r'+i],ref=r?.defaultBranchRef;
-      if(r?.nameWithOwner!==repo||r.isPrivate!==(i===0)||ref?.name!=='main'
+      if(r?.nameWithOwner!==repo||r.isPrivate!==(i===0)||ref?.name!=='main'||ref.prefix!=='refs/heads/'
         ||ref.target?.__typename!=='Commit'||!/^[a-f0-9]{40}$/.test(ref.target?.oid??''))fail();
       return ref.target.oid;
     });

@@ -51,7 +51,7 @@ test('GraphQL quota errors do not fall back to REST and scoped PC responses pres
 
 const genres=['action','anime','fantasy','mystery','scifi','thriller'];
 const headResponse=()=>({data:Object.fromEntries([repository,...genres.map(g=>`Lewdcifer666/wtf-${g}-stremio`)].map((name,i)=>['r'+i,
- {nameWithOwner:name,isPrivate:i===0,defaultBranchRef:{name:'main',target:{__typename:'Commit',oid:String(i+1).repeat(40)}}}]))});
+ {nameWithOwner:name,isPrivate:i===0,defaultBranchRef:{name:'main',prefix:'refs/heads/',target:{__typename:'Commit',oid:String(i+1).repeat(40)}}}]))});
 function headClients(fetcher,extra={}){
  const quotaGate=extra.quotaGate??createGitHubQuotaGate(),options={batchHeads:true,cacheImmutable:true,quotaGate,fetcher,...extra};
  return {api:new GitHub(repository,'synthetic',options),publicApis:Object.fromEntries(genres.map(g=>[g,new GitHub(`Lewdcifer666/wtf-${g}-stremio`,'synthetic',options)]))};
@@ -80,11 +80,11 @@ test('worker currentness still rejects every moved private/public head after a f
 });
 
 test('incomplete, untrusted, malformed or oversized head snapshots never fall back to REST',async()=>{
- for(const change of ['partial','name','privacy','public-privacy','branch','type','oid','oversize','errors']){
+ for(const change of ['partial','name','privacy','public-privacy','branch','prefix','type','oid','oversize','errors']){
   let calls=0;const c=headClients(async()=>{
    calls++;const r=headResponse();if(change==='partial')delete r.data.r6;if(change==='name')r.data.r0.nameWithOwner='other/repo';
    if(change==='privacy')r.data.r0.isPrivate=false;if(change==='public-privacy')r.data.r1.isPrivate=true;
-   if(change==='branch')r.data.r0.defaultBranchRef.name='untrusted';if(change==='type')r.data.r0.defaultBranchRef.target.__typename='Tag';
+   if(change==='branch')r.data.r0.defaultBranchRef.name='untrusted';if(change==='prefix')r.data.r0.defaultBranchRef.prefix='refs/tags/';if(change==='type')r.data.r0.defaultBranchRef.target.__typename='Tag';
    if(change==='oid')r.data.r4.defaultBranchRef.target.oid='main';if(change==='oversize')r.padding='x'.repeat(40000);
    if(change==='errors')r.errors=[{message:'PRIVATE_SENTINEL'}];return Response.json(r);
   });
