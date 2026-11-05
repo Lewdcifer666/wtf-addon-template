@@ -2,6 +2,7 @@
 // No GitHub credentials, signing, search, storage, publication or activation.
 import {Buffer} from 'node:buffer';
 import {createAccessAuthenticator} from './access-auth.mjs';
+import {GATEWAY_REQUEST_MS,GATEWAY_RESEARCH_MS,researchToolNames} from './request-budgets.mjs';
 
 const limit=1024*1024;
 const closed=(status,error)=>Response.json({error},{status,headers:{'Cache-Control':'no-store'}});
@@ -43,7 +44,7 @@ export function createPrivatePcGateway({access,publicOrigin,port,binding}={},dep
   if(!health&&(url.pathname!=='/mcp'||request.method!=='POST'))return closed(405,'private_gateway_request_denied');
   if(!health&&(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')||'')||request.headers.has('content-encoding')))return closed(415,'private_gateway_request_denied');
   if(Number(request.headers.get('content-length'))>limit)return closed(413,'private_gateway_request_limit');
-  const controller=new AbortController(),abort=()=>controller.abort(),timer=setTimeout(abort,30000);
+  const controller=new AbortController(),abort=()=>controller.abort(),started=Date.now();let timer=setTimeout(abort,GATEWAY_REQUEST_MS);
   request.signal.addEventListener('abort',abort,{once:true});if(request.signal.aborted)abort();
   let upstream,bytes,rpc;
   try{
@@ -53,6 +54,11 @@ export function createPrivatePcGateway({access,publicOrigin,port,binding}={},dep
      if(rpc.jsonrpc!=='2.0'||typeof rpc.method!=='string'||
       rpc.id!==undefined&&!(typeof rpc.id==='string'&&rpc.id.length<=128||typeof rpc.id==='number'&&Number.isSafeInteger(rpc.id)))throw Error('invalid_rpc');
     }catch(error){return closed(controller.signal.aborted?504:error.message==='body_limit'?413:400,'private_gateway_request_denied');}
+   }
+   // Only authenticated closed research tool calls may wait for a bounded
+   // Actions result. Upload, health, discovery and interpretation stay short.
+   if(!health&&rpc.method==='tools/call'&&researchToolNames.has(rpc.params?.name)){
+    clearTimeout(timer);timer=setTimeout(abort,Math.max(1,GATEWAY_RESEARCH_MS-(Date.now()-started)));
    }
    // Deliberately build headers and destination from constants/configuration.
    // Never forward caller cookies, bearer credentials, Host, or target URLs.
@@ -75,6 +81,8 @@ export function createPrivatePcGateway({access,publicOrigin,port,binding}={},dep
    if(upstream.status===202&&!health&&rpc.id===undefined&&response.length===0)return new Response(null,{status:202,headers:{'Cache-Control':'no-store'}});
    if(!/^application\/json(?:\s*;|$)/i.test(upstream.headers.get('content-type')||''))throw Error('upstream_denied');
    const value=jsonBody(response);
+   // A long wait never extends an expiring owner assertion.
+   if(!await authenticate(assertion))return closed(401,'private_gateway_unauthorized');
    // Preserve protocol negotiation/rejection statuses, not raw backend errors.
    // A 5xx is still an uncertain outcome and never becomes a retry/downgrade hint.
    if(!health&&rpc.id!==undefined&&value.jsonrpc==='2.0'&&value.id===rpc.id&&

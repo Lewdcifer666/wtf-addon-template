@@ -8,11 +8,12 @@ import {validateWorkerCall,workerRequestHash,readWorkerRecord,assertWorkerHeads}
 import {brokerCallFamily} from './broker-request-store.mjs';
 import {berlinResearchDate} from './handoff.mjs';
 import {assertPrivateTaskDeadline,privateTaskDelay,withPrivateTaskDeadline} from './task-deadline.mjs';
+import {RESEARCH_REQUEST_MS,RESEARCH_RESULT_WAIT_MS} from './request-budgets.mjs';
 const fail=code=>{throw new LearningError(code);};
 
 export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker,clock=()=>new Date(),taskAccessAllowed=async()=>false,
  resultWaitMs=0,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),monotonic=()=>Date.now()}={}){
- if(!Number.isInteger(resultWaitMs)||resultWaitMs<0||resultWaitMs>60000||typeof sleep!=='function'||typeof monotonic!=='function')fail('invalid_task_call');
+ if(!Number.isInteger(resultWaitMs)||resultWaitMs<0||resultWaitMs>RESEARCH_RESULT_WAIT_MS||typeof sleep!=='function'||typeof monotonic!=='function')fail('invalid_task_call');
  let queue=Promise.resolve(),cursor=0;
  async function run(input,{submit=true}={}){
   const call=validateWorkerCall(input);
@@ -70,25 +71,26 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
   dispatch(input){const snapshot=validateWorkerCall(input);return withPrivateTaskDeadline(()=>serialized(async()=>{
    assertPrivateTaskDeadline();
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
-   // Read back the current outstanding result before submitting another job.
-   // This never repeats a provider call or trusts the local completion hint.
-   const first=(await store.pending()).find(entry=>brokerCallFamily(entry.call)==='research'
-    &&(entry.call.operation!=='open'||entry.call.request.research_date===berlinResearchDate(clock())));
-   if(first&&first.request_hash!==workerRequestHash(snapshot))try{await run(first.call,{submit:false});}catch{}
+   // Interactive time belongs to this original request. The independent
+   // background reconciler handles other persisted work without starving it.
    try{return await run(snapshot);}catch(error){
     if(error.code!=='private_task_pending'||!resultWaitMs)throw error;
     const deadline=monotonic()+resultWaitMs;
-    for(let reads=0;reads<6&&monotonic()<deadline;reads++){
+    for(let reads=0;reads<30&&monotonic()<deadline;reads++){
      assertPrivateTaskDeadline();
      await privateTaskDelay(Math.min(10000,deadline-monotonic()),sleep);
      assertPrivateTaskDeadline();
-     // Read the ORIGINAL sealed result only. Never reserve another dispatch,
-     // invoke a provider, change identity, or catch quota/hold/proof failures.
+     // Missing-result polls read only the original ref. Full proof/current-head
+     // checks still run before any result is released. No dispatch/provider
+     // repetition, mutable head cache or alternative endpoint is introduced.
+     if(await taskAccessAllowed()!==true)fail('private_task_access_held');
+     const ref=await api.optional(`/git/ref/heads/learning/task-result-${workerRequestHash(snapshot)}`);
+     if(!ref)continue;
      try{return await run(snapshot,{submit:false});}catch(next){if(next.code!=='private_task_pending')throw next;}
     }
     throw error;
    }
-  }));},
+  }),{timeoutMs:RESEARCH_REQUEST_MS});},
   reconcilePending({limit=1}={}){return withPrivateTaskDeadline(()=>serialized(async()=>{
    assertPrivateTaskDeadline();
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');

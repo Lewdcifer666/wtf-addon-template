@@ -15,6 +15,7 @@ import {createResearchBrokerAdapter} from './research-broker.mjs';
 import {createInterpretationBrokerAdapter} from './interpretation-broker.mjs';
 import {createInterpretationWorkerDispatch} from './interpretation-worker-dispatch.mjs';
 import {startLocalResearchMcpHost} from './research-mcp-host.mjs';
+import {RESEARCH_RESULT_WAIT_MS} from './request-budgets.mjs';
 
 function readFile(file,max){
  if(typeof file!=='string'||!path.isAbsolute(file))throw new LearningError('invalid_private_host_config');
@@ -43,7 +44,7 @@ export async function startResearchBrokerHost({configFile,port=0,env=process.env
  const quotaGate=createGitHubQuotaGate({initialUntil:store.quotaDeadline(),onPause:until=>store.recordQuota(until)});
  const api=createBrokerGitHub({repository:PROOF_REPOSITORY,getToken,quotaGate}),publicApis=Object.fromEntries(GENRES.map(g=>[g,createBrokerGitHub({repository:`Lewdcifer666/wtf-${g}-stremio`,getToken,quotaGate})]));
  const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
- const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken,quotaGate}),taskAccessAllowed:allowed,resultWaitMs:30000}):undefined;
+ const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken,quotaGate}),taskAccessAllowed:allowed,resultWaitMs:RESEARCH_RESULT_WAIT_MS}):undefined;
  const interpretationBroker=config.interpretation_access_enabled===true?createInterpretationBrokerAdapter({api,proof,store,dispatchWorker:createInterpretationWorkerDispatch({getToken,quotaGate}),interpretationAccessAllowed:interpretationAllowed}):undefined;
  const host=await startLocalResearchMcpHost({access:config.access,adapter:broker,interpretationAdapter:interpretationBroker,port});
  let reconciling=false,stopping=false,closed;
@@ -55,8 +56,8 @@ export async function startResearchBrokerHost({configFile,port=0,env=process.env
   })().catch(()=>{console.error('private-broker: reconciliation_pending');}).finally(()=>{reconciling=false;});
  },30000);timer.unref();
  // Stop admitting work 90 seconds before the independent container deadline.
- // A request's 22-second budget fits inside this bounded drain; no public
- // control endpoint or additional container/network capability is introduced.
+ // Drain completes or cancels the caller's wait with a closed pending result;
+ // persisted trusted work remains immutable. No public control endpoint.
  const close=()=>closed??=(async()=>{stopping=true;clearInterval(timer);clearTimeout(rollover);await host.drain();await host.close();})();
  const rollover=setTimeout(()=>{void close().catch(()=>{});},1710000);rollover.unref();
  return Object.freeze({...host,close});

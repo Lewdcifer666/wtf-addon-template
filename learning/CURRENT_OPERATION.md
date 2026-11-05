@@ -23,9 +23,16 @@ Wikipedia/TVmaze leads still need the genre's independent public corroboration.
 
 ## Bounded transport and recovery
 
-One PC request has a 22-second end-to-end budget, including queue wait, token
-acquisition, GitHub reads and pending-result waiting. It expires before the
-30-second gateway. Expiry never authorizes another provider invocation or ID.
+A research request has a finite 330-second end-to-end budget, including queue
+wait, token acquisition and validation. It can wait up to 300seconds for the
+ORIGINAL sealed worker result, polling only its ref until present; complete proof
+and fresh-head checks still precede release. Its authenticated gateway bound is
+360seconds. Uploads, health/discovery and interpretation retain the short
+22/30second bounds. Five-minute Actions workers and the three client read-backs
+are unchanged. No wait permits another provider invocation, ID or writer.
+Owner assertions are rechecked before forwarding a completed result. Client
+cancellation and planned rollover cancel waits into a closed pending response;
+immutable attempts and any independent worker/provider outcome remain held.
 Expired openings and stale interpretation sources remain immutable in the local
 journal but do not repeatedly load old graphs during background reconciliation.
 

@@ -1960,15 +1960,41 @@ test('production result waiting reads the same asynchronously completed request 
  }finally{f.close();}
 });
 
+test('a five-minute worker result is awaited with cheap ref polls and one original dispatch',async()=>{
+ const f=await brokerScenario();try{
+  let pending,time=0,dispatches=0,polls=0,completed=false;
+  const get=f.options.api.get,optional=f.options.api.optional.bind(f.options.api);let headReads=0;
+  f.options.api.get=async(...a)=>{if(a[0]==='/git/ref/heads/main')headReads++;return get.apply(f.options.api,a);};
+  f.options.api.optional=async(...a)=>{if(a[0].includes('/learning/task-result-'))polls++;return optional(...a);};
+  const broker=createResearchBrokerAdapter({...f.options,resultWaitMs:300000,monotonic:()=>time,
+   dispatchWorker:async call=>{dispatches++;pending=call;},sleep:async ms=>{time+=ms;if(time>=290000&&!completed){completed=true;await executeResearchWorker({...f.s.args,call:pending,taskAccessAllowed:async()=>true});}}});
+  const context=await broker.dispatch(taskCall('open',await sessionRequest(f.s)));
+  assert.equal(context.kind,'private_task_context');assert.equal(dispatches,1);assert.equal(time,290000);assert(polls>=29);
+  assert(headReads<12,'missing-result polling must not repeatedly reload every current head');
+  assert.equal((await f.options.store.pending()).length,0);
+ }finally{f.close();}
+});
+
+test('an interactive request does not spend its budget recovering another pending genre',async()=>{
+ const f=await brokerScenario();try{
+  const request=await sessionRequest(f.s),other=taskCall('open',{...request,genre:'anime',public_revision:(await f.s.publicApis.anime.pinMain()).sha});
+  await f.options.store.reserve(other);let otherReads=0,dispatches=0;const optional=f.options.api.optional.bind(f.options.api);
+  f.options.api.optional=async route=>{if(route.endsWith(workerRequestHash(other)))otherReads++;return optional(route);};
+  const broker=createResearchBrokerAdapter({...f.options,dispatchWorker:async()=>{dispatches++;}});
+  await assert.rejects(broker.dispatch(taskCall('open',request)),{code:'private_task_pending'});
+  assert.equal(otherReads,0);assert.equal(dispatches,1);assert.equal((await f.options.store.pending()).length,2);
+ }finally{f.close();}
+});
+
 test('result waiting is bounded and stops on quota or revoked access without another reservation',async()=>{
  for(const change of ['timeout','quota','hold']){
   const f=await brokerScenario();try{
-   let time=0,waits=0,dispatches=0;const get=f.options.api.get;
+   let time=0,waits=0,dispatches=0;const get=f.options.api.get,optional=f.options.api.optional;
    const broker=createResearchBrokerAdapter({...f.options,resultWaitMs:60000,monotonic:()=>time,dispatchWorker:async()=>{dispatches++;},sleep:async ms=>{
-    time+=ms;waits++;if(change==='hold')f.setAccess(false);if(change==='quota')f.options.api.get=async()=>{throw Object.assign(Error('PRIVATE_SENTINEL'),{code:'github_rate_limited'});};
+    time+=ms;waits++;if(change==='hold')f.setAccess(false);if(change==='quota')f.options.api.get=f.options.api.optional=async()=>{throw Object.assign(Error('PRIVATE_SENTINEL'),{code:'github_rate_limited'});};
    }});
    await assert.rejects(broker.dispatch(taskCall('open',await sessionRequest(f.s))),e=>e.code===({timeout:'private_task_pending',quota:'github_rate_limited',hold:'private_task_access_held'}[change]));
-   assert.equal(dispatches,1);assert.equal(waits,change==='timeout'?6:1);f.options.api.get=get;
+   assert.equal(dispatches,1);assert.equal(waits,change==='timeout'?6:1);f.options.api.get=get;f.options.api.optional=optional;
   }finally{f.close();}
  }
 });

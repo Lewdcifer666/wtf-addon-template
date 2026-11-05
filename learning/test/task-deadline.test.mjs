@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {assertPrivateTaskDeadline,linkPrivateTaskDeadline,privateTaskDelay,withPrivateTaskDeadline} from '../task-deadline.mjs';
+import {assertPrivateTaskDeadline,linkPrivateTaskDeadline,privateTaskDelay,withPrivateTaskDeadline,cancelPrivateTaskWaits} from '../task-deadline.mjs';
 import {createBrokerGitHub} from '../broker-github.mjs';
 import {createResearchWorkerDispatch} from '../research-worker-dispatch.mjs';
 import {resolveFeedback} from '../resolve-feedback.mjs';
@@ -16,8 +16,21 @@ test('private deadline bounds queue wait and stops linked IO without renewing th
 });
 test('nested and interpretation requests retain the original deadline and closed error family',async()=>{
  await assert.rejects(withPrivateTaskDeadline(()=>withPrivateTaskDeadline(()=>privateTaskDelay(100)),{timeoutMs:15,code:'private_interpretation_pending'}),{code:'private_interpretation_pending'});
- assert.throws(()=>withPrivateTaskDeadline(()=>{}, {timeoutMs:30000}),{code:'invalid_task_call'});
+ assert.throws(()=>withPrivateTaskDeadline(()=>{}, {timeoutMs:330001}),{code:'invalid_task_call'});
+ assert.throws(()=>withPrivateTaskDeadline(()=>{}, {timeoutMs:30000,code:'private_interpretation_pending'}),{code:'invalid_task_call'});
  assert.equal(await withPrivateTaskDeadline(async()=>42),42);
+});
+
+test('local lifecycle cancellation returns a closed pending result and stops linked IO',async()=>{
+ let entered,controller;const began=new Promise(resolve=>{entered=resolve;});
+ const result=withPrivateTaskDeadline(async()=>{controller=new AbortController();const unlink=linkPrivateTaskDeadline(controller);try{entered();await new Promise(()=>{});}finally{unlink();}},{timeoutMs:330000});
+ await began;cancelPrivateTaskWaits();await assert.rejects(result,{code:'private_task_pending'});assert(controller.signal.aborted);
+});
+
+test('the authenticated client signal cancels a worker-sized wait without starting late work',async()=>{
+ const request=new AbortController();let entered,release;const began=new Promise(resolve=>{entered=resolve;});let late=false;
+ const result=withPrivateTaskDeadline(async()=>{entered();await new Promise(resolve=>{release=resolve;});assertPrivateTaskDeadline();late=true;},{timeoutMs:330000,signal:request.signal});
+ await began;request.abort();await assert.rejects(result,{code:'private_task_pending'});release();await new Promise(resolve=>setImmediate(resolve));assert.equal(late,false);
 });
 test('an expired caller cannot send a late GitHub read or workflow dispatch after token acquisition',async()=>{
  for(const dispatch of [false,true]){

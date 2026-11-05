@@ -11,6 +11,9 @@ import {createPrivateResearchTaskAdapter,researchTaskCallSchema,privateTaskError
 import {createAccessAuthenticator} from './access-auth.mjs';
 import {interpretationWorkerCallSchema,interpretationWorkerError} from './interpretation-worker.mjs';
 import {interpretationOutputSchema} from './interpretation-task.mjs';
+import {cancelPrivateTaskWaits,withPrivateTaskDeadline} from './task-deadline.mjs';
+import {PRIVATE_REQUEST_MS,RESEARCH_REQUEST_MS} from './request-budgets.mjs';
+import {LearningError} from './git-artifacts.mjs';
 
 const descriptions={
  open:'Open current private learning context and persist its private provenance. Requires an authorized active deployment. Never use for a held operation.',
@@ -67,8 +70,9 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
   if(params.name===healthName)return reply(transportHealth());
   const interpretation=params.name.startsWith('private_interpretation_'),operation=params.name.slice((interpretation?'private_interpretation_':'private_research_').length);
   try{
-   const result=interpretation&&operation==='status'?await interpretationAdapter.status(structuredClone(args))
-    :await (interpretation?interpretationAdapter:adapter).dispatch({schema_version:1,operation,request:structuredClone(params.arguments)});
+   const result=await withPrivateTaskDeadline(()=>interpretation&&operation==='status'?interpretationAdapter.status(structuredClone(args))
+    :(interpretation?interpretationAdapter:adapter).dispatch({schema_version:1,operation,request:structuredClone(params.arguments)}),
+    {code:interpretation?'private_interpretation_pending':'private_task_pending',timeoutMs:interpretation?PRIVATE_REQUEST_MS:RESEARCH_REQUEST_MS,signal:ctx.mcpReq.signal});
    const response=reply(result);
    // Text and structuredContent both carry the value; count escaped JSON and
    // the RPC envelope too, not merely the adapter's unduplicated object.
@@ -87,13 +91,17 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
  const installedAdapter=adapter??createPrivateResearchTaskAdapter({});
  if(typeof installedAdapter.dispatch!=='function')throw Error('invalid_private_adapter');
  if(interpretationAdapter!==undefined&&typeof interpretationAdapter?.dispatch!=='function')throw Error('invalid_private_adapter');
+ let draining=false,active=0;const drained=new Set();
+ const admission=(original,code)=>original&&Object.freeze({...original,
+  dispatch(input){if(draining)throw new LearningError(code);return original.dispatch(input);},
+  ...(typeof original.status==='function'?{status(input){if(draining)throw new LearningError(code);return original.status(input);}}:{})});
+ const admittedAdapter=admission(installedAdapter,'private_task_pending'),admittedInterpretation=admission(interpretationAdapter,'private_interpretation_pending');
  // Official per-request entry serves modern discovery and legacy initialization.
  // Authentication and the private dispatcher remain outside its protocol routing.
  // These handlers emit no progress/logging messages, so auto returns JSON.
- const handler=createMcpHandler(()=>createResearchMcpServer(installedAdapter,{interpretationAdapter}),{legacy:'reject',responseMode:'auto',onerror:()=>{}});
+ const handler=createMcpHandler(()=>createResearchMcpServer(admittedAdapter,{interpretationAdapter:admittedInterpretation}),{legacy:'reject',responseMode:'auto',onerror:()=>{}});
  const accessAuth=access===undefined?null:createAccessAuthenticator(access);
  const expected=accessAuth?null:createHash('sha256').update('Bearer '+bearerToken).digest();
- let draining=false,active=0;const drained=new Set();
  const authorized=async req=>{
   if(accessAuth){
    const assertions=req.rawHeaders.filter((_,index)=>index%2===0&&req.rawHeaders[index].toLowerCase()==='cf-access-jwt-assertion');
@@ -108,8 +116,8 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
   const localPort=req.socket.localPort;
   if(![`127.0.0.1:${localPort}`,`localhost:${localPort}`].includes(req.headers.host)||req.headers.origin){end(403,'private_host_origin_denied');return;}
   if(!await authorized(req)){end(401,'private_host_unauthorized');return;}
-  if(draining){end(503,'private_host_draining');return;}
   if(req.url==='/healthz'&&req.method==='GET'){
+   if(draining){end(503,'private_host_draining');return;}
    res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(transportHealth()));return;
   }
   if(req.url!=='/mcp'){end(404,'private_host_not_found');return;}
@@ -145,13 +153,14 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
    let response;
    if(await isLegacyRequest(request,body)){
     // Preserve JSON-only legacy behavior; the SDK default legacy leg uses SSE.
-    legacyServer=createResearchMcpServer(installedAdapter,{interpretationAdapter});
+    legacyServer=createResearchMcpServer(admittedAdapter,{interpretationAdapter:admittedInterpretation});
     legacyTransport=new WebStandardStreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
     await legacyServer.connect(legacyTransport);
     response=await legacyTransport.handleRequest(request,{parsedBody:body});
    }else response=await handler.fetch(request,{parsedBody:body});
    const chunks=[];let size=0;
    for await(const chunk of response.body??[]){size+=chunk.length;if(size>1024*1024){end(500,'private_host_response_limit');return;}chunks.push(chunk);}
+   if(!await authorized(req)){end(401,'private_host_unauthorized');return;}
    const outgoing={'Cache-Control':'no-store'};
    for(const name of ['content-type','allow','mcp-protocol-version'])if(response.headers.has(name))outgoing[name]=response.headers.get(name);
    res.writeHead(response.status,outgoing).end(Buffer.concat(chunks));
@@ -164,7 +173,9 @@ export async function startLocalResearchMcpHost({bearerToken,access,adapter,inte
   drain:async({timeoutMs=25000}={})=>{
    if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>25000)throw Error('invalid_private_host_drain');
    draining=true;if(active===0)return;
-   await new Promise(resolve=>{let timer;const done=()=>{clearTimeout(timer);drained.delete(done);resolve();};drained.add(done);timer=setTimeout(done,timeoutMs);});
+   const wait=ms=>new Promise(resolve=>{let timer;const done=()=>{clearTimeout(timer);drained.delete(done);resolve();};drained.add(done);timer=setTimeout(done,ms);});
+   await wait(timeoutMs);
+   if(active){cancelPrivateTaskWaits();await wait(1000);}
   },
   close:async()=>{http.closeAllConnections();await handler.close();await new Promise((resolve,reject)=>http.close(error=>error?reject(error):resolve()));}});
 }

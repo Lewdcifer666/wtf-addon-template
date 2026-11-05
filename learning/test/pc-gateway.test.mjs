@@ -141,6 +141,34 @@ test('deadline covers stalled backend response bodies and preserves ambiguous ou
  }finally{abort.abort();context.mock.timers.reset();}
 });
 
+test('only authenticated research tool calls receive the finite worker-sized transport wait',async context=>{
+ context.mock.timers.enable({apis:['setTimeout']});let release,entered,calls=0;
+ const began=new Promise(resolve=>{entered=resolve;});
+ const rpc={jsonrpc:'2.0',id:'worker-sized',method:'tools/call',params:{name:'private_research_open',arguments:{}}};
+ try{
+  const connection=gateway({async fetch(_url,options){calls++;entered();await new Promise((resolve,reject)=>{release=resolve;options.signal.addEventListener('abort',()=>reject(Error('synthetic abort')),{once:true});});return Response.json({jsonrpc:'2.0',id:rpc.id,result:{synthetic:true}});}});
+  const pending=connection.fetch(request(JSON.stringify(rpc)));await began;
+  context.mock.timers.tick(30001);release();const result=await pending;assert.equal(result.status,200);assert.equal(calls,1);
+ }finally{context.mock.timers.reset();}
+});
+
+test('worker-sized wait still expires without a second origin attempt',async context=>{
+ context.mock.timers.enable({apis:['setTimeout']});let entered,calls=0;const began=new Promise(resolve=>{entered=resolve;});
+ const rpc={jsonrpc:'2.0',id:'worker-timeout',method:'tools/call',params:{name:'private_research_search',arguments:{}}};
+ try{
+  const connection=gateway({async fetch(_url,options){calls++;entered();return new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(Error('synthetic abort')),{once:true}));}});
+  const pending=connection.fetch(request(JSON.stringify(rpc)));await began;context.mock.timers.tick(360001);
+  assert.equal((await pending).status,504);assert.equal(calls,1);
+ }finally{context.mock.timers.reset();}
+});
+
+test('an owner assertion expiring during processing cannot release the result',async()=>{
+ const assertion=await token({exp:Math.floor(Date.now()/1000)+60});let now=Date.now();
+ const connection=createPrivatePcGateway({access,publicOrigin:origin,port:6505,binding:{async fetch(){now+=120000;return answer();}}},{now:()=>now,fetchImpl:async()=>Response.json({keys:[key]})});
+ const response=await connection.fetch(request(JSON.stringify(rpc),{headers:{...headers,'Cf-Access-Jwt-Assertion':assertion}}));
+ assert.equal(response.status,401);
+});
+
 for(const modern of [false,true])test(`official ${modern?'2026 discovery':'2025 initialization'} client crosses the gateway into real loopback HTTP while learning remains held`,async()=>{
  const originalFetch=globalThis.fetch;
  const fetchMock=mock.method(globalThis,'fetch',async(url,options)=>url===access.issuer+'/cdn-cgi/access/certs'?Response.json({keys:[key]}):originalFetch(url,options));
