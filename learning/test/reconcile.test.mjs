@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {cancelPrivateTaskWaits} from '../task-deadline.mjs';
 import {reconcile,loadPublicProfile,engineFingerprintAt} from '../reconcile.mjs';
 import {GitHub} from '../github.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretation.mjs';
@@ -1984,6 +1985,19 @@ test('an interactive request does not spend its budget recovering another pendin
   await assert.rejects(broker.dispatch(taskCall('open',request)),{code:'private_task_pending'});
   assert.equal(otherReads,0);assert.equal(dispatches,1);assert.equal((await f.options.store.pending()).length,2);
  }finally{f.close();}
+});
+
+test('concurrent worker waits release serialization for other dispatches and background reconciliation',async()=>{
+ const f=await brokerScenario();let work=[];try{
+  let allDispatched,dispatches=0;const began=new Promise(resolve=>{allDispatched=resolve;});
+  const broker=createResearchBrokerAdapter({...f.options,resultWaitMs:300000,sleep:()=>new Promise(()=>{}),dispatchWorker:async()=>{if(++dispatches===3)allDispatched();}});
+  const request=await sessionRequest(f.s),calls=[];
+  for(const genre of ['scifi','anime','mystery'])calls.push(taskCall('open',{...request,genre,public_revision:(await f.s.publicApis[genre].pinMain()).sha}));
+  work=calls.map(call=>broker.dispatch(call));for(const promise of work)void promise.catch(()=>{});
+  let timer;try{await Promise.race([began,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('other dispatches blocked by result wait')),2000);})]);}finally{clearTimeout(timer);}
+  assert.equal(dispatches,3);
+  assert.deepEqual(await broker.reconcilePending(),{completed:0,pending:1,unresolved:0});assert.equal(dispatches,3);
+ }finally{cancelPrivateTaskWaits();await Promise.allSettled(work);f.close();}
 });
 
 test('result waiting is bounded and stops on quota or revoked access without another reservation',async()=>{

@@ -68,12 +68,12 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
  const serialized=fn=>{const next=queue.then(fn);queue=next.catch(()=>{});return next;};
  return Object.freeze({
   persistsTaskBookkeeping:true,
-  dispatch(input){const snapshot=validateWorkerCall(input);return withPrivateTaskDeadline(()=>serialized(async()=>{
+  dispatch(input){const snapshot=validateWorkerCall(input);return withPrivateTaskDeadline(async()=>{
    assertPrivateTaskDeadline();
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
    // Interactive time belongs to this original request. The independent
    // background reconciler handles other persisted work without starving it.
-   try{return await run(snapshot);}catch(error){
+   try{return await serialized(()=>run(snapshot));}catch(error){
     if(error.code!=='private_task_pending'||!resultWaitMs)throw error;
     const deadline=monotonic()+resultWaitMs;
     for(let reads=0;reads<30&&monotonic()<deadline;reads++){
@@ -86,11 +86,11 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
      if(await taskAccessAllowed()!==true)fail('private_task_access_held');
      const ref=await api.optional(`/git/ref/heads/learning/task-result-${workerRequestHash(snapshot)}`);
      if(!ref)continue;
-     try{return await run(snapshot,{submit:false});}catch(next){if(next.code!=='private_task_pending')throw next;}
+     try{return await serialized(()=>run(snapshot,{submit:false}));}catch(next){if(next.code!=='private_task_pending')throw next;}
     }
     throw error;
    }
-  }),{timeoutMs:RESEARCH_REQUEST_MS});},
+  },{timeoutMs:RESEARCH_REQUEST_MS});},
   reconcilePending({limit=1}={}){return withPrivateTaskDeadline(()=>serialized(async()=>{
    assertPrivateTaskDeadline();
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
