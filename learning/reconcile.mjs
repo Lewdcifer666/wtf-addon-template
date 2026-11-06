@@ -113,9 +113,14 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
   if(consumeGenre!==null&&(!dryRun||!GENRES.includes(consumeGenre)))fail('invalid_consumer_request');
   if(researchCommit!==null&&(consumeGenre===null||!/^[a-f0-9]{40}$/.test(researchCommit)))fail('invalid_consumer_request');
   if(researchDate!==null&&(researchCommit===null||!validResearchDate(researchDate)))fail('invalid_consumer_request');
-  const metadata=await api.get('/');
+  // Actions read all seven current identities/heads in one validated uncached
+  // query. Pin immutable inputs to that exact snapshot; later checkpoints
+  // still take NEW current snapshots. The PC keeps its GET-only path.
+  const initialHeads=api.batchHeads?await api.readCurrentHeads(publicApis):null;
+  const metadata=initialHeads?.metadata??await api.get('/');
   if(metadata.full_name!==PRIVATE||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
-  const base=await api.pinMain();if(base.sha!==trustedRevision)fail('stale_input');
+  const base=initialHeads?await api.get(`/git/commits/${initialHeads.private}`):await api.pinMain();
+  if(base.sha!==trustedRevision||(initialHeads&&base.sha!==initialHeads.private))fail('stale_input');
   const tree=await treeAt(api,base);
   if(tree.tree.some(e=>e.path.startsWith('learning-output/')))fail('unexpected_derived_state_on_main');
   const engineFingerprint=engineFingerprintAt(tree);
@@ -127,7 +132,7 @@ export async function reconcile({api,publicApis,trustedRevision,dryRun=false,con
     interpretationTaskPlan=createInterpretationTaskPlan(source);
     activation=validateActivation(JSON.parse((await readBlob(api,tree.tree.find(e=>e.path==='learning/config/activation.json'))).toString('utf8')));
     sourceStage='invalid_public_policy';
-    for(const genre of GENRES)profiles[genre]=await loadPublicProfile(publicApis[genre],genre,readLocal(`./config/${genre}.json`));
+    for(const genre of GENRES)profiles[genre]=await loadPublicProfile(publicApis[genre],genre,readLocal(`./config/${genre}.json`),initialHeads?.public[genre]??null);
   }catch(error){
     if(recoverableTransport(error))throw error;
     if(!dryRun)await persistImmutable(api,{base,...failureArtifact({packetCommit:null,sourceRevision:base.sha,engineFingerprint,code:sourceStage}),assertCurrent:async()=>{

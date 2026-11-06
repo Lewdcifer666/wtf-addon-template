@@ -489,6 +489,72 @@ async function sessionRequest(s){
   public_revision:(await s.publicApis.scifi.pinMain()).sha};
 }
 
+function countedCurrentReads(s,{batch=false,onSnapshot=()=>{}}={}){
+ const counts={head:0,snapshot:0};
+ for(const repo of [s.privateRepo,...Object.values(s.publicRepos)]){
+  const pin=repo.api.pinMain.bind(repo.api);
+  repo.api.pinMain=async()=>{counts.head++;return pin();};
+ }
+ if(batch){
+  s.privateRepo.api.batchHeads=true;
+  s.privateRepo.api.readCurrentHeads=async()=>{
+   onSnapshot(++counts.snapshot);
+   return {metadata:{full_name:s.privateRepo.api.repository,private:true,default_branch:'main'},
+    private:s.privateRepo.refs.get('refs/heads/main').object.sha,
+    public:Object.fromEntries(GENRES.map(g=>[g,s.publicRepos[g].refs.get('refs/heads/main').object.sha]))};
+  };
+ }
+ return counts;
+}
+
+test('trusted batched session checkpoints preserve exact context without serial head rereads',async()=>{
+ const responses=[],costs=[];
+ for(const batch of [false,true]){
+  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);
+  const counts=countedCurrentReads(s,{batch});
+  const session=await openResearchSession({...s.args,request});
+  responses.push(await privateResearchSessionResponse(session));costs.push(counts);
+ }
+ assert.deepEqual(responses[1],responses[0]);
+ assert(costs[0].head>30);assert.equal(costs[1].head,0);
+ assert(costs[1].snapshot>4); // Each boundary is fresh, never a head cache.
+});
+
+test('initial batch pins profiles but a later changed head still invalidates consumption',async()=>{
+ for(const target of ['private',...GENRES]){
+  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);
+  const repo=target==='private'?s.privateRepo:s.publicRepos[target];
+  const counts=countedCurrentReads(s,{batch:true,onSnapshot:n=>{
+   if(n===2)repo.branch('main',{'synthetic-movement.json':'{}'});
+  }});
+  await assert.rejects(openResearchSession({...s.args,request}),/stale_input/);
+  assert(counts.snapshot>=2);assert.equal(counts.head,0);
+ }
+});
+
+test('failed trusted head batch never falls back to individual REST head reads',async()=>{
+ const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);
+ const counts=countedCurrentReads(s,{batch:true});
+ s.privateRepo.api.readCurrentHeads=async()=>{throw Error('transport_failure');};
+ await assert.rejects(openResearchSession({...s.args,request}),/transport_failure/);
+ assert.equal(counts.head,0);
+});
+
+test('complete trusted worker retains all provenance with fewer serial head round trips',async t=>{
+ const results=[],costs=[];
+ for(const batch of [false,true]){
+  const s=await activeScenario();await reconcile(s.args);const request=await sessionRequest(s);
+  const counts=countedCurrentReads(s,{batch}),call={schema_version:1,operation:'open',request};
+  const completed=await executeResearchWorker({...s.args,call,taskAccessAllowed:async()=>true});
+  const record=await readWorkerRecord({...s.args,base:await s.privateRepo.api.get(`/git/commits/${s.args.trustedRevision}`),
+   branch:`learning/task-result-${workerRequestHash(call)}`,kind:'result'});
+  assert.equal(completed.commit,record.commit);
+  results.push(record.body.result.response);costs.push(counts.head);
+ }
+ assert.deepEqual(results[1],results[0]);assert(costs[1]<costs[0]/3);
+ t.diagnostic(`Synthetic full-worker serial head reads: legacy=${costs[0]}, batched=${costs[1]}`);
+});
+
 test('private session request recomputes a complete current context without writes or automatic log disclosure',async()=>{
  const s=await activeScenario();await reconcile(s.args);
  const request=await sessionRequest(s),before=stableJson(s.privateRepo.filesAt(s.args.trustedRevision)),writes=s.privateRepo.writes.length;

@@ -36,6 +36,11 @@ immutable attempts and any independent worker/provider outcome remain held.
 Only reservation/dispatch and authenticated final release use the shared serial
 queue; original-result sleeping and ref polling release it so other genres and
 background reconciliation can progress within their own finite budgets.
+Trusted Actions use the existing validated seven-repository head snapshot at
+initial input loading and every session checkpoint. Immutable profiles are
+pinned to the initial snapshot; later release checks fetch a new snapshot and
+reject any movement. No mutable-head cache, REST fallback after a failed batch,
+PC batching, shorter provenance checks or longer timeout is introduced.
 Expired openings and stale interpretation sources remain immutable in the local
 journal but do not repeatedly load old graphs during background reconciliation.
 

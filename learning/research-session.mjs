@@ -38,11 +38,14 @@ const recordFor=session=>{
 };
 
 async function assertHeads(options,issued){
-  const metadata=await options.api.get('/');
+  // Repeated provenance checkpoints use the existing closed Actions batch,
+  // without caching mutable heads or expanding back into serial REST reads.
+  const snapshot=options.api.batchHeads?await options.api.readCurrentHeads(options.publicApis):null;
+  const metadata=snapshot?.metadata??await options.api.get('/');
   if(metadata.full_name!=='Lewdcifer666/wtf-scifi-feedback'||metadata.private!==true||metadata.default_branch!=='main')fail('private_repository_required');
-  if((await options.api.pinMain()).sha!==issued.source_heads.private)fail('stale_input');
+  if((snapshot?.private??(await options.api.pinMain()).sha)!==issued.source_heads.private)fail('stale_input');
   for(const genre of GENRES){
-    if(options.publicApis[genre].repository!==`Lewdcifer666/wtf-${genre}-stremio`||(await options.publicApis[genre].pinMain()).sha!==issued.source_heads.public[genre])fail('stale_input');
+    if(options.publicApis[genre].repository!==`Lewdcifer666/wtf-${genre}-stremio`||(snapshot?.public[genre]??(await options.publicApis[genre].pinMain()).sha)!==issued.source_heads.public[genre])fail('stale_input');
   }
 }
 
