@@ -15,7 +15,7 @@ import {createResearchBrokerAdapter} from './research-broker.mjs';
 import {createInterpretationBrokerAdapter} from './interpretation-broker.mjs';
 import {createInterpretationWorkerDispatch} from './interpretation-worker-dispatch.mjs';
 import {startLocalResearchMcpHost} from './research-mcp-host.mjs';
-import {RESEARCH_RESULT_WAIT_MS} from './request-budgets.mjs';
+import {RESEARCH_POLL_SLICE_MS} from './request-budgets.mjs';
 
 function readFile(file,max){
  if(typeof file!=='string'||!path.isAbsolute(file))throw new LearningError('invalid_private_host_config');
@@ -44,7 +44,7 @@ export async function startResearchBrokerHost({configFile,port=0,env=process.env
  const quotaGate=createGitHubQuotaGate({initialUntil:store.quotaDeadline(),onPause:until=>store.recordQuota(until)});
  const api=createBrokerGitHub({repository:PROOF_REPOSITORY,getToken,quotaGate}),publicApis=Object.fromEntries(GENRES.map(g=>[g,createBrokerGitHub({repository:`Lewdcifer666/wtf-${g}-stremio`,getToken,quotaGate})]));
  const proof=githubObservationProof({assertTriggerAncestor:(trigger,executed)=>requireTrustedAncestor(api,trigger,executed)});
- const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken,quotaGate}),taskAccessAllowed:allowed,resultWaitMs:RESEARCH_RESULT_WAIT_MS}):undefined;
+ const broker=config.task_access_enabled?createResearchBrokerAdapter({api,publicApis,proof,store,dispatchWorker:createResearchWorkerDispatch({getToken,quotaGate}),taskAccessAllowed:allowed,resultWaitMs:RESEARCH_POLL_SLICE_MS}):undefined;
  const interpretationBroker=config.interpretation_access_enabled===true?createInterpretationBrokerAdapter({api,proof,store,dispatchWorker:createInterpretationWorkerDispatch({getToken,quotaGate}),interpretationAccessAllowed:interpretationAllowed}):undefined;
  const host=await startLocalResearchMcpHost({access:config.access,adapter:broker,interpretationAdapter:interpretationBroker,port});
  let reconciling=false,stopping=false,closed;

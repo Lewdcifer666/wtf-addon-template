@@ -12,7 +12,7 @@ import {createAccessAuthenticator} from './access-auth.mjs';
 import {interpretationWorkerCallSchema,interpretationWorkerError} from './interpretation-worker.mjs';
 import {interpretationOutputSchema} from './interpretation-task.mjs';
 import {cancelPrivateTaskWaits,withPrivateTaskDeadline} from './task-deadline.mjs';
-import {PRIVATE_REQUEST_MS,RESEARCH_REQUEST_MS} from './request-budgets.mjs';
+import {PRIVATE_REQUEST_MS,RESEARCH_CALL_SLICE_MS} from './request-budgets.mjs';
 import {LearningError} from './git-artifacts.mjs';
 
 const descriptions={
@@ -72,7 +72,7 @@ export function createResearchMcpServer(adapter=createPrivateResearchTaskAdapter
   try{
    const result=await withPrivateTaskDeadline(()=>interpretation&&operation==='status'?interpretationAdapter.status(structuredClone(args))
     :(interpretation?interpretationAdapter:adapter).dispatch({schema_version:1,operation,request:structuredClone(params.arguments)}),
-    {code:interpretation?'private_interpretation_pending':'private_task_pending',timeoutMs:interpretation?PRIVATE_REQUEST_MS:RESEARCH_REQUEST_MS,signal:ctx.mcpReq.signal});
+    {code:interpretation?'private_interpretation_pending':'private_task_pending',timeoutMs:interpretation?PRIVATE_REQUEST_MS:RESEARCH_CALL_SLICE_MS,signal:ctx.mcpReq.signal});
    const response=reply(result);
    // Text and structuredContent both carry the value; count escaped JSON and
    // the RPC envelope too, not merely the adapter's unduplicated object.

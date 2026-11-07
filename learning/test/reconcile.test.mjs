@@ -4,6 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {cancelPrivateTaskWaits} from '../task-deadline.mjs';
+import {RESEARCH_POLL_SLICE_MS,RESEARCH_CALL_SLICE_MS,RESEARCH_RESULT_WAIT_MS,RESEARCH_REQUEST_MS} from '../request-budgets.mjs';
 import {reconcile,loadPublicProfile,engineFingerprintAt} from '../reconcile.mjs';
 import {GitHub} from '../github.mjs';
 import {digest,gitBlobOid,stableJson,interpretationRequest} from '../interpretation.mjs';
@@ -2040,6 +2041,36 @@ test('a five-minute worker result is awaited with cheap ref polls and one origin
   assert(headReads<12,'missing-result polling must not repeatedly reload every current head');
   assert.equal((await f.options.store.pending()).length,0);
  }finally{f.close();}
+});
+
+test('four bounded MCP pending reads observe one late worker and one provider invocation',async()=>{
+ const f=await brokerScenario();let host,client;try{
+  let pending,time=0,dispatches=0,readyAt=0,completed=false,searches=0;
+  const broker=createResearchBrokerAdapter({...f.options,resultWaitMs:RESEARCH_POLL_SLICE_MS,monotonic:()=>time,
+   dispatchWorker:async call=>{dispatches++;pending=call;readyAt=time+290000;completed=false;},
+   sleep:async ms=>{time+=ms;if(time>=readyAt&&!completed){completed=true;await executeResearchWorker({...f.s.args,call:pending,taskAccessAllowed:async()=>true,
+    searchProvider:{id:'synthetic-pending-provider',async search(){searches++;return {request_id:null,sources:[]};}}});}}});
+  const bearerToken=digest('synthetic bounded pending MCP');host=await startLocalResearchMcpHost({bearerToken,adapter:broker});
+  client=new Client({name:'synthetic-pending-client',version:'1'});
+  await client.connect(new StreamableHTTPClientTransport(new URL(host.url),{requestInit:{headers:{Authorization:'Bearer '+bearerToken}}}));
+  const read=async(name,args)=>{
+   const original=stableJson(args);let response;
+   for(let calls=0;calls<4;calls++){
+    const before=time;response=await client.callTool({name,arguments:args});assert.equal(stableJson(args),original);
+    assert(time-before<=RESEARCH_POLL_SLICE_MS);
+    if(!response.isError){assert.equal(calls,3);return response.structuredContent;}
+    assert.equal(response.structuredContent.error,'private_task_pending');
+   }
+   assert.fail('same original result did not complete within three permitted read-backs');
+  };
+  const context=await read('private_research_open',await sessionRequest(f.s));
+  assert.equal(dispatches,1);assert.equal(searches,0);
+  const searched=await read('private_research_search',taskSearch(context).request);
+  assert.equal(searched.kind,'private_task_search_result');assert.equal(searches,1);assert.equal(dispatches,2);
+  assert.equal((await f.options.store.pending()).length,0);
+  assert(RESEARCH_POLL_SLICE_MS<RESEARCH_CALL_SLICE_MS&&RESEARCH_CALL_SLICE_MS<120000);
+  assert.equal(RESEARCH_RESULT_WAIT_MS,300000);assert.equal(RESEARCH_REQUEST_MS,330000);
+ }finally{await client?.close();await host?.close();f.close();}
 });
 
 test('an interactive request does not spend its budget recovering another pending genre',async()=>{
