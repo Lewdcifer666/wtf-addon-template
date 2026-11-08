@@ -84,7 +84,7 @@ export function recoverEngineFingerprint(tree,stored){
 // recomputes complete original inputs with TODAY'S trusted code; no historical
 // scripts or dependency manifests are executed. Incompatible outputs fail
 // closed and retain a reviewable failure instead of rewriting old receipts.
-async function loadObservationInputs({api,publicApis,base,receipt,currentProfiles,assertCurrent}){
+export async function loadObservationInputs({api,publicApis,base,receipt,currentProfiles,assertCurrent}){
   const tree=await treeAt(api,base),sources=receipt.sources;
   if(tree.tree.some(e=>e.path.startsWith('learning-output/'))||sources?.trusted_revision!==base.sha||sources?.feedback_revision!==base.sha)fail('invalid_research_observation');
   const historicalFingerprint=recoverEngineFingerprint(tree,sources.engine_fingerprint);

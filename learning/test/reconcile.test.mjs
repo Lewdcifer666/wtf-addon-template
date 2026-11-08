@@ -1586,6 +1586,73 @@ test('post-staging worker recovery authenticates complete signed search and inte
  assert.equal((await workerRead(s,call)).body.result.search_adapter_invocations_observed,1);assert.equal(calls,1);
 });
 
+async function historicalWorkerScenario({search=false}={}){
+ let context,open,calls=0;
+ const {s,researchCommit}=await verificationScenario({onReady:async s=>{
+  open=taskCall('open',await sessionRequest(s));await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call:open});
+  context=(await workerRead(s,open)).body.result;
+  if(search)await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call:taskSearch(context),
+   searchProvider:{id:'synthetic-public',async search(){calls++;return {request_id:null,sources:[]};}}});
+ }});
+ return {s,context,open,researchCommit,call:taskCall('verify',{task_token:context.task_token,research_commit:researchCommit}),calls:()=>calls};
+}
+
+test('worker and GET-only broker verify the original published tuple as historical without reopening research',async()=>{
+ const f=await historicalWorkerScenario({search:true}),{s,call,context,open}=f;
+ for(const genre of GENRES)s.publicRepos[genre].branch('main',{'README.md':'Subsequent protected publication\n'});
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'wtf-historical-broker-'));let dispatches=0;
+ try{
+  const broker=createResearchBrokerAdapter({...s.args,api:{...s.args.api,writable:false,post:async()=>assert.fail('PC Git write')},
+   store:createBrokerRequestStore({directory,privateDirectoryVerified:true}),taskAccessAllowed:async()=>true,
+   dispatchWorker:async copied=>{dispatches++;await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call:copied,searchProvider:{search:async()=>assert.fail('provider replay')}});}});
+  await assert.rejects(broker.dispatch(call),/private_task_pending/);
+  const result=await broker.dispatch(call),writes=s.privateRepo.writes.length;
+  assert.equal(result.verification_mode,'historical_observation');assert.equal(result.current_evidence,false);
+  assert.equal(result.search_adapter_invocations_observed,1);assert.equal(result.actual_context_use_verified,false);assert.equal(result.behavioral_effect_observed,false);
+  assert.equal(result.research_commit,f.researchCommit);assert.equal('context' in result,false);assert.equal(f.calls(),1);assert.equal(dispatches,1);
+  assert.deepEqual(await broker.dispatch(call),result);assert.equal(s.privateRepo.writes.length,writes);
+  for(const stale of [open,taskCall('context',{task_token:context.task_token}),taskSearch(context)])await assert.rejects(broker.dispatch(stale));
+  assert.equal(f.calls(),1);assert.equal(dispatches,1);
+ }finally{fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('historical verification tolerates an ancestor publication DURING packet authentication',async()=>{
+ const {s,call,researchCommit,context}=await historicalWorkerScenario(),get=s.publicRepos.scifi.api.get;let moved=false;
+ s.publicRepos.scifi.api.get=async route=>{
+  const result=await get(route);
+  if(route===`/compare/${context.response.source_heads.public.scifi}...${researchCommit}`&&!moved){moved=true;s.publicRepos.scifi.branch('main',{'README.md':'Merge during observation\n'});}
+  return result;
+ };
+ await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call});assert(moved);
+ assert.equal((await workerRead(s,call)).body.result.current_evidence,false);
+});
+
+test('historical worker still rejects changed private source, date, packet, divergent ancestry and journal tampering',async()=>{
+ for(const change of ['private','date','packet','ancestry','context']){
+  const {s,call,context}=await historicalWorkerScenario(),options={...s.args,taskAccessAllowed:async()=>true,call};
+  s.publicRepos.scifi.branch('main',{'README.md':'Protected publication\n'});
+  if(change==='private')s.privateRepo.branch('main',{'data/feedback/new.json':'{}'});
+  if(change==='date')options.clock=()=>new Date('2026-10-12T23:00:00Z');
+  if(change==='packet')s.publicRepos.scifi.branch('research/2026-10-12-scifi',{'research-inbox/2026-10-12.json':'{}'});
+  if(change==='ancestry'){const get=s.publicRepos.scifi.api.get;s.publicRepos.scifi.api.get=async route=>route.startsWith('/compare/')?{status:'diverged',merge_base_commit:{sha:'f'.repeat(40)}}:get(route);}
+  if(change==='context')s.privateRepo.refs.delete(`refs/heads/learning/session-${context.response.session_id}`);
+  const writes=s.privateRepo.writes.length;await assert.rejects(executeResearchWorker(options));assert.equal(s.privateRepo.writes.length,writes);
+ }
+});
+
+test('an unmarked legacy verify result is never relabelled historical after publication',async()=>{
+ const {s,call,context}=await historicalWorkerScenario(),base=await s.args.api.pinMain();
+ const body={schema_version:1,kind:'private_task_result',request_hash:workerRequestHash(call),call,
+  result:{schema_version:1,kind:'private_task_research_verification',session_id:context.response.session_id,research_commit:call.request.research_commit,
+   search_adapter_invocations_observed:0,actual_context_use_verified:false,behavioral_effect_observed:false},
+  session_id:context.response.session_id,source_heads:context.response.source_heads};
+ await persistSealedState({api:s.args.api,base,branch:`learning/task-result-${workerRequestHash(call)}`,name:'task-result.json',body,proof:s.args.proof,assertCurrent:async()=>{}});
+ assert.equal((await executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call})).reused,true);
+ s.publicRepos.anime.branch('main',{'README.md':'Later publication\n'});const writes=s.privateRepo.writes.length;
+ await assert.rejects(executeResearchWorker({...s.args,taskAccessAllowed:async()=>true,call}),/stale_input/);
+ assert.equal(s.privateRepo.writes.length,writes);assert.deepEqual((await workerRead(s,call)).body.result,body.result);
+});
+
 test('a half-finished open retains its original ticket rather than allocating a replacement token',async()=>{
  const s=await activeScenario();await reconcile(s.args);const call=taskCall('open',await sessionRequest(s)),post=s.privateRepo.api.post;
  let interrupted=false;

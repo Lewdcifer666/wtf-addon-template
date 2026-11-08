@@ -4,7 +4,7 @@ import {LearningError} from './git-artifacts.mjs';
 import {stableJson} from './interpretation.mjs';
 import {GENRES} from './receipt.mjs';
 import {PROOF_REPOSITORY} from './observation-proof.mjs';
-import {validateWorkerCall,workerRequestHash,readWorkerRecord,assertWorkerHeads} from './research-worker.mjs';
+import {validateWorkerCall,workerRequestHash,readWorkerRecord,assertWorkerHeads,isHistoricalVerificationResult} from './research-worker.mjs';
 import {brokerCallFamily} from './broker-request-store.mjs';
 import {berlinResearchDate} from './handoff.mjs';
 import {assertPrivateTaskDeadline,privateTaskDelay,withPrivateTaskDeadline} from './task-deadline.mjs';
@@ -31,8 +31,9 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
    ticket=await readWorkerRecord({api,base,proof,kind:'ticket',branch:`learning/task-token-${call.request.task_token}`});
    if(!ticket||ticket.body.task_token!==call.request.task_token)fail('unknown_task_session');request=ticket.body.open_request;
   }
-  const heads={private:base.sha,public:Object.fromEntries(await Promise.all(GENRES.map(async g=>[g,(await publicApis[g].pinMain()).sha])))};
-  const assertCurrent=sourceHeads=>assertWorkerHeads({api,publicApis,heads:sourceHeads,request,operation:call.operation,researchCommit:call.request.research_commit,clock});
+  const heads=call.operation==='verify'?ticket.body.source_heads:
+   {private:base.sha,public:Object.fromEntries(await Promise.all(GENRES.map(async g=>[g,(await publicApis[g].pinMain()).sha])))};
+  const assertCurrent=(sourceHeads,historical=call.operation==='verify')=>assertWorkerHeads({api,publicApis,heads:sourceHeads,request,operation:call.operation,researchCommit:call.request.research_commit,clock,historical});
   await assertCurrent(heads);
   if(call.operation==='open'){
    // Availability is a prerequisite, never authentication. A missing current
@@ -51,7 +52,7 @@ export function createResearchBrokerAdapter({api,publicApis,proof,store,dispatch
   const result=await readWorkerRecord({api,base,proof,kind:'result',branch:`learning/task-result-${requestHash}`});
   if(result){
    if(stableJson(result.body.call)!==stableJson(call)||(ticket&&result.body.session_id!==ticket.body.session_id))fail('invalid_task_record');
-   await assertCurrent(result.body.source_heads);
+   await assertCurrent(result.body.source_heads,isHistoricalVerificationResult(result.body));
    if(await taskAccessAllowed()!==true)fail('private_task_access_held');
    await store.complete(requestHash,result.commit);
    return structuredClone(result.body.result);

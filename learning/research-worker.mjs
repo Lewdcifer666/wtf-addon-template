@@ -14,7 +14,7 @@ import {LearningError,readArtifactJson,readImmutable,persistSealedState,persistA
 import {githubObservationProof,proofErrorSummary,PROOF_REPOSITORY} from './observation-proof.mjs';
 import {createPrivateResearchTaskAdapter,researchTaskCallSchema,privateTaskErrorCode} from './research-task-adapter.mjs';
 import {createPublicSearchProvider} from './public-search.mjs';
-import {recoverResearchSessionForVerification,restoreResearchSessionSearches,verifyResearchSessionCommit} from './research-session.mjs';
+import {verifyOriginalResearchSession} from './research-verification.mjs';
 import {verifyEngineManifest} from './integrity.mjs';
 import {reconcile} from './reconcile.mjs';
 
@@ -29,6 +29,11 @@ export function validateWorkerCall(value){
  return structuredClone(value);
 }
 export const workerRequestHash=value=>digest(stableJson(validateWorkerCall(value)));
+export const isHistoricalVerificationResult=body=>body?.call?.operation==='verify'
+ &&body.result?.kind==='private_task_research_verification'&&body.result.verification_mode==='historical_observation'
+ &&body.result.current_evidence===false&&body.result.session_id===body.session_id
+ &&body.result.research_commit===body.call.request.research_commit
+ &&body.result.actual_context_use_verified===false&&body.result.behavioral_effect_observed===false;
 
 function validateHeads(heads){
  if(!exact(heads,['private','public'])||!sha(heads.private)||!exact(heads.public,GENRES)||!GENRES.every(g=>sha(heads.public[g])))fail('invalid_task_record');
@@ -42,6 +47,7 @@ function validateRecord(body,kind){
   if(!exact(body,['schema_version','kind','request_hash','call','result','session_id','source_heads'])||body.schema_version!==1
    ||body.kind!=='private_task_result'||body.request_hash!==workerRequestHash(body.call)||!hash(body.session_id)
    ||!body.result||typeof body.result!=='object'||Array.isArray(body.result)||body.result.schema_version!==1)fail('invalid_task_record');
+  if(('verification_mode' in body.result||'current_evidence' in body.result)&&!isHistoricalVerificationResult(body))fail('invalid_task_record');
  }
  validateHeads(body.source_heads);
 }
@@ -67,14 +73,20 @@ export async function readWorkerRecord({api,base,branch,kind,proof,assertCurrent
  await assertCurrent();return {commit:raw.commit.sha,branch,name,record,body:record.body};
 }
 
-export async function assertWorkerHeads({api,publicApis,heads,request,operation,researchCommit,clock=()=>new Date()}){
+export async function assertWorkerHeads({api,publicApis,heads,request,operation,researchCommit,clock=()=>new Date(),historical=false}){
  validateHeads(heads);
+ if(typeof historical!=='boolean'||historical&&operation!=='verify')fail('invalid_task_record');
   const snapshot=api.batchHeads?await api.readCurrentHeads(publicApis):null;
   const metadata=snapshot?.metadata??await api.get('/');
   if(metadata.private!==true||metadata.full_name!==PROOF_REPOSITORY||metadata.default_branch!=='main'||api.repository!==PROOF_REPOSITORY||(snapshot?.private??(await api.pinMain()).sha)!==heads.private
   ||request.private_revision!==heads.private||request.public_revision!==heads.public[request.genre]
   ||request.research_date!==berlinResearchDate(clock()))fail('stale_input');
-  for(const genre of GENRES)if(publicApis[genre]?.repository!==`Lewdcifer666/wtf-${genre}-stremio`||(snapshot?.public[genre]??(await publicApis[genre].pinMain()).sha)!==heads.public[genre])fail('stale_input');
+  for(const genre of GENRES){
+   if(publicApis[genre]?.repository!==`Lewdcifer666/wtf-${genre}-stremio`)fail('stale_input');
+   const current=snapshot?.public[genre]??(await publicApis[genre].pinMain()).sha;
+   if(historical)await requireTrustedAncestor(publicApis[genre],heads.public[genre],current);
+   else if(current!==heads.public[genre])fail('stale_input');
+  }
  const branch=`research/${request.research_date}-${request.genre}`,ref=await publicApis[request.genre].optional(`/git/ref/heads/${branch}`);
  if(operation==='verify'){
   if(ref?.ref!==`refs/heads/${branch}`||ref.object?.sha!==researchCommit)fail('stale_input');
@@ -98,11 +110,12 @@ export async function executeResearchWorker({api,publicApis,trustedRevision,proo
   if(!ticket||ticket.body.task_token!==copied.request.task_token)fail('unknown_task_session');
   request=ticket.body.open_request;
  }
- const assertCurrent=heads=>assertWorkerHeads({api,publicApis,heads,request,operation:copied.operation,researchCommit:copied.request.research_commit,clock});
+ const assertCurrent=(heads,historical=copied.operation==='verify')=>assertWorkerHeads({api,publicApis,heads,request,operation:copied.operation,researchCommit:copied.request.research_commit,clock,historical});
  const existing=await readWorkerRecord({api,base,branch,kind:'result',proof});
  if(existing){
   if(stableJson(existing.body.call)!==stableJson(copied)||(ticket&&existing.body.session_id!==ticket.body.session_id))fail('invalid_task_record');
-  await assertCurrent(existing.body.source_heads);return {state:'completed',request_hash:requestHash,commit:existing.commit,reused:true};
+  // Unmarked legacy results retain their original strict current-head contract.
+  await assertCurrent(existing.body.source_heads,isHistoricalVerificationResult(existing.body));return {state:'completed',request_hash:requestHash,commit:existing.commit,reused:true};
  }
  if(copied.operation==='open'){
   const priorTicket=await readWorkerRecord({api,base,branch:`learning/task-ticket-${requestHash}`,kind:'ticket',proof});
@@ -123,13 +136,9 @@ export async function executeResearchWorker({api,publicApis,trustedRevision,proo
  }
  let result,heads,sessionId;
  if(copied.operation==='verify'){
-  const session=await recoverResearchSessionForVerification({api,publicApis,trustedRevision,proof,clock,request,researchCommit:copied.request.research_commit});
-  if(session.session_id!==ticket.body.session_id)fail('invalid_task_record');
-  const saved=await restoreResearchSessionSearches(session);
-  const verified=await verifyResearchSessionCommit({session,researchCommit:copied.request.research_commit,searches:saved.map(s=>s.handle)});
-  result={schema_version:1,kind:'private_task_research_verification',session_id:session.session_id,research_commit:verified.trace.research_commit,
-   search_adapter_invocations_observed:verified.search_adapter_invocations_observed,actual_context_use_verified:false,behavioral_effect_observed:false};
-  heads=ticket.body.source_heads;sessionId=session.session_id;
+  result=await verifyOriginalResearchSession({api,publicApis,base,ticket,researchCommit:copied.request.research_commit,proof,
+   assertCurrent:()=>assertCurrent(ticket.body.source_heads)});
+  heads=ticket.body.source_heads;sessionId=ticket.body.session_id;
  }else{
   const adapter=createPrivateResearchTaskAdapter({api,publicApis,trustedRevision,proof,clock,searchProvider,taskAccessAllowed,genericDailySearch:true});
   const opened=await adapter.dispatch({schema_version:1,operation:'open',request});

@@ -69,7 +69,9 @@ export async function authenticateResearchCommit({api,issued,inputs,artifact,res
   candidates.push({imdb_id:candidate.imdb_id,type:candidate.type,diagnostic_status:'evaluated',baseline_score:baseline.score,baseline_reason:baseline.reason,...adjustments});
  }
  await assertCurrent();
- if((await api.pinMain()).sha!==main)throw new LearningError('stale_input');
+ const latestMain=(await api.pinMain()).sha;
+ if(historical)await requireTrustedAncestor(api,base,latestMain);
+ else if(latestMain!==main)throw new LearningError('stale_input');
  if((await api.get(`/git/ref/heads/${branch}`)).object?.sha!==revision)throw new LearningError('stale_input');
  const trace={schema_version:1,kind:'private_research_commit_diagnostics',genre:current.genre,research_date:researchDate,
   use_id:current.use_id,receipt_commit:current.receipt_commit,state_digest:current.state_digest,

@@ -44,6 +44,16 @@ initial input loading and every session checkpoint. Immutable profiles are
 pinned to the initial snapshot; later release checks fetch a new snapshot and
 reject any movement. No mutable-head cache, REST fallback after a failed batch,
 PC batching, shorter provenance checks or longer timeout is introduced.
+Post-staging task verification is explicitly historical observation, including
+when protected publication advances public main during the call. It fully
+recomputes the ORIGINAL receipt and handoff, checks original issuance, signed
+context/searches/resolved intents and packet policy/graph, and requires every
+original public head to remain a trusted ancestor. Private source and research
+date must still be current. Results say `current_evidence:false`, release no
+context or search capability, and assert no behavioral effect. Unmarked legacy
+results retain strict current-head checks. Opening, context and search still
+require exact fresh heads; historical verification cannot renew their authority
+or replay a stopped request from an older private source.
 Expired openings and stale interpretation sources remain immutable in the local
 journal but do not repeatedly load old graphs during background reconciliation.
 
