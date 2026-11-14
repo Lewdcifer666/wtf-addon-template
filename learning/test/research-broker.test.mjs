@@ -12,10 +12,19 @@ import {workerRequestHash} from '../research-worker.mjs';
 import {startResearchBrokerHost} from '../research-broker-host.mjs';
 import {createGitHubQuotaGate} from '../github-quota.mjs';
 import {LearningError} from '../git-artifacts.mjs';
+import {stableJson,gitBlobOid} from '../interpretation.mjs';
 import {privateTaskErrorCode} from '../research-task-adapter.mjs';
 const token='1'.repeat(43),uuid='12345678-1234-4234-8234-123456789abc';
 const call={schema_version:1,operation:'search',request:{task_token:uuid,request_id:'same-search',query:'public fictional title',preference_indexes:[]}};
 const open={schema_version:1,operation:'open',request:{schema_version:1,genre:'scifi',research_date:'2026-10-12',private_revision:'a'.repeat(40),public_revision:'b'.repeat(40)}};
+function backgroundTicketFixture({obsolete=false,date='2026-10-11',validProof=true,missing=false,transport=false}={}){
+ const base={sha:'a'.repeat(40)},parent=obsolete?'d'.repeat(40):base.sha,commit='c'.repeat(40),tree='e'.repeat(40),reads=[];let proofs=0,dispatches=0,bookkeeping=0;
+ const request={...open.request,research_date:date,private_revision:parent},body={schema_version:1,kind:'private_task_ticket',request_hash:workerRequestHash({schema_version:1,operation:'open',request}),open_request:request,task_token:uuid,session_id:'f'.repeat(64),source_heads:{private:parent,public:Object.fromEntries(['action','anime','fantasy','mystery','scifi','thriller'].map(g=>[g,'b'.repeat(40)]))}},text=stableJson({body,proof:'synthetic-offline-proof'}),blob=gitBlobOid(text),branch='learning/task-token-'+uuid;
+ const api={repository:'Lewdcifer666/wtf-scifi-feedback',writable:false,async get(route){reads.push(route);if(transport)throw new LearningError('transport_failure');if(route==='/')return {full_name:this.repository,private:true,default_branch:'main'};if(route==='/git/commits/'+commit)return {sha:commit,tree:{sha:tree},parents:[{sha:parent}]};if(route==='/git/trees/'+tree+'?recursive=1')return {sha:tree,truncated:false,tree:[{path:'learning-output/task-ticket.json',type:'blob',mode:'100644',sha:blob,size:Buffer.byteLength(text)}]};if(route==='/git/blobs/'+blob)return {encoding:'base64',size:Buffer.byteLength(text),content:Buffer.from(text).toString('base64')};if(route==='/compare/'+parent+'...'+commit)return {status:'ahead',merge_base_commit:{sha:parent},files:[{filename:'learning-output/task-ticket.json',status:'added'}]};throw Error('unexpected synthetic route');},async pinMain(){reads.push('pinMain');return base;},async optional(route){reads.push(route);assert.equal(route,'/git/ref/heads/'+branch);return missing?null:{ref:'refs/heads/'+branch,object:{sha:commit}};}};
+ const pending=[{request_hash:workerRequestHash(call),call:structuredClone(call)}],store={pending:async()=>structuredClone(pending),reserve:async input=>{bookkeeping++;return {request_hash:workerRequestHash(input),call:input};},reserveDispatch:async()=>{bookkeeping++;return true;},complete:async()=>{bookkeeping++;},completed:async()=>null};
+ let now=new Date('2026-10-12T12:00:00Z');const broker=createResearchBrokerAdapter({api,publicApis:Object.fromEntries(Object.keys(body.source_heads.public).map(g=>[g,{repository:'Lewdcifer666/wtf-'+g+'-stremio',pinMain:async()=>{reads.push('public:'+g);return {sha:'b'.repeat(40)};}}])),proof:{verify:async()=>{proofs++;if(!validProof)throw new LearningError('invalid_observation_proof');}},store,dispatchWorker:async()=>{dispatches++;},taskAccessAllowed:async()=>true,clock:()=>now});
+ return {broker,reads,pending,store,setDate:value=>{now=new Date(value);},setSource:value=>{base.sha=value;},counts:()=>({proofs,dispatches,bookkeeping})};
+}
 function directory(){return fs.mkdtempSync(path.join(os.tmpdir(),'wtf-broker-synthetic-'));}
 const remove=dir=>{assert(path.isAbsolute(dir)&&path.basename(dir).startsWith('wtf-broker-synthetic-'));fs.rmSync(dir,{recursive:true,force:true});};
 
@@ -116,6 +125,41 @@ test('expired pending opens are retained without background reads or dispatch an
  const broker=createResearchBrokerAdapter({api,store,taskAccessAllowed:async()=>true,dispatchWorker:async()=>{dispatches++;},clock:()=>new Date('2026-10-12T12:00:00Z')});
  assert.deepEqual(await broker.reconcilePending(),{completed:0,pending:0,unresolved:0});
  await assert.rejects(broker.dispatch(stale),{code:'stale_input'});assert.equal(reads,0);assert.equal(dispatches,0);assert.equal((await store.pending()).length,1);
+});
+
+test('obsolete and expired token-bound work stops background reads after one closed preflight',async()=>{
+ for(const options of [{obsolete:true},{date:'2026-10-11'}]){
+  const f=backgroundTicketFixture(options),original=await f.store.pending();
+  await f.broker.reconcilePending();const count=f.reads.length;assert(count>0);
+  await f.broker.reconcilePending();await f.broker.reconcilePending();
+  assert.equal(f.reads.length,count,'held historical work must not repeatedly occupy the GitHub queue');
+  assert.deepEqual(await f.store.pending(),original);assert.equal(f.counts().dispatches,0);assert.equal(f.counts().bookkeeping,0);
+ }
+});
+
+test('current ticket hints never authenticate results and date rollover only suppresses work',async()=>{
+ const f=backgroundTicketFixture({date:'2026-10-12',validProof:false});
+ await f.broker.reconcilePending();assert.equal(f.counts().proofs,1);
+ await f.broker.reconcilePending();assert.equal(f.counts().proofs,2,'every current candidate must still verify its proof');
+ const count=f.reads.length;f.setDate('2026-10-13T12:00:00Z');await f.broker.reconcilePending();
+ assert.equal(f.reads.length,count);assert.equal(f.counts().bookkeeping,0);assert.equal(f.counts().dispatches,0);assert.equal((await f.store.pending()).length,1);
+});
+
+test('missing refs and transport errors cannot poison the background rejection hints',async()=>{
+ for(const options of [{missing:true},{transport:true}]){
+  const f=backgroundTicketFixture(options);await f.broker.reconcilePending();const first=f.reads.length;
+  await f.broker.reconcilePending();assert(f.reads.length>first,'uncertain metadata must remain pending rather than be cached as obsolete');
+  assert.equal(f.counts().bookkeeping,0);assert.equal(f.counts().dispatches,0);assert.equal((await f.store.pending()).length,1);
+ }
+});
+
+test('current hints do not cache main or revive work after private source movement',async()=>{
+ const f=backgroundTicketFixture({date:'2026-10-12',validProof:false});
+ await f.broker.reconcilePending();assert.equal(f.counts().proofs,1);
+ const before=f.reads.length;f.setSource('9'.repeat(40));await f.broker.reconcilePending();
+ assert(f.reads.length>before,'current candidates must still read fresh main');
+ const after=f.reads.length;await f.broker.reconcilePending();assert.equal(f.reads.length,after);
+ assert.equal(f.counts().bookkeeping,0);assert.equal(f.counts().dispatches,0);assert.equal((await f.store.pending()).length,1);
 });
 
 test('new PC entry point cannot accidentally enable active access through config or CLI arguments',async()=>{

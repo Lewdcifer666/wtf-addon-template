@@ -213,3 +213,14 @@ include UTC timestamps, process IDs and closed stage names, never command errors
 credentials or private evidence. These records help diagnose external termination;
 Docker retry handling does not establish the cause of a prior interrupted process.
 
+## Background rejection hints
+
+The PC keeps at most 1,024 process-local ticket hints to suppress obsolete or
+expired token-bound background work. An owned ticket's old parent or past dated
+request can only exclude work; it cannot authenticate a session, release a result,
+mark a journal entry complete, or grant dispatch permission. Current candidates
+still pass the existing fresh metadata, complete graph, signature and currentness
+checks. Missing refs and failed reads do not become rejection hints. All original
+requests, attempts, results and quota records remain unchanged, and the hint cache
+is discarded with the existing bounded process lifecycle. This does not retry any
+historical operation or change the eight-identity admission limit.
